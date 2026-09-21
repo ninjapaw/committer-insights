@@ -1,0 +1,100 @@
+name: main
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  security-events: write
+
+concurrency:
+  group: main-${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test:unit
+      - run: npm run test:integration
+      - run: npm run build
+      - run: npm run infra:validate
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: spdx-json
+          output-file: sbom.spdx.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.spdx.json
+          retention-days: 90
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            app/dist
+            api/dist
+          retention-days: 30
+
+  deploy-dev:
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: development
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Deploy infrastructure (dev)
+        run: az deployment group create --resource-group ${{ vars.RESOURCE_GROUP }} --template-file infra/main.bicep --parameters infra/main.dev.bicepparam
+      - name: Smoke test
+        run: curl --fail "https://${{ vars.API_HOSTNAME }}/api/health"
+
+  deploy-test:
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+    environment: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Deploy infrastructure (test)
+        run: az deployment group create --resource-group ${{ vars.RESOURCE_GROUP }} --template-file infra/main.bicep --parameters infra/main.test.bicepparam
+      - name: Smoke test
+        run: curl --fail "https://${{ vars.API_HOSTNAME }}/api/health"
+
+  deploy-prod:
+    needs: deploy-test
+    runs-on: ubuntu-latest
+    # Production requires manual approval via the protected GitHub environment.
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Deploy infrastructure (prod)
+        run: az deployment group create --resource-group ${{ vars.RESOURCE_GROUP }} --template-file infra/main.bicep --parameters infra/main.prod.bicepparam
+      - name: Smoke test
+        run: curl --fail "https://${{ vars.API_HOSTNAME }}/api/health"

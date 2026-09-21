@@ -1,0 +1,28 @@
+{
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": ["/api/*", "*.{css,js,png,jpg,svg,ico,map}"]
+  },
+  "routes": [
+    { "route": "/api/*", "allowedRoles": ["anonymous"] },
+    { "route": "/", "allowedRoles": ["anonymous"] },
+    { "route": "/security-privacy", "allowedRoles": ["anonymous"] },
+    { "route": "/sign-in", "allowedRoles": ["anonymous"] },
+    { "route": "/connect", "allowedRoles": ["anonymous"] },
+    { "route": "/access-denied", "allowedRoles": ["anonymous"] },
+    { "route": "/consent-required", "allowedRoles": ["anonymous"] },
+    { "route": "/error", "allowedRoles": ["anonymous"] },
+    { "route": "/*", "allowedRoles": ["anonymous"] }
+  ],
+  "globalHeaders": {
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "geolocation=(), camera=(), microphone=()",
+    "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://login.microsoftonline.com; frame-ancestors 'none'"
+  },
+  "responseOverrides": {
+    "401": { "redirect": "/sign-in", "statusCode": 302 },
+    "403": { "redirect": "/access-denied", "statusCode": 302 },
+    "404": { "rewrite": "/index.html" }
+  }
+}

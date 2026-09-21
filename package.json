@@ -1,0 +1,49 @@
+{
+  "name": "@ninjapaw/committer-insights",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Active Committer Portal — Azure DevOps Advanced Security committer estimates, GitHub identity correlation, and customer-controlled exports.",
+  "license": "MIT",
+  "author": "Microsoft Corporation",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ninjapaw/committer-insights.git"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "workspaces": [
+    "app",
+    "api",
+    "packages/contracts",
+    "packages/eslint-config",
+    "packages/tsconfig"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace app & npm run start --workspace api",
+    "build": "npm run build --workspace packages/contracts && npm run build --workspace app && npm run build --workspace api",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "npm run typecheck --workspace packages/contracts && npm run typecheck --workspace app && npm run typecheck --workspace api",
+    "test": "npm run test:unit && npm run test:integration",
+    "test:unit": "npm run test:unit --workspace app && npm run test:unit --workspace api",
+    "test:integration": "npm run test:integration --workspace api",
+    "test:e2e": "npm run test:e2e --workspace app",
+    "test:coverage": "npm run test:coverage --workspace app && npm run test:coverage --workspace api",
+    "infra:validate": "bash scripts/validate-bicep.sh",
+    "ci": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build && npm run infra:validate"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.15.0",
+    "@typescript-eslint/eslint-plugin": "^8.15.0",
+    "@typescript-eslint/parser": "^8.15.0",
+    "eslint": "^9.15.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.15.0"
+  }
+}

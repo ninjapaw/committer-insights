@@ -1,0 +1,33 @@
+{
+  "name": "@ninjapaw/committer-insights-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/src/index.js",
+  "scripts": {
+    "start": "func start",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test:unit": "vitest run --exclude '**/*.integration.test.ts'",
+    "test:integration": "vitest run --testNamePattern=integration src/**/*.integration.test.ts",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@azure/functions": "^4.5.1",
+    "@azure/identity": "^4.4.1",
+    "@azure/keyvault-secrets": "^4.9.0",
+    "@azure/msal-node": "^2.16.2",
+    "@ninjapaw/contracts": "^0.1.0",
+    "applicationinsights": "^2.9.6",
+    "exceljs": "^4.4.0",
+    "jose": "^5.9.6",
+    "pino": "^9.5.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.11",
+    "msw": "^2.6.4",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.5"
+  }
+}
