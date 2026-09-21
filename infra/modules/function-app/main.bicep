@@ -18,7 +18,7 @@ param keyVaultName string
 param entraClientId string
 
 @description('Microsoft Entra tenant authority, e.g. https://login.microsoftonline.com/organizations.')
-param entraTenantAuthority string = 'https://login.microsoftonline.com/organizations'
+param entraTenantAuthority string
 
 @description('Expected audience for incoming bearer tokens (api://<client-id>).')
 param entraExpectedAudience string

@@ -1,8 +1,16 @@
-import { app, type HttpRequest, type HttpResponseInit, type InvocationContext } from '@azure/functions';
+import {
+  app,
+  type HttpRequest,
+  type HttpResponseInit,
+  type InvocationContext,
+} from '@azure/functions';
 import { reportRequestSchema } from '@ninjapaw/contracts';
 import { AuthenticationRequiredError, validateBearerToken } from '../auth/bearer-token.js';
 import { acquireAzureDevOpsTokenOnBehalfOf, ConsentRequiredError } from '../auth/on-behalf-of.js';
-import { AzureDevOpsAdapterError, fetchAzureDevOpsEstimate } from '../adapters/azure-devops/estimate-client.js';
+import {
+  AzureDevOpsAdapterError,
+  fetchAzureDevOpsEstimate,
+} from '../adapters/azure-devops/estimate-client.js';
 import { matchIdentities } from '../reports/identity-matching.js';
 import { reportStore, type StoredReport } from '../reports/report-store.js';
 import { newCorrelationId, newOpaqueId } from '../shared/ids.js';
@@ -69,7 +77,10 @@ async function createAzureDevOpsReport(
     };
     reportStore.put(report);
 
-    logger.info({ correlationId, organization, reportId, retention: body.data.retention }, 'Report generated');
+    logger.info(
+      { correlationId, organization, reportId, retention: body.data.retention },
+      'Report generated',
+    );
 
     return {
       status: 201,
@@ -81,7 +92,11 @@ async function createAzureDevOpsReport(
   }
 }
 
-function mapReportError(error: unknown, correlationId: string, context: InvocationContext): HttpResponseInit {
+function mapReportError(
+  error: unknown,
+  correlationId: string,
+  context: InvocationContext,
+): HttpResponseInit {
   if (error instanceof AuthenticationRequiredError) {
     return {
       status: 401,
@@ -102,9 +117,17 @@ function mapReportError(error: unknown, correlationId: string, context: Invocati
   }
   if (error instanceof AzureDevOpsAdapterError) {
     const status =
-      { invalid_request: 400, authentication_required: 401, insufficient_permission: 403, not_found: 404, consent_or_account_mismatch: 409, rate_limited: 429, internal_error: 500, upstream_error: 502, upstream_unavailable: 503 }[
-        error.providerError.code
-      ] ?? 500;
+      {
+        invalid_request: 400,
+        authentication_required: 401,
+        insufficient_permission: 403,
+        not_found: 404,
+        consent_or_account_mismatch: 409,
+        rate_limited: 429,
+        internal_error: 500,
+        upstream_error: 502,
+        upstream_unavailable: 503,
+      }[error.providerError.code] ?? 500;
     return {
       status,
       headers: {
@@ -132,12 +155,17 @@ app.http('reportsAzureDevOps', {
   handler: createAzureDevOpsReport,
 });
 
-async function getReport(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
+async function getReport(
+  request: HttpRequest,
+  context: InvocationContext,
+): Promise<HttpResponseInit> {
   const correlationId = newCorrelationId();
   try {
     const identity = await validateBearerToken(request.headers.get('authorization') ?? undefined);
     const reportId = request.params.reportId;
-    const report = reportId ? reportStore.get(reportId, identity.subject, identity.tenantId) : undefined;
+    const report = reportId
+      ? reportStore.get(reportId, identity.subject, identity.tenantId)
+      : undefined;
     if (!report) {
       return {
         status: 404,
@@ -162,12 +190,17 @@ app.http('getReport', {
   handler: getReport,
 });
 
-async function deleteReport(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
+async function deleteReport(
+  request: HttpRequest,
+  context: InvocationContext,
+): Promise<HttpResponseInit> {
   const correlationId = newCorrelationId();
   try {
     const identity = await validateBearerToken(request.headers.get('authorization') ?? undefined);
     const reportId = request.params.reportId;
-    const deleted = reportId ? reportStore.delete(reportId, identity.subject, identity.tenantId) : false;
+    const deleted = reportId
+      ? reportStore.delete(reportId, identity.subject, identity.tenantId)
+      : false;
     if (!deleted) {
       return {
         status: 404,

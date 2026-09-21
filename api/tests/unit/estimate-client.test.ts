@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { assertValidOrganization, buildMeterUsageEstimateUrl, AzureDevOpsAdapterError } from '../../src/adapters/azure-devops/estimate-client.js';
+import {
+  assertValidOrganization,
+  buildMeterUsageEstimateUrl,
+  AzureDevOpsAdapterError,
+} from '../../src/adapters/azure-devops/estimate-client.js';
 
 describe('assertValidOrganization', () => {
   it('accepts a typical organization name', () => {

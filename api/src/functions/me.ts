@@ -1,4 +1,9 @@
-import { app, type HttpRequest, type HttpResponseInit, type InvocationContext } from '@azure/functions';
+import {
+  app,
+  type HttpRequest,
+  type HttpResponseInit,
+  type InvocationContext,
+} from '@azure/functions';
 import { AuthenticationRequiredError, validateBearerToken } from '../auth/bearer-token.js';
 import { newCorrelationId } from '../shared/ids.js';
 import { logger } from '../telemetry/logger.js';
@@ -23,7 +28,10 @@ async function me(request: HttpRequest, context: InvocationContext): Promise<Htt
       return {
         status: 401,
         headers: { 'Cache-Control': 'no-store' },
-        jsonBody: { message: 'Your session has expired. Sign in again to continue.', correlationId },
+        jsonBody: {
+          message: 'Your session has expired. Sign in again to continue.',
+          correlationId,
+        },
       };
     }
     context.error('Unexpected error in /me', { correlationId });

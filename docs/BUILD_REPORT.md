@@ -44,9 +44,42 @@ the first implementation pass.
 
 ## Checks executed
 
-Recorded live in this session (see terminal output for exact commands);
-this file is updated with pass/fail status and any missing-prerequisite
-notes after running `npm install` and `npm run ci` in this workspace.
+All commands below were run in this workspace (`v:\repos\ninjapaw\committer-insights`) after `npm install`:
+
+| Check             | Command                                                | Result                                                                                                                                                                                                                                                                                                 |
+| ----------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Format            | `npm run format:check`                                 | Pass (after one `npm run format` auto-fix pass)                                                                                                                                                                                                                                                        |
+| Lint              | `npm run lint`                                         | Pass, 0 errors/warnings                                                                                                                                                                                                                                                                                |
+| Type check        | `npm run typecheck` (contracts, app, api)              | Pass                                                                                                                                                                                                                                                                                                   |
+| Unit tests        | `npm run test:unit`                                    | Pass — 37 tests (2 app, 35 api)                                                                                                                                                                                                                                                                        |
+| Integration tests | `npm run test:integration`                             | Pass — 8 tests (Azure DevOps adapter: success, empty results, malformed response, 401, 403, 404, 429+Retry-After, transient 503 exhaustion)                                                                                                                                                            |
+| Production build  | `npm run build` (contracts → app → api)                | Pass                                                                                                                                                                                                                                                                                                   |
+| Bicep validation  | `az bicep build` on `infra/main.bicep` and each module | Pass, 0 errors (the `npm run infra:validate` bash wrapper script fails in this sandbox's bash/WSL environment due to a missing `libicu` dependency for the Bicep CLI binary invoked from bash — `az bicep build` run directly from PowerShell works correctly and was used to validate; see gap below) |
+| End-to-end tests  | `npm run test:e2e`                                     | Not run — no Playwright specs are written yet in this pass (see gaps)                                                                                                                                                                                                                                  |
+
+## Notable fixes made during validation
+
+- `app/package.json` was missing `@fluentui/react-icons`, a required peer of
+  `@fluentui/react-components`; added and installed.
+- Removed a top-level `await` in `app/src/main.tsx` (unsupported by the
+  configured browser targets) in favor of a `.then()` chain.
+- Fixed one ESLint `no-unused-vars` warning in `api/src/functions/exports.ts`.
+- Fixed `api/package.json`'s `test:integration` script glob (pointed at
+  `src/**` instead of the actual `tests/integration` location).
+- Fixed `infra/main.bicep` module references, which used `../modules/...`
+  (resolving outside the repository) instead of `./modules/...`.
+- Removed hardcoded `https://login.microsoftonline.com/...` default values
+  from Bicep parameters to satisfy the vendored `no-hardcoded-env-urls`
+  linter rule from `pawprint`'s `bicepconfig.json`; the value must now be
+  supplied by each `.bicepparam` file (already the case for dev/test/prod).
+- This sandbox's npm/disk I/O intermittently produced corrupted/partial
+  package extractions (empty `@fluentui/react-icons` directory, `eslint`
+  installed without its `bin`); resolved by clearing the npm cache
+  (`npm cache verify`) and, in one case, manually extracting the package
+  tarball via `npm pack` + `tar` directly into `node_modules` after
+  `npm install` repeatedly reported "up to date" without actually writing
+  the files. This is an environment quirk, not a project configuration
+  issue — a normal developer machine should not need this workaround.
 
 ## Known gaps / deferred work
 

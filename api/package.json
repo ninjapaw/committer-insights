@@ -9,7 +9,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:unit": "vitest run --exclude '**/*.integration.test.ts'",
-    "test:integration": "vitest run --testNamePattern=integration src/**/*.integration.test.ts",
+    "test:integration": "vitest run tests/integration",
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {

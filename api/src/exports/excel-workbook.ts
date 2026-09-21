@@ -24,7 +24,11 @@ function addTable(
   columns: { name: string; key: string }[],
   rows: Record<string, unknown>[],
 ): void {
-  worksheet.columns = columns.map((c) => ({ header: c.name, key: c.key, width: Math.min(Math.max(c.name.length + 4, 14), 40) }));
+  worksheet.columns = columns.map((c) => ({
+    header: c.name,
+    key: c.key,
+    width: Math.min(Math.max(c.name.length + 4, 14), 40),
+  }));
   worksheet.views = [{ state: 'frozen', ySplit: 1 }];
   for (const row of rows) {
     const sanitized: Record<string, unknown> = {};
@@ -132,9 +136,7 @@ export async function generateReportWorkbook(input: ReportExportInput): Promise<
       { name: 'Match method', key: 'matchMethod' },
       { name: 'Match confidence', key: 'matchConfidence' },
     ],
-    input.combinedCommitters
-      .filter((c) => c.reviewRequired)
-      .map((c) => ({ ...c })),
+    input.combinedCommitters.filter((c) => c.reviewRequired).map((c) => ({ ...c })),
   );
 
   const params = workbook.addWorksheet('Report Parameters');
@@ -148,7 +150,9 @@ export async function generateReportWorkbook(input: ReportExportInput): Promise<
 
   const warnings = workbook.addWorksheet('Warnings and Methodology');
   warnings.addRow(['This report uses an Azure DevOps preview API. Response fields can change.']);
-  warnings.addRow(['Estimated values represent projected usage if Advanced Security were enabled and are distinct from currently licensed users.']);
+  warnings.addRow([
+    'Estimated values represent projected usage if Advanced Security were enabled and are distinct from currently licensed users.',
+  ]);
   for (const warning of input.warnings) {
     warnings.addRow([warning.message]);
   }
@@ -156,7 +160,11 @@ export async function generateReportWorkbook(input: ReportExportInput): Promise<
   return workbook.xlsx.writeBuffer();
 }
 
-export function safeExportFilename(organization: string, generatedAt: string, extension: 'xlsx' | 'csv'): string {
+export function safeExportFilename(
+  organization: string,
+  generatedAt: string,
+  extension: 'xlsx' | 'csv',
+): string {
   const safeOrg = organization.replace(/[^A-Za-z0-9-]/g, '_');
   const timestamp = generatedAt.replace(/[:.]/g, '-');
   return `active-committers-${safeOrg}-${timestamp}.${extension}`;

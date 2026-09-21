@@ -16,7 +16,11 @@ async function createReport(payload: {
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       provider: 'azure-devops',
-      azureDevOps: { organization: payload.organization, plans: payload.plans, resultTypes: ['estimated'] },
+      azureDevOps: {
+        organization: payload.organization,
+        plans: payload.plans,
+        resultTypes: ['estimated'],
+      },
       retention: payload.retention,
     }),
   });
@@ -53,7 +57,12 @@ export function ReportConfigurationPage(): JSX.Element {
         }}
       >
         <label htmlFor="report-org">Organization</label>
-        <input id="report-org" value={organization} onChange={(e) => setOrganization(e.currentTarget.value)} required />
+        <input
+          id="report-org"
+          value={organization}
+          onChange={(e) => setOrganization(e.currentTarget.value)}
+          required
+        />
 
         <fieldset>
           <legend>Plans</legend>
@@ -71,7 +80,11 @@ export function ReportConfigurationPage(): JSX.Element {
         </fieldset>
 
         <label htmlFor="retention-select">Retention</label>
-        <select id="retention-select" value={retention} onChange={(e) => setRetention(e.currentTarget.value)}>
+        <select
+          id="retention-select"
+          value={retention}
+          onChange={(e) => setRetention(e.currentTarget.value)}
+        >
           <option value="none">None</option>
           <option value="session">Session</option>
           <option value="thirty-days">Thirty days</option>

@@ -62,11 +62,7 @@ describe('matchIdentities', () => {
 
   it('honors an administrator-approved alias', () => {
     const aliasMap = { gitHubLoginToUpn: new Map([['jdoe', 'jane.doe@contoso.com']]) };
-    const [combined] = matchIdentities(
-      [ado()],
-      [gh({ lastPushedEmail: undefined })],
-      aliasMap,
-    );
+    const [combined] = matchIdentities([ado()], [gh({ lastPushedEmail: undefined })], aliasMap);
     expect(combined?.matchMethod).toBe('approved-alias');
     expect(combined?.matchStatus).toBe('matched');
   });

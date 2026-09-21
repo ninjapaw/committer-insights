@@ -1,4 +1,9 @@
-import { app, type HttpRequest, type HttpResponseInit, type InvocationContext } from '@azure/functions';
+import {
+  app,
+  type HttpRequest,
+  type HttpResponseInit,
+  type InvocationContext,
+} from '@azure/functions';
 import { azureDevOpsOrganizationSchema } from '@ninjapaw/contracts';
 import { AuthenticationRequiredError, validateBearerToken } from '../auth/bearer-token.js';
 import { acquireAzureDevOpsTokenOnBehalfOf, ConsentRequiredError } from '../auth/on-behalf-of.js';
@@ -17,7 +22,10 @@ function connectionKey(subject: string, tenantId: string): string {
   return `${tenantId}:${subject}`;
 }
 
-async function listConnections(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
+async function listConnections(
+  request: HttpRequest,
+  context: InvocationContext,
+): Promise<HttpResponseInit> {
   const correlationId = newCorrelationId();
   try {
     const identity = await validateBearerToken(request.headers.get('authorization') ?? undefined);
@@ -29,10 +37,21 @@ async function listConnections(request: HttpRequest, context: InvocationContext)
     };
   } catch (error) {
     if (error instanceof AuthenticationRequiredError) {
-      return { status: 401, headers: { 'Cache-Control': 'no-store' }, jsonBody: { message: 'Your session has expired. Sign in again to continue.', correlationId } };
+      return {
+        status: 401,
+        headers: { 'Cache-Control': 'no-store' },
+        jsonBody: {
+          message: 'Your session has expired. Sign in again to continue.',
+          correlationId,
+        },
+      };
     }
     context.error('Failed to list connections', { correlationId });
-    return { status: 500, headers: { 'Cache-Control': 'no-store' }, jsonBody: { message: 'An unexpected error occurred.', correlationId } };
+    return {
+      status: 500,
+      headers: { 'Cache-Control': 'no-store' },
+      jsonBody: { message: 'An unexpected error occurred.', correlationId },
+    };
   }
 }
 
@@ -53,7 +72,11 @@ async function validateAzureDevOpsConnection(
     const body = (await request.json()) as { organization?: unknown };
     const parsed = azureDevOpsOrganizationSchema.safeParse(body.organization);
     if (!parsed.success) {
-      return { status: 400, headers: { 'Cache-Control': 'no-store' }, jsonBody: { message: 'Organization not found', correlationId } };
+      return {
+        status: 400,
+        headers: { 'Cache-Control': 'no-store' },
+        jsonBody: { message: 'Organization not found', correlationId },
+      };
     }
     const organization = assertValidOrganization(parsed.data);
 
@@ -66,23 +89,39 @@ async function validateAzureDevOpsConnection(
       connectedAt: new Date().toISOString(),
     });
     logger.info({ correlationId, organization }, 'Azure DevOps connection validated');
-    return { status: 200, headers: { 'Cache-Control': 'no-store' }, jsonBody: { organization, status: 'connected' } };
+    return {
+      status: 200,
+      headers: { 'Cache-Control': 'no-store' },
+      jsonBody: { organization, status: 'connected' },
+    };
   } catch (error) {
     if (error instanceof AuthenticationRequiredError) {
-      return { status: 401, headers: { 'Cache-Control': 'no-store' }, jsonBody: { message: 'Your session has expired. Sign in again to continue.', correlationId } };
+      return {
+        status: 401,
+        headers: { 'Cache-Control': 'no-store' },
+        jsonBody: {
+          message: 'Your session has expired. Sign in again to continue.',
+          correlationId,
+        },
+      };
     }
     if (error instanceof ConsentRequiredError) {
       return {
         status: 409,
         headers: { 'Cache-Control': 'no-store' },
         jsonBody: {
-          message: 'Your organization requires additional consent before this portal can read Azure DevOps reporting data. Contact your Microsoft Entra administrator.',
+          message:
+            'Your organization requires additional consent before this portal can read Azure DevOps reporting data. Contact your Microsoft Entra administrator.',
           correlationId,
         },
       };
     }
     context.error('Connection validation failed', { correlationId });
-    return { status: 500, headers: { 'Cache-Control': 'no-store' }, jsonBody: { message: 'An unexpected error occurred.', correlationId } };
+    return {
+      status: 500,
+      headers: { 'Cache-Control': 'no-store' },
+      jsonBody: { message: 'An unexpected error occurred.', correlationId },
+    };
   }
 }
 
@@ -93,7 +132,10 @@ app.http('validateAzureDevOpsConnection', {
   handler: validateAzureDevOpsConnection,
 });
 
-async function disconnectAzureDevOps(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
+async function disconnectAzureDevOps(
+  request: HttpRequest,
+  context: InvocationContext,
+): Promise<HttpResponseInit> {
   const correlationId = newCorrelationId();
   try {
     const identity = await validateBearerToken(request.headers.get('authorization') ?? undefined);
@@ -102,10 +144,21 @@ async function disconnectAzureDevOps(request: HttpRequest, context: InvocationCo
     return { status: 204, headers: { 'Cache-Control': 'no-store' } };
   } catch (error) {
     if (error instanceof AuthenticationRequiredError) {
-      return { status: 401, headers: { 'Cache-Control': 'no-store' }, jsonBody: { message: 'Your session has expired. Sign in again to continue.', correlationId } };
+      return {
+        status: 401,
+        headers: { 'Cache-Control': 'no-store' },
+        jsonBody: {
+          message: 'Your session has expired. Sign in again to continue.',
+          correlationId,
+        },
+      };
     }
     context.error('Disconnect failed', { correlationId });
-    return { status: 500, headers: { 'Cache-Control': 'no-store' }, jsonBody: { message: 'An unexpected error occurred.', correlationId } };
+    return {
+      status: 500,
+      headers: { 'Cache-Control': 'no-store' },
+      jsonBody: { message: 'An unexpected error occurred.', correlationId },
+    };
   }
 }
 

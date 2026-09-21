@@ -82,10 +82,13 @@ export function matchIdentities(
       primaryEmail: email && !isNoreply ? email : existing?.primaryEmail,
       providers: Array.from(providers),
       gitHubLogin: gh.userLogin,
-      azureDevOpsUserPrincipalName: matchedAdo?.userPrincipalName ?? existing?.azureDevOpsUserPrincipalName,
+      azureDevOpsUserPrincipalName:
+        matchedAdo?.userPrincipalName ?? existing?.azureDevOpsUserPrincipalName,
       organizations: Array.from(new Set([...(existing?.organizations ?? []), gh.organization])),
       repositories: Array.from(new Set([...(existing?.repositories ?? []), gh.repository])),
-      plans: matchedAdo ? Array.from(new Set([...(existing?.plans ?? []), matchedAdo.plan])) : existing?.plans ?? [],
+      plans: matchedAdo
+        ? Array.from(new Set([...(existing?.plans ?? []), matchedAdo.plan]))
+        : (existing?.plans ?? []),
       isEstimated: matchedAdo?.isEstimated ?? existing?.isEstimated ?? false,
       isLicensed: matchedAdo?.isLicensed ?? existing?.isLicensed ?? false,
       matchStatus: matchedAdo ? 'matched' : reviewRequired ? 'review-required' : 'provider-only',

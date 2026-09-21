@@ -16,6 +16,8 @@ export class DisabledGitHubProviderAdapter implements GitHubProviderAdapter {
   }
 
   async fetchCommitters(): Promise<GitHubCommitter[]> {
-    throw new Error('GitHub provider is not enabled. Set FEATURE_GITHUB_PROVIDER=true after GitHub App setup.');
+    throw new Error(
+      'GitHub provider is not enabled. Set FEATURE_GITHUB_PROVIDER=true after GitHub App setup.',
+    );
   }
 }

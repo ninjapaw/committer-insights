@@ -1,4 +1,9 @@
-import type { AzureDevOpsCommitter, CombinedCommitter, GitHubCommitter, Retention } from '@ninjapaw/contracts';
+import type {
+  AzureDevOpsCommitter,
+  CombinedCommitter,
+  GitHubCommitter,
+  Retention,
+} from '@ninjapaw/contracts';
 
 export interface StoredReport {
   reportId: string;

@@ -27,8 +27,8 @@ param environmentName string
 @description('Microsoft Entra application (client) ID for this API.')
 param entraClientId string
 
-@description('Microsoft Entra tenant authority.')
-param entraTenantAuthority string = 'https://login.microsoftonline.com/organizations'
+@description('Microsoft Entra tenant authority, e.g. https://login.microsoftonline.com/organizations.')
+param entraTenantAuthority string
 
 @description('Expected audience for incoming bearer tokens.')
 param entraExpectedAudience string
@@ -39,7 +39,7 @@ param deploymentPrincipalId string
 @description('Enable the feature-flagged GitHub provider.')
 param featureGitHubProvider bool = false
 
-module monitoring '../modules/monitoring/main.bicep' = {
+module monitoring './modules/monitoring/main.bicep' = {
   name: 'committer-insights-monitoring'
   params: {
     location: location
@@ -49,7 +49,7 @@ module monitoring '../modules/monitoring/main.bicep' = {
   }
 }
 
-module api '../modules/function-app/main.bicep' = {
+module api './modules/function-app/main.bicep' = {
   name: 'committer-insights-api'
   params: {
     functionAppName: functionAppName
@@ -66,7 +66,7 @@ module api '../modules/function-app/main.bicep' = {
   }
 }
 
-module keyVault '../modules/key-vault/main.bicep' = {
+module keyVault './modules/key-vault/main.bicep' = {
   name: 'committer-insights-keyvault'
   params: {
     keyVaultName: keyVaultName
@@ -79,7 +79,7 @@ module keyVault '../modules/key-vault/main.bicep' = {
   }
 }
 
-module web '../modules/static-site/main.bicep' = {
+module web './modules/static-site/main.bicep' = {
   name: 'committer-insights-web'
   params: {
     siteName: siteName

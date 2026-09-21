@@ -1,7 +1,15 @@
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { createColumnHelper, flexRender, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, useReactTable } from '@tanstack/react-table';
+import {
+  createColumnHelper,
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from '@tanstack/react-table';
 import { getPortalApiToken } from '../auth/get-token';
 import type { AzureDevOpsCommitter } from '@ninjapaw/contracts';
 
@@ -110,9 +118,7 @@ export function ResultsDashboardPage(): JSX.Element {
         </table>
       )}
 
-      {reportId && (
-        <a href={`/api/reports/${reportId}/export.xlsx`}>Download Excel</a>
-      )}
+      {reportId && <a href={`/api/reports/${reportId}/export.xlsx`}>Download Excel</a>}
     </section>
   );
 }

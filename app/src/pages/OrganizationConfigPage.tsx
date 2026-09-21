@@ -44,9 +44,7 @@ export function OrganizationConfigPage(): JSX.Element {
           Validate and continue
         </button>
       </form>
-      {mutation.isError && (
-        <div role="alert">{(mutation.error as Error).message}</div>
-      )}
+      {mutation.isError && <div role="alert">{(mutation.error as Error).message}</div>}
     </section>
   );
 }

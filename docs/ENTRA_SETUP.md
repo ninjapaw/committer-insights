@@ -29,7 +29,7 @@
      broader Azure DevOps scope. Document the exact picker state you see
      (screenshot) and escalate to your Microsoft account team or Azure
      DevOps support. The application fails safely (`409
-     consent_or_account_mismatch`) and shows an administrator
+consent_or_account_mismatch`) and shows an administrator
      troubleshooting message rather than silently broadening scopes.
 7. **User consent vs. administrator consent**: individual users can grant
    consent for delegated permissions that their tenant policy allows for

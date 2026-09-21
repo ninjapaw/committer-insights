@@ -17,8 +17,8 @@ export function ConsentExplanationPage(): JSX.Element {
     <section aria-labelledby="consent-title">
       <h1 id="consent-title">Connect Azure DevOps</h1>
       <p>
-        To build your report, Active Committer Portal needs delegated access to Azure DevOps on
-        your behalf.
+        To build your report, Active Committer Portal needs delegated access to Azure DevOps on your
+        behalf.
       </p>
 
       <h2>What the portal requests</h2>

@@ -1,4 +1,9 @@
-import { app, type HttpRequest, type HttpResponseInit, type InvocationContext } from '@azure/functions';
+import {
+  app,
+  type HttpRequest,
+  type HttpResponseInit,
+  type InvocationContext,
+} from '@azure/functions';
 
 /** Never exposes environment values or secret state. */
 async function health(): Promise<HttpResponseInit> {

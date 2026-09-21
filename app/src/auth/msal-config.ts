@@ -7,7 +7,8 @@ import type { Configuration } from '@azure/msal-browser';
 export const msalConfig: Configuration = {
   auth: {
     clientId: import.meta.env.VITE_ENTRA_CLIENT_ID ?? '',
-    authority: import.meta.env.VITE_ENTRA_AUTHORITY ?? 'https://login.microsoftonline.com/organizations',
+    authority:
+      import.meta.env.VITE_ENTRA_AUTHORITY ?? 'https://login.microsoftonline.com/organizations',
     redirectUri: '/auth/callback',
     postLogoutRedirectUri: '/',
     navigateToLoginRequestUrl: true,
