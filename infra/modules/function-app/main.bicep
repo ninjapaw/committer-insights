@@ -142,8 +142,14 @@ resource functionApp 'Microsoft.Web/sites@2025-03-01' = {
 }
 
 var storageBlobDataOwnerRoleId = 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b'
-var storageQueueDataContributorRoleId = '974c5e8b-45b9-4653-ba55-5f855dd0fb88'
+var storageBlobDataContributorRoleId = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
 
+// Flex Consumption's own runtime state (host id lease, secrets, deployment
+// manifest) lives in containers the platform creates for itself, so the
+// function's own identity needs account-scoped Blob Data Owner. This is the
+// minimum Microsoft documents for identity-based deployment storage; there
+// is no queue-triggered or Durable Functions usage in this app, so no
+// Storage Queue/Table role is granted.
 resource storageBlobRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(functionApp.id, storageAccount.id, storageBlobDataOwnerRoleId)
   scope: storageAccount
@@ -154,23 +160,19 @@ resource storageBlobRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = 
   }
 }
 
-resource storageQueueRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(functionApp.id, storageAccount.id, storageQueueDataContributorRoleId)
-  scope: storageAccount
-  properties: {
-    principalId: functionApp.identity.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageQueueDataContributorRoleId)
-  }
-}
-
+// CI/CD only publishes the code package into one known container, so its
+// identity gets the least-privileged data role (Contributor, not Owner)
+// scoped to that single container rather than the whole storage account.
 resource deploymentBlobRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(deploymentPrincipalId)) {
-  name: guid(functionApp.id, storageAccount.id, deploymentPrincipalId, storageBlobDataOwnerRoleId)
-  scope: storageAccount
+  name: guid(deploymentContainer.id, deploymentPrincipalId, storageBlobDataContributorRoleId)
+  scope: deploymentContainer
   properties: {
     principalId: deploymentPrincipalId
     principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageBlobDataOwnerRoleId)
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      storageBlobDataContributorRoleId
+    )
   }
 }
 

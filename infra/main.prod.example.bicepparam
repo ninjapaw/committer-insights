@@ -10,6 +10,7 @@ param applicationInsightsName = 'appi-committer-insights-prod-centralus'
 param location = 'centralus'
 param environmentName = 'prod'
 param entraClientId = 'REPLACE_WITH_PROD_ENTRA_CLIENT_ID'
+param entraTenantAuthority = 'https://login.microsoftonline.com/organizations'
 param entraExpectedAudience = 'api://REPLACE_WITH_PROD_ENTRA_CLIENT_ID'
 param deploymentPrincipalId = 'REPLACE_WITH_DEPLOYMENT_PRINCIPAL_OBJECT_ID'
 param featureGitHubProvider = false
