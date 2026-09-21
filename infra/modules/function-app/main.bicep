@@ -112,7 +112,7 @@ resource functionApp 'Microsoft.Web/sites@2025-03-01' = {
           authentication: { type: 'SystemAssignedIdentity' }
         }
       }
-      runtime: { name: 'node', version: '22' }
+      runtime: { name: 'node', version: '24' }
       scaleAndConcurrency: {
         instanceMemoryMB: 512
         maximumInstanceCount: 40
