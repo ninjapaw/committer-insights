@@ -1,6 +1,8 @@
 # Microsoft Entra setup
 
-This setup is performed once by the application publisher. Customers do not create app registrations or provide tenant IDs, client secrets, certificates, or PATs.
+No Committer Insights app registration is needed when users have Azure CLI installed and have run `az login`. The executable reuses that first-party CLI session to request an Azure DevOps token.
+
+The following publisher setup is an optional fallback for users without Azure CLI. Customers do not create app registrations or provide tenant IDs, client secrets, certificates, or PATs.
 
 1. Create a multitenant app registration for accounts in any organizational directory.
 2. Configure it as a mobile and desktop public client.
@@ -22,6 +24,6 @@ $env:COMMITTER_INSIGHTS_REDIRECT_URI = 'http://localhost:8400'
 npm run build:exe
 ```
 
-The client ID is public configuration. A public release should embed the publisher-owned client ID during the build so customers do not set environment variables. The current development build reads it at runtime; embedding is tracked as a release-hardening requirement until the production registration exists.
+The client ID is public configuration. `npm run build:exe` embeds it when the environment variable is set, so customers do not configure anything. Source runs may provide the same environment variable at runtime. Omit it entirely for an Azure CLI-only build.
 
 If the required Azure DevOps delegated permission is unavailable in the tenant's permission picker, do not substitute a broader scope. Escalate through Azure DevOps support and fail closed.

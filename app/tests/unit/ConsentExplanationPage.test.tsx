@@ -10,6 +10,6 @@ describe('ConsentExplanationPage', () => {
         <ConsentExplanationPage />
       </MemoryRouter>,
     );
-    expect(screen.getByRole('button', { name: 'Continue to Microsoft' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled();
   });
 });

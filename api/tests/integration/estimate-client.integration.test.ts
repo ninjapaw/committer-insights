@@ -57,6 +57,49 @@ describe('fetchAzureDevOpsEstimate integration', () => {
     expect(result).toEqual([]);
   });
 
+  it('normalizes the nested response returned for plan=all', async () => {
+    server.use(
+      http.get(ESTIMATE_URL, () =>
+        HttpResponse.json({
+          codeSecurityMeterUsageEstimate: {
+            uniqueCommitterCount: 1,
+            billedUsers: [
+              {
+                cuid: 'code-user',
+                userIdentity: {
+                  id: 'code-id',
+                  displayName: 'Code User',
+                  uniqueName: 'code@example.com',
+                  descriptor: 'aad.code',
+                },
+              },
+            ],
+          },
+          secretProtectionMeterUsageEstimate: {
+            uniqueCommitterCount: 1,
+            billedUsers: [{ cuid: 'secret-user', displayName: 'Secret User' }],
+          },
+        }),
+      ),
+    );
+    const result = await fetchAzureDevOpsEstimate({
+      organization: 'contoso',
+      plan: 'all',
+      resultType: 'estimated',
+      accessToken: 'token',
+    });
+    expect(result.map(({ cuid, plan }) => ({ cuid, plan }))).toEqual([
+      { cuid: 'code-user', plan: 'codeSecurity' },
+      { cuid: 'secret-user', plan: 'secretProtection' },
+    ]);
+    expect(result[0]).toMatchObject({
+      identityId: 'code-id',
+      displayName: 'Code User',
+      userPrincipalName: 'code@example.com',
+      descriptor: 'aad.code',
+    });
+  });
+
   it('rejects a malformed upstream response', async () => {
     server.use(http.get(ESTIMATE_URL, () => HttpResponse.json({ nope: true })));
     await expect(

@@ -2,10 +2,8 @@ node_modules/
 dist/
 build/
 release/
-.astro/
 coverage/
 test-results/
-playwright-report/
 *.log
 .env
 .env.*
@@ -14,5 +12,3 @@ playwright-report/
 *.tsbuildinfo
 .vscode/*
 !.vscode/extensions.json
-api/.azure/
-.azure/

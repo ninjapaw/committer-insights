@@ -17,8 +17,9 @@ export function SignInPage(): JSX.Element {
     <section aria-labelledby="sign-in-title">
       <h1 id="sign-in-title">Sign in</h1>
       <p>
-        The local application uses your Microsoft work or school account to read Azure DevOps on
-        your behalf. Tokens remain inside this process.
+        The local application first uses your existing Azure CLI sign-in. If Azure CLI is not
+        available, it opens Microsoft sign-in using the publisher application. Tokens remain inside
+        this process.
       </p>
       <button type="button" onClick={() => signIn.mutate()} disabled={signIn.isPending}>
         Sign in with Microsoft

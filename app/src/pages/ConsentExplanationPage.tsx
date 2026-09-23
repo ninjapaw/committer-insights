@@ -21,7 +21,8 @@ export function ConsentExplanationPage(): JSX.Element {
       <ul>
         <li>Read-only access required for Azure DevOps Advanced Security reporting</li>
         <li>Access is limited by your existing Azure DevOps permissions</li>
-        <li>Your organization may require administrator approval</li>
+        <li>Existing Azure CLI sign-in avoids Committer Insights-specific app approval</li>
+        <li>The fallback publisher sign-in may require administrator approval</li>
       </ul>
 
       <h2>What the portal does not request</h2>
@@ -38,7 +39,7 @@ export function ConsentExplanationPage(): JSX.Element {
         <li>Azure DevOps tokens remain inside the local executable</li>
         <li>Reports remain in memory until you close the application</li>
         <li>Exports are generated only at your request</li>
-        <li>You can disconnect the integration and delete retained reports</li>
+        <li>Closing the application clears the in-memory session and reports</li>
       </ul>
 
       <label htmlFor="consent-checkbox">
@@ -52,7 +53,7 @@ export function ConsentExplanationPage(): JSX.Element {
       </label>
 
       <button type="button" disabled={!acknowledged} onClick={continueToMicrosoft}>
-        Continue to Microsoft
+        Continue
       </button>
     </section>
   );

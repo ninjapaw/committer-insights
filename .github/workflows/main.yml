@@ -1,15 +1,15 @@
-name: main
+name: build
 
 on:
   push:
-    branches: [main]
+    branches: [dev, main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: main-${{ github.workflow }}
+  group: build-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -22,12 +22,7 @@ jobs:
           node-version-file: .node-version
           cache: 'npm'
       - run: npm ci
-      - run: npm run format:check
-      - run: npm run lint
-      - run: npm run typecheck
-      - run: npm run test:unit
-      - run: npm run test:integration
-      - run: npm run build:exe
+      - run: npm run ci
       - name: Generate SBOM
         uses: anchore/sbom-action@v0
         with:
@@ -39,8 +34,23 @@ jobs:
           name: sbom
           path: sbom.spdx.json
           retention-days: 90
+
+  package-windows:
+    needs: validate
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: 'npm'
+      - run: npm ci
+      - name: Build Windows executable
+        run: npm run build:exe
+      - name: Smoke test executable
+        run: npm run test:exe
       - uses: actions/upload-artifact@v4
         with:
-          name: committer-insights-linux
+          name: committer-insights-windows-unsigned
           path: release/
           retention-days: 30

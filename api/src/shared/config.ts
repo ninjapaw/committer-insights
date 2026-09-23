@@ -27,6 +27,7 @@ export const config = {
     // Trusted constant host. Adapter code must never accept a host from
     // request input; only the validated organization path segment varies.
     resourceUri: 'https://app.vssps.visualstudio.com',
+    resourceAppId: '499b84ac-1321-427f-aa17-267ca6975798',
     apiHost: (organization: string) => `https://advsec.dev.azure.com/${organization}`,
     apiVersion: () => readEnv('AZURE_DEVOPS_API_VERSION', '7.2-preview.3'),
   },

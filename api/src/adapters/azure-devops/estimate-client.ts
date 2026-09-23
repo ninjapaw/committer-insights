@@ -1,4 +1,5 @@
 import {
+  azureDevOpsAllMeterUsageEstimateResponseSchema,
   azureDevOpsCommitterSchema,
   azureDevOpsMeterUsageEstimateResponseSchema,
   azureDevOpsOrganizationSchema,
@@ -126,30 +127,52 @@ export async function fetchAzureDevOpsEstimate(
 
     if (response.ok) {
       const body: unknown = await response.json();
-      const parsed = azureDevOpsMeterUsageEstimateResponseSchema.safeParse(body);
-      if (!parsed.success) {
-        throw new AzureDevOpsAdapterError(toProviderError(502, correlationId));
-      }
+      // plan=all wraps one estimate per product; single-plan calls return the estimate directly.
+      const estimates =
+        plan === 'all'
+          ? (() => {
+              const parsed = azureDevOpsAllMeterUsageEstimateResponseSchema.safeParse(body);
+              if (!parsed.success) return undefined;
+              return [
+                {
+                  plan: 'codeSecurity' as const,
+                  estimate: parsed.data.codeSecurityMeterUsageEstimate,
+                },
+                {
+                  plan: 'secretProtection' as const,
+                  estimate: parsed.data.secretProtectionMeterUsageEstimate,
+                },
+              ];
+            })()
+          : (() => {
+              const parsed = azureDevOpsMeterUsageEstimateResponseSchema.safeParse(body);
+              if (!parsed.success) return undefined;
+              return [{ plan, estimate: parsed.data }];
+            })();
+      if (!estimates) throw new AzureDevOpsAdapterError(toProviderError(502, correlationId));
 
       const collectedAt = new Date().toISOString();
-      const committers = parsed.data.billedUsers.map((user) => {
-        const committer: AzureDevOpsCommitter = {
-          provider: 'azure-devops',
-          organization,
-          plan,
-          resultType,
-          cuid: user.cuid,
-          identityId: user.userId,
-          descriptor: user.descriptor,
-          displayName: user.displayName,
-          userPrincipalName: user.uniqueName,
-          isEstimated: resultType === 'estimated',
-          isLicensed: resultType === 'licensed',
-          collectedAt,
-          sourceApiVersion: config.azureDevOps.apiVersion(),
-        };
-        return azureDevOpsCommitterSchema.parse(committer);
-      });
+      const committers = estimates.flatMap(({ plan: effectivePlan, estimate }) =>
+        estimate.billedUsers.map((user) => {
+          const committer: AzureDevOpsCommitter = {
+            provider: 'azure-devops',
+            organization,
+            plan: effectivePlan,
+            resultType,
+            cuid: user.cuid,
+            // Current responses nest identity fields; retain compatibility with the preview API's older shape.
+            identityId: user.userIdentity?.id ?? user.userId,
+            descriptor: user.userIdentity?.descriptor ?? user.descriptor,
+            displayName: user.userIdentity?.displayName ?? user.displayName,
+            userPrincipalName: user.userIdentity?.uniqueName ?? user.uniqueName,
+            isEstimated: resultType === 'estimated',
+            isLicensed: resultType === 'licensed',
+            collectedAt,
+            sourceApiVersion: config.azureDevOps.apiVersion(),
+          };
+          return azureDevOpsCommitterSchema.parse(committer);
+        }),
+      );
 
       return committers;
     }

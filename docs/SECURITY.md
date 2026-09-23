@@ -2,7 +2,7 @@
 
 ## Authentication and least privilege
 
-The executable is a Microsoft Entra public client. It contains no client secret or certificate. Interactive authentication requests only the Azure DevOps delegated permissions configured on the publisher-owned registration. The intended permission is read-only Advanced Security reporting access (`vso.advsec` equivalent).
+The executable first requests an Azure DevOps token through the user's existing Azure CLI session. This path uses Microsoft's Azure CLI application identity and requires no Committer Insights app registration or consent. If Azure CLI is unavailable, the executable can fall back to a publisher-owned Microsoft Entra public client. The fallback contains no client secret or certificate and requests only read-only Advanced Security reporting access (`vso.advsec` equivalent).
 
 Access remains constrained by the signed-in user's existing Azure DevOps permissions. The executable does not accept PATs and does not use application-only Azure DevOps access.
 

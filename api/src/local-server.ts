@@ -4,7 +4,7 @@ import { createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { extname, join, normalize, resolve } from 'node:path';
 import { getAsset, isSea } from 'node:sea';
-import { reportRequestSchema } from '@ninjapaw/contracts';
+import { reportRequestSchema, type ProviderErrorCode } from '@ninjapaw/contracts';
 import {
   AzureDevOpsAdapterError,
   fetchAzureDevOpsEstimate,
@@ -31,6 +31,22 @@ const securityHeaders = {
   'Referrer-Policy': 'no-referrer',
   'X-Content-Type-Options': 'nosniff',
 };
+
+const providerErrorStatus = {
+  invalid_request: 400,
+  authentication_required: 401,
+  insufficient_permission: 403,
+  not_found: 404,
+  consent_or_account_mismatch: 409,
+  rate_limited: 429,
+  internal_error: 500,
+  upstream_error: 502,
+  upstream_unavailable: 503,
+} as const;
+
+export function providerStatusForErrorCode(code: ProviderErrorCode): number {
+  return providerErrorStatus[code];
+}
 
 function sendJson(response: ServerResponse, status: number, body: unknown): void {
   response.writeHead(status, {
@@ -246,9 +262,17 @@ export async function startLocalServer(): Promise<Server> {
         await handleApi(request, response, url.pathname, origin);
       else serveApp(url.pathname, response);
     } catch (error) {
-      const status = error instanceof AzureDevOpsAdapterError ? 502 : 500;
+      const status =
+        error instanceof AzureDevOpsAdapterError
+          ? providerStatusForErrorCode(error.providerError.code)
+          : 500;
       sendJson(response, status, {
-        message: error instanceof Error ? error.message : 'The local application failed.',
+        message:
+          error instanceof AzureDevOpsAdapterError
+            ? error.providerError.message
+            : error instanceof Error
+              ? error.message
+              : 'The local application failed.',
       });
     }
   });

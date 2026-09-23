@@ -55,6 +55,14 @@ export const azureDevOpsMeterUsageBilledUserSchema = z.object({
   descriptor: z.string().optional(),
   displayName: z.string().optional(),
   uniqueName: z.string().optional(),
+  userIdentity: z
+    .object({
+      id: z.string().optional(),
+      descriptor: z.string().optional(),
+      displayName: z.string().optional(),
+      uniqueName: z.string().optional(),
+    })
+    .optional(),
 });
 export type AzureDevOpsMeterUsageBilledUser = z.infer<typeof azureDevOpsMeterUsageBilledUserSchema>;
 
@@ -65,6 +73,11 @@ export const azureDevOpsMeterUsageEstimateResponseSchema = z.object({
 export type AzureDevOpsMeterUsageEstimateResponse = z.infer<
   typeof azureDevOpsMeterUsageEstimateResponseSchema
 >;
+
+export const azureDevOpsAllMeterUsageEstimateResponseSchema = z.object({
+  codeSecurityMeterUsageEstimate: azureDevOpsMeterUsageEstimateResponseSchema,
+  secretProtectionMeterUsageEstimate: azureDevOpsMeterUsageEstimateResponseSchema,
+});
 
 /** Normalized Azure DevOps committer record retained by this application. */
 export const azureDevOpsCommitterSchema = z.object({

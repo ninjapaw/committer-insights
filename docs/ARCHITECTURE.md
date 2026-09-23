@@ -4,9 +4,9 @@
 
 ```mermaid
 flowchart LR
-  U[Customer] -->|launches| E[Signed local executable]
+  U[Customer] -->|launches| E[Local executable]
   E -->|serves on 127.0.0.1| B[System browser wizard]
-  E -->|interactive public-client sign-in| M[Microsoft Entra ID]
+  E -->|Azure CLI session or public-client fallback| M[Microsoft Entra ID]
   E -->|delegated read-only token| A[Azure DevOps Advanced Security API]
   E -->|in-memory report| B
   B -->|authenticated download| X[Local XLSX or CSV file]
@@ -35,7 +35,7 @@ sequenceDiagram
 
   U->>W: Sign in
   W->>E: POST /api/auth/sign-in with local capability
-  E->>M: Interactive browser public-client authentication
+  E->>M: Reuse Azure CLI sign-in, or interactive public-client fallback
   M-->>E: Delegated Azure DevOps token
   E-->>W: Authenticated session status
   U->>W: Enter organization and report options
@@ -52,3 +52,12 @@ Azure access and refresh tokens are never sent to the React application.
 ## Packaging
 
 `scripts/build-executable.mjs` bundles the Node host with esbuild, embeds the Vite output as Node SEA assets, injects the SEA blob into a copy of the current Node executable, and writes a SHA-256 manifest. Release automation must sign the completed binary after injection and verify the signature before publication.
+
+```mermaid
+flowchart LR
+  S[TypeScript + React] --> B[esbuild host bundle + Vite assets]
+  B --> C[Node SEA blob]
+  C --> I[Inject into native Node binary]
+  I --> H[Generate SHA-256 manifest]
+  H --> G[Sign and timestamp public release]
+```

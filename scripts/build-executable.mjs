@@ -1,4 +1,4 @@
-import { copyFile, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -24,6 +24,9 @@ async function walk(directory) {
   return files;
 }
 
+// Remove stale assets and binaries so every package is produced from the current source tree.
+await rm(buildDir, { recursive: true, force: true });
+await rm(releaseDir, { recursive: true, force: true });
 await mkdir(buildDir, { recursive: true });
 await mkdir(releaseDir, { recursive: true });
 
