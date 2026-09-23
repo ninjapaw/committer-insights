@@ -1,6 +1,8 @@
-import 'applicationinsights';
-import './functions/meta.js';
-import './functions/me.js';
-import './functions/connections.js';
-import './functions/reports.js';
-import './functions/exports.js';
+import { startLocalServer } from './local-server.js';
+
+void startLocalServer().catch((error: unknown) => {
+  process.stderr.write(
+    `${error instanceof Error ? error.message : 'Unable to start Committer Insights.'}\n`,
+  );
+  process.exitCode = 1;
+});

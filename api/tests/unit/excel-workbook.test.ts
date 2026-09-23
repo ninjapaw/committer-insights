@@ -6,12 +6,9 @@ describe('generateReportWorkbook', () => {
     const buffer = await generateReportWorkbook({
       organization: 'contoso',
       plans: ['codeSecurity'],
-      retention: 'none',
       sourceApiVersion: '7.2-preview.3',
       generatedAt: new Date().toISOString(),
       azureDevOpsCommitters: [],
-      gitHubCommitters: [],
-      combinedCommitters: [],
       warnings: [{ message: 'Test warning' }],
     });
     expect(buffer.byteLength).toBeGreaterThan(0);

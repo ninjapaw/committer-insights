@@ -3,7 +3,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { getPortalApiToken } from '../auth/get-token';
 
-async function validateOrganization(organization: string): Promise<void> {
+async function validateOrganization(organization: string): Promise<string> {
   const token = await getPortalApiToken();
   const response = await fetch('/api/connections/azure-devops/validate', {
     method: 'POST',
@@ -14,6 +14,8 @@ async function validateOrganization(organization: string): Promise<void> {
     const body = (await response.json()) as { message?: string };
     throw new Error(body.message ?? 'Organization not found');
   }
+  const body = (await response.json()) as { organization: string };
+  return body.organization;
 }
 
 export function OrganizationConfigPage(): JSX.Element {
@@ -21,7 +23,8 @@ export function OrganizationConfigPage(): JSX.Element {
   const navigate = useNavigate();
   const mutation = useMutation({
     mutationFn: validateOrganization,
-    onSuccess: () => navigate('/reports/new'),
+    onSuccess: (validatedOrganization) =>
+      navigate('/reports/new', { state: { organization: validatedOrganization } }),
   });
 
   return (
@@ -33,11 +36,12 @@ export function OrganizationConfigPage(): JSX.Element {
           mutation.mutate(organization);
         }}
       >
-        <label htmlFor="organization-input">Organization name</label>
+        <label htmlFor="organization-input">Organization name or URL</label>
         <input
           id="organization-input"
           value={organization}
           onChange={(event) => setOrganization(event.currentTarget.value)}
+          placeholder="https://dev.azure.com/your-organization"
           required
         />
         <button type="submit" disabled={mutation.isPending}>

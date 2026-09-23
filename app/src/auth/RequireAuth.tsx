@@ -1,7 +1,7 @@
 import type { PropsWithChildren } from 'react';
 import { Navigate } from 'react-router-dom';
-import { useIsAuthenticated } from '@azure/msal-react';
-import { isTestAuthMode } from './msal-config';
+import { useQuery } from '@tanstack/react-query';
+import { getLocalSession } from './get-token';
 
 /**
  * Frontend route guard. This is a UX convenience only; the API
@@ -9,8 +9,9 @@ import { isTestAuthMode } from './msal-config';
  * route regardless of this guard's state.
  */
 export function RequireAuth({ children }: PropsWithChildren): JSX.Element {
-  const isAuthenticated = useIsAuthenticated();
-  if (!isAuthenticated && !isTestAuthMode()) {
+  const session = useQuery({ queryKey: ['local-session'], queryFn: getLocalSession, retry: false });
+  if (session.isPending) return <p aria-live="polite">Checking local session...</p>;
+  if (session.isError || !session.data.authenticated) {
     return <Navigate to="/sign-in" replace />;
   }
   return <>{children}</>;

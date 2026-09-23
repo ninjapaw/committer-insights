@@ -30,6 +30,23 @@ async function fetchReport(reportId: string): Promise<ReportResponse> {
   return (await response.json()) as ReportResponse;
 }
 
+async function downloadExport(reportId: string, extension: 'xlsx' | 'csv'): Promise<void> {
+  const token = await getPortalApiToken();
+  const response = await fetch(`/api/reports/${reportId}/export.${extension}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error(`Unable to download ${extension.toUpperCase()} report`);
+  const disposition = response.headers.get('Content-Disposition') ?? '';
+  const filename =
+    disposition.match(/filename="([^"]+)"/)?.[1] ?? `committer-insights.${extension}`;
+  const url = URL.createObjectURL(await response.blob());
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
 const columnHelper = createColumnHelper<AzureDevOpsCommitter>();
 
 const columns = [
@@ -46,6 +63,7 @@ const columns = [
 export function ResultsDashboardPage(): JSX.Element {
   const { reportId } = useParams();
   const [globalFilter, setGlobalFilter] = useState('');
+  const [downloadError, setDownloadError] = useState('');
   const query = useQuery({
     queryKey: ['report', reportId],
     queryFn: () => fetchReport(reportId!),
@@ -118,7 +136,31 @@ export function ResultsDashboardPage(): JSX.Element {
         </table>
       )}
 
-      {reportId && <a href={`/api/reports/${reportId}/export.xlsx`}>Download Excel</a>}
+      {reportId && (
+        <div>
+          <button
+            type="button"
+            onClick={() =>
+              void downloadExport(reportId, 'xlsx').catch((error: unknown) =>
+                setDownloadError(error instanceof Error ? error.message : 'Download failed'),
+              )
+            }
+          >
+            Download Excel
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              void downloadExport(reportId, 'csv').catch((error: unknown) =>
+                setDownloadError(error instanceof Error ? error.message : 'Download failed'),
+              )
+            }
+          >
+            Download CSV
+          </button>
+        </div>
+      )}
+      {downloadError && <div role="alert">{downloadError}</div>}
     </section>
   );
 }

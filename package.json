@@ -2,7 +2,7 @@
   "name": "@ninjapaw/committer-insights",
   "version": "0.1.0",
   "private": true,
-  "description": "Active Committer Portal — Azure DevOps Advanced Security committer estimates, GitHub identity correlation, and customer-controlled exports.",
+  "description": "Local Azure DevOps Advanced Security committer reports with Excel and CSV exports.",
   "license": "MIT",
   "author": "Microsoft Corporation",
   "repository": {
@@ -15,16 +15,21 @@
     "npm": "11.17.0"
   },
   "packageManager": "npm@11.17.0",
+  "overrides": {
+    "exceljs": {
+      "uuid": "11.1.1"
+    }
+  },
   "workspaces": [
     "app",
     "api",
-    "packages/contracts",
-    "packages/eslint-config",
-    "packages/tsconfig"
+    "packages/contracts"
   ],
   "scripts": {
-    "dev": "npm run dev --workspace app & npm run start --workspace api",
+    "dev": "npm run build && npm run start --workspace api",
     "build": "npm run build --workspace packages/contracts && npm run build --workspace app && npm run build --workspace api",
+    "build:exe": "npm run build && node scripts/build-executable.mjs",
+    "test:exe": "node scripts/smoke-executable.mjs",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
@@ -33,19 +38,19 @@
     "test": "npm run test:unit && npm run test:integration",
     "test:unit": "npm run test:unit --workspace app && npm run test:unit --workspace api",
     "test:integration": "npm run test:integration --workspace api",
-    "test:e2e": "npm run test:e2e --workspace app",
-    "test:coverage": "npm run test:coverage --workspace app && npm run test:coverage --workspace api",
-    "infra:validate": "bash scripts/validate-bicep.sh",
-    "ci": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build && npm run infra:validate"
+    "ci": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build:exe && npm run test:exe"
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",
     "@typescript-eslint/eslint-plugin": "^8.15.0",
     "@typescript-eslint/parser": "^8.15.0",
+    "esbuild": "^0.28.2",
     "eslint": "^9.15.0",
     "eslint-config-prettier": "^9.1.0",
+    "postject": "^1.0.0-alpha.6",
     "prettier": "^3.3.3",
     "typescript": "^5.6.3",
-    "typescript-eslint": "^8.15.0"
+    "typescript-eslint": "^8.15.0",
+    "vitest": "^5.0.1"
   }
 }

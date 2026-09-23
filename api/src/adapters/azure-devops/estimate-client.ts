@@ -11,7 +11,6 @@ import {
 } from '@ninjapaw/contracts';
 import { config } from '../../shared/config.js';
 import { newCorrelationId } from '../../shared/ids.js';
-import { logger, maskIdentityValue } from '../../telemetry/logger.js';
 
 export class AzureDevOpsAdapterError extends Error {
   constructor(public readonly providerError: ProviderError) {
@@ -129,7 +128,6 @@ export async function fetchAzureDevOpsEstimate(
       const body: unknown = await response.json();
       const parsed = azureDevOpsMeterUsageEstimateResponseSchema.safeParse(body);
       if (!parsed.success) {
-        logger.warn({ correlationId, plan }, 'Azure DevOps response failed contract validation');
         throw new AzureDevOpsAdapterError(toProviderError(502, correlationId));
       }
 
@@ -153,16 +151,6 @@ export async function fetchAzureDevOpsEstimate(
         return azureDevOpsCommitterSchema.parse(committer);
       });
 
-      logger.info(
-        {
-          correlationId,
-          plan,
-          organization,
-          count: committers.length,
-          sample: maskIdentityValue(committers[0]?.cuid),
-        },
-        'Azure DevOps estimate fetched',
-      );
       return committers;
     }
 
@@ -172,10 +160,6 @@ export async function fetchAzureDevOpsEstimate(
     if (RETRYABLE_STATUS.has(response.status) && attempt <= maxRetries) {
       const backoffMs = Math.min(2 ** attempt * 250, 4000) + Math.random() * 250;
       const waitMs = retryAfterSeconds ? retryAfterSeconds * 1000 : backoffMs;
-      logger.warn(
-        { correlationId, status: response.status, attempt },
-        'Retrying transient Azure DevOps failure',
-      );
       await sleep(waitMs);
       continue;
     }

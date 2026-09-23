@@ -1,25 +1,34 @@
-import { InteractionRequiredAuthError } from '@azure/msal-browser';
-import { msalInstance } from './msal-instance';
-import { portalApiScopes } from './msal-config';
+let localCapability = '';
+
+const launchCapability = new URLSearchParams(window.location.hash.slice(1)).get('session');
+if (launchCapability) {
+  localCapability = launchCapability;
+  window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
+}
 
 /**
- * Acquires an access token for the portal API scope, falling back to an
- * interactive prompt only when silent acquisition fails (e.g. expired
- * session, revoked consent, Conditional Access step-up).
+ * Returns the per-launch local capability. Azure tokens never enter the browser.
  */
 export async function getPortalApiToken(): Promise<string> {
-  const account = msalInstance.getActiveAccount() ?? msalInstance.getAllAccounts()[0];
-  if (!account) {
-    throw new Error('No signed-in account. Sign in again to continue.');
-  }
-  try {
-    const result = await msalInstance.acquireTokenSilent({ scopes: portalApiScopes, account });
-    return result.accessToken;
-  } catch (error) {
-    if (error instanceof InteractionRequiredAuthError) {
-      const result = await msalInstance.acquireTokenPopup({ scopes: portalApiScopes, account });
-      return result.accessToken;
-    }
-    throw error;
+  if (!localCapability) throw new Error('This local session is invalid. Restart the application.');
+  return localCapability;
+}
+
+export async function getLocalSession(): Promise<{ authenticated: boolean }> {
+  const token = await getPortalApiToken();
+  const response = await fetch('/api/session', { headers: { Authorization: `Bearer ${token}` } });
+  if (!response.ok) throw new Error('Unable to read the local session.');
+  return (await response.json()) as { authenticated: boolean };
+}
+
+export async function signInLocally(): Promise<void> {
+  const token = await getPortalApiToken();
+  const response = await fetch('/api/auth/sign-in', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const body = (await response.json()) as { message?: string };
+    throw new Error(body.message ?? 'Microsoft sign-in failed.');
   }
 }

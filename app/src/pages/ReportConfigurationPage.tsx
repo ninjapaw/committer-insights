@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { getPortalApiToken } from '../auth/get-token';
 
 const PLAN_OPTIONS = ['codeSecurity', 'secretProtection', 'all'] as const;
@@ -8,20 +8,15 @@ const PLAN_OPTIONS = ['codeSecurity', 'secretProtection', 'all'] as const;
 async function createReport(payload: {
   organization: string;
   plans: string[];
-  retention: string;
 }): Promise<{ reportId: string }> {
   const token = await getPortalApiToken();
   const response = await fetch('/api/reports/azure-devops', {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      provider: 'azure-devops',
-      azureDevOps: {
-        organization: payload.organization,
-        plans: payload.plans,
-        resultTypes: ['estimated'],
-      },
-      retention: payload.retention,
+      organization: payload.organization,
+      plans: payload.plans,
+      resultTypes: ['estimated'],
     }),
   });
   if (!response.ok) {
@@ -32,13 +27,20 @@ async function createReport(payload: {
 }
 
 export function ReportConfigurationPage(): JSX.Element {
-  const [organization, setOrganization] = useState('');
+  const location = useLocation();
+  const validatedOrganization =
+    typeof location.state === 'object' &&
+    location.state !== null &&
+    'organization' in location.state &&
+    typeof location.state.organization === 'string'
+      ? location.state.organization
+      : '';
+  const [organization, setOrganization] = useState(validatedOrganization);
   const [plans, setPlans] = useState<string[]>(['codeSecurity']);
-  const [retention, setRetention] = useState('none');
   const navigate = useNavigate();
   const mutation = useMutation({
     mutationFn: createReport,
-    onSuccess: ({ reportId }) => navigate(`/reports/${reportId}/progress`),
+    onSuccess: ({ reportId }) => navigate(`/reports/${reportId}`),
   });
 
   function togglePlan(plan: string) {
@@ -53,7 +55,7 @@ export function ReportConfigurationPage(): JSX.Element {
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          mutation.mutate({ organization, plans, retention });
+          mutation.mutate({ organization, plans });
         }}
       >
         <label htmlFor="report-org">Organization</label>
@@ -78,17 +80,6 @@ export function ReportConfigurationPage(): JSX.Element {
             </label>
           ))}
         </fieldset>
-
-        <label htmlFor="retention-select">Retention</label>
-        <select
-          id="retention-select"
-          value={retention}
-          onChange={(e) => setRetention(e.currentTarget.value)}
-        >
-          <option value="none">None</option>
-          <option value="session">Session</option>
-          <option value="thirty-days">Thirty days</option>
-        </select>
 
         <button type="submit" disabled={mutation.isPending || plans.length === 0}>
           Generate report

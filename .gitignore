@@ -1,6 +1,7 @@
 node_modules/
 dist/
 build/
+release/
 .astro/
 coverage/
 test-results/
@@ -9,8 +10,6 @@ playwright-report/
 .env
 .env.*
 !.env.example
-local.settings.json
-!local.settings.example.json
 .DS_Store
 *.tsbuildinfo
 .vscode/*

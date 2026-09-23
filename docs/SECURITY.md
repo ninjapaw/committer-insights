@@ -1,62 +1,32 @@
-# Security model
+# Security
 
-## Authentication and authorization
+## Authentication and least privilege
 
-- Customer sign-in: Microsoft Entra ID, work/school accounts only
-  (`https://login.microsoftonline.com/organizations`), via MSAL Browser
-  using authorization code + PKCE. Personal Microsoft accounts are not
-  supported; the sign-in page states this explicitly.
-- API authorization: every route validates the bearer token's issuer,
-  audience, signature, and lifetime (`jose` + Entra JWKS) before processing
-  a request. The frontend route guard (`RequireAuth`) is a UX convenience
-  only.
-- Azure DevOps access: the API performs an OAuth On-Behalf-Of exchange
-  (`@azure/msal-node`) using a Key Vault-backed confidential client
-  credential. The resulting Azure DevOps token is used server-side only and
-  is never returned to the browser, logged, or persisted.
-- Portal roles (`Report.Reader`, `Report.Operator`, `Connection.Admin`,
-  `Report.Auditor`) gate portal features only; they never grant Azure
-  DevOps access beyond what the signed-in user's own Azure DevOps
-  permissions already allow.
+The executable is a Microsoft Entra public client. It contains no client secret or certificate. Interactive authentication requests only the Azure DevOps delegated permissions configured on the publisher-owned registration. The intended permission is read-only Advanced Security reporting access (`vso.advsec` equivalent).
 
-## Transport and browser security
+Access remains constrained by the signed-in user's existing Azure DevOps permissions. The executable does not accept PATs and does not use application-only Azure DevOps access.
 
-- `staticwebapp.config.json` sets `X-Content-Type-Options`,
-  `Referrer-Policy`, `Permissions-Policy`, and a `Content-Security-Policy`
-  with `frame-ancestors 'none'`.
-- MSAL token cache uses `sessionStorage`, never `localStorage`; no tokens
-  are placed in the URL after the OAuth callback completes.
-- CORS is restricted to the deployed SPA origin(s) only (configured per
-  environment; no wildcard origins in production).
+## Loopback boundary
+
+- Bind only to `127.0.0.1` with an OS-assigned port.
+- Require the exact loopback `Host` value.
+- Require a random 256-bit per-launch bearer capability on every API route.
+- Require the exact `Origin` value on state-changing requests.
+- Disable cross-origin access and return restrictive browser security headers.
+- Put the launch capability in a URL fragment, never a query string, and remove it from browser history immediately.
+
+Loopback alone is not considered authorization. These controls protect against DNS rebinding, malicious websites, and accidental LAN exposure. Another process running as the same OS user remains within the local-machine trust boundary.
 
 ## Data handling
 
-- Organization names are validated against a strict allow-list
-  (`AZURE_DEVOPS_ORG_PATTERN`) before being used to construct any outbound
-  URL, preventing SSRF via crafted input. The Azure DevOps host is always a
-  trusted constant (`config.azureDevOps.apiHost`).
-- Report IDs are opaque, cryptographically random (not sequential), and
-  every report read/export/delete verifies ownership (`subject` + `tenantId`)
-  before returning data — see `InMemoryReportStore.get`.
-- CSV/Excel export values are sanitized against formula injection
-  (`api/src/exports/sanitize.ts`) per OWASP guidance.
-- Structured logs (Pino) redact authorization headers, tokens, client
-  secrets, and identity fields (email/UPN); identity values logged for
-  diagnostics are masked (`maskIdentityValue`).
+Azure tokens and reports remain in process memory. Tokens are never returned to the browser, logged, placed in URLs, or persisted. Reports are written only through an explicit authenticated browser download. Exported identity values are neutralized against spreadsheet formula injection.
 
-## Rate limiting and resiliency
+Closing the process destroys the session capability, credential object, connection state, and in-memory reports.
 
-- The Azure DevOps adapter retries only safe, transient failures
-  (429/502/503) with bounded attempts and jittered backoff, respecting
-  `Retry-After`. Authorization failures (401/403) are never retried.
+## Releases
 
-## Secrets
+Node SEA assembly modifies the copied Node binary and invalidates its upstream signature. Public artifacts must be signed after SEA injection with SHA-256 and RFC 3161 timestamping. Release automation must verify the final signature and publish `SHA256SUMS.txt`, an SBOM, and provenance. Signing credentials must be protected by a release environment and must not be exported into the repository or build logs.
 
-- No secrets are committed. `local.settings.example.json` and `.env.example`
-  contain variable names only. Production credentials are Key
-  Vault-resolved via managed identity (see `docs/ENTRA_SETUP.md`).
+## Logging
 
-## Mock data
-
-- `ENABLE_MOCK_DATA` can only be `true` when
-  `AZURE_FUNCTIONS_ENVIRONMENT` is not `Production` (`config.featureFlags.mockDataEnabled`).
+Production logging must not include tokens, request authorization headers, identity values, organization names, report contents, capability-bearing launch URLs, or local output paths. The launch URL is printed only when explicit no-browser mode is enabled for automated smoke testing.

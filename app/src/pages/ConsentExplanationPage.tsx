@@ -1,16 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useMsal } from '@azure/msal-react';
-import { portalApiScopes } from '../auth/msal-config';
 
 export function ConsentExplanationPage(): JSX.Element {
   const [acknowledged, setAcknowledged] = useState(false);
-  const { instance } = useMsal();
   const navigate = useNavigate();
 
-  async function continueToMicrosoft() {
-    await instance.loginRedirect({ scopes: portalApiScopes });
-    navigate('/connections/setup');
+  function continueToMicrosoft() {
+    navigate('/sign-in');
   }
 
   return (
@@ -39,8 +35,8 @@ export function ConsentExplanationPage(): JSX.Element {
 
       <h2>How data is handled</h2>
       <ul>
-        <li>Azure DevOps tokens remain server-side</li>
-        <li>Report retention defaults to no saved history</li>
+        <li>Azure DevOps tokens remain inside the local executable</li>
+        <li>Reports remain in memory until you close the application</li>
         <li>Exports are generated only at your request</li>
         <li>You can disconnect the integration and delete retained reports</li>
       </ul>

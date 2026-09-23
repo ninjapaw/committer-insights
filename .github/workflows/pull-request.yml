@@ -6,8 +6,6 @@ on:
 
 permissions:
   contents: read
-  security-events: write
-  pull-requests: read
 
 concurrency:
   group: pr-${{ github.workflow }}-${{ github.event.pull_request.number }}
@@ -36,11 +34,14 @@ jobs:
         run: npm run test:integration
       - name: Production build
         run: npm run build
-      - name: Bicep validation
-        run: npm run infra:validate
+      - name: Packaged executable build
+        run: npm run build:exe
 
   dependency-review:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/dependency-review-action@v4

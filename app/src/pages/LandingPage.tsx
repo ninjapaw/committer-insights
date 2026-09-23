@@ -5,8 +5,8 @@ export function LandingPage(): JSX.Element {
     <section aria-labelledby="landing-title">
       <h1 id="landing-title">Active Committer Portal</h1>
       <p>
-        Review Azure DevOps Advanced Security committer estimates, compare provider identities, and
-        export a customer-controlled report.
+        Review Azure DevOps Advanced Security committer estimates and export the results to Excel or
+        CSV.
       </p>
       <p role="status">
         The portal uses delegated, read-only access. It does not ask for an Azure DevOps personal

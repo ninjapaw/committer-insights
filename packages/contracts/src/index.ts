@@ -15,11 +15,38 @@ export type AzureDevOpsResultType = z.infer<typeof azureDevOpsResultTypeSchema>;
  */
 export const AZURE_DEVOPS_ORG_PATTERN = /^[A-Za-z0-9][A-Za-z0-9-]{0,48}[A-Za-z0-9]$|^[A-Za-z0-9]$/;
 
+export function normalizeAzureDevOpsOrganization(value: string): string {
+  const input = value.trim();
+
+  try {
+    const url = new URL(input);
+    if (url.protocol !== 'https:' || url.username || url.password || url.port) return input;
+
+    if (url.hostname.toLowerCase() === 'dev.azure.com') {
+      return url.pathname.split('/').filter(Boolean)[0] ?? input;
+    }
+
+    const legacyHost = url.hostname.match(
+      /^([A-Za-z0-9][A-Za-z0-9-]{0,48}[A-Za-z0-9]|[A-Za-z0-9])\.visualstudio\.com$/i,
+    );
+    if (legacyHost) return legacyHost[1] ?? input;
+  } catch {
+    // A bare organization name is the normal non-URL input.
+  }
+
+  return input;
+}
+
 export const azureDevOpsOrganizationSchema = z
   .string()
-  .min(1, 'Organization is required')
-  .max(50, 'Organization name is too long')
-  .regex(AZURE_DEVOPS_ORG_PATTERN, 'Organization name contains invalid characters');
+  .transform(normalizeAzureDevOpsOrganization)
+  .pipe(
+    z
+      .string()
+      .min(1, 'Organization is required')
+      .max(50, 'Organization name is too long')
+      .regex(AZURE_DEVOPS_ORG_PATTERN, 'Enter an organization name or Azure DevOps URL'),
+  );
 
 /** Raw shape returned by the Azure DevOps meterUsageEstimate endpoint (subset actually used). */
 export const azureDevOpsMeterUsageBilledUserSchema = z.object({
@@ -57,59 +84,10 @@ export const azureDevOpsCommitterSchema = z.object({
 });
 export type AzureDevOpsCommitter = z.infer<typeof azureDevOpsCommitterSchema>;
 
-export const gitHubCommitterSchema = z.object({
-  provider: z.literal('github'),
-  userLogin: z.string(),
-  organization: z.string(),
-  repository: z.string(),
-  organizationRepository: z.string(),
-  lastPushedDate: z.string().datetime().optional(),
-  lastPushedEmail: z.string().optional(),
-  collectedAt: z.string().datetime(),
-});
-export type GitHubCommitter = z.infer<typeof gitHubCommitterSchema>;
-
-export const matchStatusSchema = z.enum(['matched', 'provider-only', 'review-required']);
-export const matchMethodSchema = z.enum([
-  'exact-email',
-  'exact-upn',
-  'approved-alias',
-  'github-login-candidate',
-  'none',
-]);
-
-export const combinedCommitterSchema = z.object({
-  canonicalId: z.string(),
-  displayName: z.string().optional(),
-  primaryEmail: z.string().optional(),
-  providers: z.array(z.enum(['azure-devops', 'github'])),
-  gitHubLogin: z.string().optional(),
-  azureDevOpsUserPrincipalName: z.string().optional(),
-  organizations: z.array(z.string()),
-  repositories: z.array(z.string()),
-  plans: z.array(azureDevOpsPlanSchema),
-  isEstimated: z.boolean(),
-  isLicensed: z.boolean(),
-  matchStatus: matchStatusSchema,
-  matchMethod: matchMethodSchema,
-  matchConfidence: z.number().min(0).max(1),
-  reviewRequired: z.boolean(),
-});
-export type CombinedCommitter = z.infer<typeof combinedCommitterSchema>;
-
-export const retentionSchema = z.enum(['none', 'session', 'thirty-days']).default('none');
-export type Retention = z.infer<typeof retentionSchema>;
-
 export const reportRequestSchema = z.object({
-  provider: z.enum(['azure-devops', 'combined']),
-  azureDevOps: z
-    .object({
-      organization: azureDevOpsOrganizationSchema,
-      plans: z.array(azureDevOpsPlanSchema).min(1),
-      resultTypes: z.array(azureDevOpsResultTypeSchema).min(1).default(['estimated']),
-    })
-    .optional(),
-  retention: retentionSchema,
+  organization: azureDevOpsOrganizationSchema,
+  plans: z.array(azureDevOpsPlanSchema).min(1),
+  resultTypes: z.array(azureDevOpsResultTypeSchema).min(1).default(['estimated']),
 });
 export type ReportRequest = z.infer<typeof reportRequestSchema>;
 

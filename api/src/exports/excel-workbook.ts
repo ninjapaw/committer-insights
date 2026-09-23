@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import type { AzureDevOpsCommitter, CombinedCommitter, GitHubCommitter } from '@ninjapaw/contracts';
+import type { AzureDevOpsCommitter } from '@ninjapaw/contracts';
 import { sanitizeCellValue } from './sanitize.js';
 
 export interface ExportWarning {
@@ -9,12 +9,9 @@ export interface ExportWarning {
 export interface ReportExportInput {
   organization: string;
   plans: string[];
-  retention: string;
   sourceApiVersion: string;
   generatedAt: string;
   azureDevOpsCommitters: AzureDevOpsCommitter[];
-  gitHubCommitters: GitHubCommitter[];
-  combinedCommitters: CombinedCommitter[];
   warnings: ExportWarning[];
 }
 
@@ -59,11 +56,8 @@ export async function generateReportWorkbook(input: ReportExportInput): Promise<
     ['Report generated at (ISO 8601)', input.generatedAt],
     ['Organization', sanitizeCellValue(input.organization)],
     ['Plans', input.plans.join(', ')],
-    ['Retention', input.retention],
     ['Source API version', input.sourceApiVersion],
     ['Azure DevOps identities', input.azureDevOpsCommitters.length],
-    ['GitHub identities', input.gitHubCommitters.length],
-    ['Combined identities', input.combinedCommitters.length],
   ]);
   summary.getColumn(1).width = 32;
   summary.getColumn(2).width = 48;
@@ -85,65 +79,10 @@ export async function generateReportWorkbook(input: ReportExportInput): Promise<
     input.azureDevOpsCommitters.map((c) => ({ ...c })),
   );
 
-  const gh = workbook.addWorksheet('GitHub Committers');
-  addTable(
-    gh,
-    'GitHubCommitters',
-    [
-      { name: 'User login', key: 'userLogin' },
-      { name: 'Organization', key: 'organization' },
-      { name: 'Repository', key: 'repository' },
-      { name: 'Organization/repository', key: 'organizationRepository' },
-      { name: 'Last pushed date', key: 'lastPushedDate' },
-      { name: 'Last pushed email', key: 'lastPushedEmail' },
-    ],
-    input.gitHubCommitters.map((c) => ({ ...c })),
-  );
-
-  const combined = workbook.addWorksheet('Combined Identities');
-  addTable(
-    combined,
-    'CombinedIdentities',
-    [
-      { name: 'Display name', key: 'displayName' },
-      { name: 'Primary email', key: 'primaryEmail' },
-      { name: 'GitHub login', key: 'gitHubLogin' },
-      { name: 'Azure DevOps UPN', key: 'azureDevOpsUserPrincipalName' },
-      { name: 'Providers', key: 'providers' },
-      { name: 'Organizations', key: 'organizations' },
-      { name: 'Repository count', key: 'repositoryCount' },
-      { name: 'Plans', key: 'plans' },
-      { name: 'Match status', key: 'matchStatus' },
-      { name: 'Match method', key: 'matchMethod' },
-      { name: 'Review required', key: 'reviewRequired' },
-    ],
-    input.combinedCommitters.map((c) => ({
-      ...c,
-      providers: c.providers.join(', '),
-      organizations: c.organizations.join(', '),
-      plans: c.plans.join(', '),
-      repositoryCount: c.repositories.length,
-    })),
-  );
-
-  const review = workbook.addWorksheet('Identity Review');
-  addTable(
-    review,
-    'IdentityReview',
-    [
-      { name: 'Display name', key: 'displayName' },
-      { name: 'GitHub login', key: 'gitHubLogin' },
-      { name: 'Match method', key: 'matchMethod' },
-      { name: 'Match confidence', key: 'matchConfidence' },
-    ],
-    input.combinedCommitters.filter((c) => c.reviewRequired).map((c) => ({ ...c })),
-  );
-
   const params = workbook.addWorksheet('Report Parameters');
   params.addRows([
     ['Organization', input.organization],
     ['Plans', input.plans.join(', ')],
-    ['Retention', input.retention],
     ['Source API version', input.sourceApiVersion],
     ['Generated at', input.generatedAt],
   ]);

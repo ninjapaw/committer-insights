@@ -4,125 +4,51 @@
 
 ```mermaid
 flowchart LR
-  customer[Customer\nwork/school account] -->|HTTPS| spa[React SPA\nAzure Static Web Apps]
-  spa -->|Bearer token\nMSAL PKCE| api[Azure Functions API\nlinked backend]
-  api -->|OBO exchange| entra[Microsoft Entra ID]
-  api -->|Delegated token| ado[Azure DevOps\nAdvanced Security estimate API]
-  api -->|Secrets| kv[Key Vault]
-  api -->|Telemetry| ai[Application Insights /\nLog Analytics]
+  U[Customer] -->|launches| E[Signed local executable]
+  E -->|serves on 127.0.0.1| B[System browser wizard]
+  E -->|interactive public-client sign-in| M[Microsoft Entra ID]
+  E -->|delegated read-only token| A[Azure DevOps Advanced Security API]
+  E -->|in-memory report| B
+  B -->|authenticated download| X[Local XLSX or CSV file]
 ```
+
+No application backend, cloud database, Key Vault, Function App, or Static Web App is required.
+
+## Startup sequence
+
+1. The executable generates a 256-bit random capability.
+2. It binds an HTTP server to `127.0.0.1` on an OS-assigned port.
+3. It opens `http://127.0.0.1:<port>/#session=<capability>`.
+4. The React application reads the fragment into module memory and removes it from browser history.
+5. API requests send the capability in the `Authorization` header.
+6. The local server rejects unexpected Host, Origin, and capability values.
 
 ## Authentication sequence
 
 ```mermaid
 sequenceDiagram
   participant U as Customer
-  participant S as SPA (MSAL Browser)
-  participant E as Microsoft Entra ID
-  participant A as Functions API
-  participant D as Azure DevOps
+  participant W as Local wizard
+  participant E as Local executable
+  participant M as Microsoft Entra ID
+  participant A as Azure DevOps
 
-  U->>S: Sign in
-  S->>E: Authorization code + PKCE
-  E-->>S: ID token + access token (portal API scope)
-  S->>A: Call API with bearer token
-  A->>A: Validate issuer, audience, signature, lifetime (jose)
-  A->>E: OBO exchange (user assertion)
-  E-->>A: Delegated Azure DevOps token
-  A->>D: Call meterUsageEstimate with delegated token
-  D-->>A: Estimate response
-  A-->>S: Normalized report (no upstream token returned)
+  U->>W: Sign in
+  W->>E: POST /api/auth/sign-in with local capability
+  E->>M: Interactive browser public-client authentication
+  M-->>E: Delegated Azure DevOps token
+  E-->>W: Authenticated session status
+  U->>W: Enter organization and report options
+  W->>E: Generate report
+  E->>A: meterUsageEstimate using delegated token
+  A-->>E: Committer estimate
+  E-->>W: In-memory web report
+  W->>E: Download Excel or CSV
+  E-->>W: Generated file
 ```
 
-## Report-generation sequence
+Azure access and refresh tokens are never sent to the React application.
 
-```mermaid
-sequenceDiagram
-  participant S as SPA
-  participant A as Functions API
-  participant D as Azure DevOps
+## Packaging
 
-  S->>A: POST /reports/azure-devops {organization, plans, retention}
-  A->>A: Validate organization (allow-list) and request body (Zod)
-  A->>D: GET meterUsageEstimate (per plan/resultType)
-  D-->>A: uniqueCommitterCount, billedUsers
-  A->>A: Normalize, match identities, store per retention policy
-  A-->>S: {reportId, generatedAt, warnings}
-  S->>A: GET /reports/{reportId}/export.xlsx
-  A-->>S: XLSX workbook (Content-Disposition attachment)
-```
-
-## Deployment architecture
-
-```mermaid
-flowchart TB
-  subgraph RG[Resource Group]
-    SWA[Static Web App]
-    FA[Function App - Flex Consumption]
-    KV[Key Vault]
-    LAW[Log Analytics]
-    AI[Application Insights]
-    ST[Storage Account]
-  end
-  SWA -- linkedBackend --> FA
-  FA -- managed identity --> KV
-  FA --> AI
-  AI --> LAW
-  FA --> ST
-```
-
-### Minimal infrastructure footprint
-
-The frontend is served entirely by the Static Web App with no additional
-hosting, CDN, or Front Door tier — Static Web Apps already provides global
-edge distribution, TLS, and the SPA fallback this app needs. Only one
-additional compute resource exists (the linked Function App), and only
-because the OAuth On-Behalf-Of exchange requires a confidential client
-credential and outbound calls that the SWA managed-Functions runtime cannot
-support (see [adr/0001-linked-function-app.md](adr/0001-linked-function-app.md)).
-Every other resource (Key Vault, Log Analytics, Application Insights,
-Storage Account) is required by an explicit product or security requirement
-— there is no separate networking, Front Door, API Management, or
-container-hosting layer.
-
-### Least privilege
-
-- **Azure DevOps access** is delegated OBO on the signed-in user's own
-  token; the portal never requests or holds elevated, application-only, or
-  tenant-wide Azure DevOps permissions, and Azure DevOps access can never
-  exceed what the customer's own account already has (see
-  [SECURITY.md](SECURITY.md)).
-- **Key Vault**: the API's managed identity is granted only
-  `Key Vault Secrets User` (read-only) on its own secrets — never
-  `Secrets Officer`/`Contributor`. No other identity has Key Vault access.
-- **Storage**: the Function App's own identity needs account-scoped
-  `Storage Blob Data Owner`, which is the documented minimum for Flex
-  Consumption's identity-based deployment/runtime storage. The separate
-  CI/CD publishing identity is granted only `Storage Blob Data Contributor`
-  scoped to the single deployment container — not the whole storage
-  account, and not the `Owner` role. No Storage Queue/Table role is granted
-  to any identity because the app has no queue-triggered or Durable
-  Functions.
-
-## Data retention lifecycle
-
-```mermaid
-stateDiagram-v2
-  [*] --> InMemory: Report generated (retention=none)
-  InMemory --> Delivered: Export downloaded
-  Delivered --> [*]: Session window expires (~15 min)
-  [*] --> SessionStore: retention=session
-  SessionStore --> [*]: Session TTL expires (~1 hour)
-  [*] --> ThirtyDayStore: retention=thirty-days
-  ThirtyDayStore --> [*]: 30-day expiry or explicit delete
-```
-
-## Notes
-
-- The frontend is hosted on Azure Static Web Apps; the API is a **linked,
-  dedicated** Azure Functions app rather than SWA managed Functions. See
-  [adr/0001-linked-function-app.md](adr/0001-linked-function-app.md).
-- Static Web Apps built-in authentication is **not** used for sign-in;
-  `staticwebapp.config.json` only sets security headers and SPA fallback
-  routing. MSAL is the single authoritative sign-in system, avoiding
-  duplicate/confusing login experiences.
+`scripts/build-executable.mjs` bundles the Node host with esbuild, embeds the Vite output as Node SEA assets, injects the SEA blob into a copy of the current Node executable, and writes a SHA-256 manifest. Release automation must sign the completed binary after injection and verify the signature before publication.

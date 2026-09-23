@@ -1,107 +1,69 @@
-# Active Committer Portal
+# Committer Insights
 
-Review Azure DevOps Advanced Security committer estimates, compare provider
-identities, and export a customer-controlled report — using delegated,
-read-only Microsoft Entra ID access. **No Azure DevOps personal access
-token is ever requested.**
+Generate Azure DevOps Advanced Security committer reports on your own computer. The signed executable opens a local browser wizard, authenticates with delegated read-only Microsoft Entra access, and produces web, Excel, and CSV reports without uploading report data to a hosted service.
 
-## Product purpose
+## Customer experience
 
-Customers sign in with a Microsoft work or school account, consent to
-read-only delegated Azure DevOps access, select an organization they are
-already authorized to access, and generate an Excel/CSV report of estimated
-Advanced Security committers (Code Security, Secret Protection, or both).
-GitHub identity correlation is designed in but disabled until a GitHub App
-is registered.
+1. Download the executable and verify its SHA-256 checksum.
+2. Run it without Node.js, Azure CLI, administrator rights, or installation.
+3. Sign in with a Microsoft work or school account.
+4. Paste an Azure DevOps organization name or URL.
+5. Generate the report and download Excel or CSV output.
+6. Close the executable to erase the in-memory session and reports.
 
-## Screenshots
-
-_Placeholder — add screenshots of the landing page, consent explanation
-page, and results dashboard here once the UI is deployed._
-
-## Architecture summary
-
-React SPA (MSAL Browser/React, Fluent UI v9, TanStack Query/Table) → Azure
-Static Web Apps → linked Azure Functions API (bearer validation + OAuth
-On-Behalf-Of) → Azure DevOps Advanced Security estimate API. See
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for diagrams.
-
-## Prerequisites
-
-- Node.js 20 LTS or newer
-- npm 10+
-- Azure Functions Core Tools v4 (`func`) for local API execution
-- Azure CLI with the Bicep extension, for `npm run infra:validate`
-- A Microsoft Entra app registration — see [docs/ENTRA_SETUP.md](docs/ENTRA_SETUP.md)
-
-## Local setup
-
-```bash
-npm install
-cp app/.env.example app/.env
-cp api/local.settings.example.json api/local.settings.json
-# Fill in app/.env and api/local.settings.json with your Entra app values.
-npm run dev
-```
-
-## Environment configuration
-
-See [docs/ENTRA_SETUP.md](docs/ENTRA_SETUP.md) for the full variable list
-and setup steps. Mock data (`ENABLE_MOCK_DATA=true`) only works in
-non-production environments; it is force-disabled when
-`AZURE_FUNCTIONS_ENVIRONMENT=Production`.
-
-## Test commands
-
-```bash
-npm run test:unit
-npm run test:integration
-npm run test:e2e         # requires Playwright browsers installed
-npm run test:coverage
-```
-
-## Build commands
-
-```bash
-npm run build
-```
-
-## Azure deployment
-
-```bash
-npm run infra:validate   # az bicep build for every template
-```
-
-Deployment to dev/test/prod is automated via `.github/workflows/main.yml`
-using OIDC workload identity federation (no long-lived Azure credentials
-stored in GitHub). Production requires manual environment approval.
-
-## Entra setup
-
-See [docs/ENTRA_SETUP.md](docs/ENTRA_SETUP.md).
+The application never asks for an Azure DevOps PAT, customer app registration, client secret, Azure subscription, or tenant identifier. A tenant administrator may still need to approve the publisher's delegated permission under the customer's consent policy.
 
 ## Security model
 
+- The server binds only to an OS-assigned port on `127.0.0.1`.
+- Every API request requires a random per-launch capability.
+- Mutating requests also require the exact loopback origin.
+- Azure tokens remain in the executable process and never enter browser storage.
+- Reports are held in memory and are written only when the user downloads an export.
+- Azure DevOps access is delegated and cannot exceed the signed-in user's permissions.
+
 See [docs/SECURITY.md](docs/SECURITY.md) and [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
 
-## Data retention
+## Maintainer setup
 
-Default is `none` (in-memory processing only). See
-[docs/PRIVACY.md](docs/PRIVACY.md) and [docs/DATA_MODEL.md](docs/DATA_MODEL.md).
+Prerequisites:
 
-## API limitations
+- Node.js 24.19.0
+- npm 11.17.0
+- A multitenant Microsoft Entra public-client registration described in [docs/ENTRA_SETUP.md](docs/ENTRA_SETUP.md)
+- A code-signing service or certificate for public releases
 
-The Azure DevOps `meterUsageEstimate` endpoint is a **preview** API
-(`api-version=7.2-preview.3`). See [docs/API.md](docs/API.md).
+```powershell
+npm ci
+$env:COMMITTER_INSIGHTS_CLIENT_ID = '<public-client-application-id>'
+npm run build:exe
+.\release\committer-insights.exe
+```
 
-## Troubleshooting
+The client ID is public configuration, not a secret. Release builds should provide it centrally so customers do not configure anything.
 
-See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
+## Development
 
-## Contributing
+```powershell
+npm ci
+$env:COMMITTER_INSIGHTS_CLIENT_ID = '<public-client-application-id>'
+npm run dev
+```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+`npm run dev` builds the React application and starts the same local host used by the executable.
+
+## Validation
+
+```powershell
+npm run format:check
+npm run lint
+npm run typecheck
+npm run test
+npm run build:exe
+```
+
+Build output is written to `release/` with `SHA256SUMS.txt`. The generated executable is not release-ready until it has been Authenticode-signed and verified.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
