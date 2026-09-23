@@ -1,1 +1,7 @@
 * @ninjapaw/committer-insights-maintainers
+/.github/ @ninjapaw/committer-insights-maintainers
+/api/src/auth/ @ninjapaw/committer-insights-maintainers
+/api/src/local-server.ts @ninjapaw/committer-insights-maintainers
+/scripts/build-executable.mjs @ninjapaw/committer-insights-maintainers
+/package.json @ninjapaw/committer-insights-maintainers
+/package-lock.json @ninjapaw/committer-insights-maintainers

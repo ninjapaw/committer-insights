@@ -1,15 +1,16 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { signInLocally } from '../auth/get-token';
+import { connectAzure } from '../providers/azure-devops';
 
 export function SignInPage(): JSX.Element {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const signIn = useMutation({
-    mutationFn: signInLocally,
+    mutationFn: connectAzure,
     onSuccess: async () => {
+      queryClient.setQueryData(['provider-connection', 'Azure DevOps'], true);
       await queryClient.invalidateQueries({ queryKey: ['local-session'] });
-      navigate('/connections/azure-devops/organization');
+      navigate('/connections');
     },
   });
 

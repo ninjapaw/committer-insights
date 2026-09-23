@@ -1,108 +1,84 @@
 import { z } from 'zod';
 
-/** Allowed Azure DevOps Advanced Security meter-usage-estimate plan values. */
-export const azureDevOpsPlanSchema = z.enum(['codeSecurity', 'secretProtection', 'all']);
-export type AzureDevOpsPlan = z.infer<typeof azureDevOpsPlanSchema>;
+export * from './azure-devops.js';
+export * from './github.js';
+import {
+  azureDevOpsOrganizationSchema,
+  azureDevOpsPlanSchema,
+  type AzureDevOpsCommitter,
+} from './azure-devops.js';
+import { gitHubRepositorySchema, type GitHubCommitter } from './github.js';
 
-export const azureDevOpsResultTypeSchema = z.enum(['estimated', 'licensed']);
-export type AzureDevOpsResultType = z.infer<typeof azureDevOpsResultTypeSchema>;
+export const multiSourceSchema = z.discriminatedUnion('provider', [
+  z.object({
+    provider: z.literal('azure-devops'),
+    organization: azureDevOpsOrganizationSchema,
+    plans: z.array(azureDevOpsPlanSchema).min(1).default(['all']),
+  }),
+  z.object({
+    provider: z.literal('github'),
+    repository: gitHubRepositorySchema,
+    sinceDays: z.number().int().min(1).max(365).default(90),
+  }),
+]);
+export type MultiSource = z.infer<typeof multiSourceSchema>;
 
-/**
- * Strict allow-list pattern for Azure DevOps organization names, matching
- * the naming rules Azure DevOps itself enforces (letters, digits, hyphen;
- * no leading/trailing hyphen; 1-50 chars). Used to prevent SSRF via
- * arbitrary host/path injection into upstream URLs.
- */
-export const AZURE_DEVOPS_ORG_PATTERN = /^[A-Za-z0-9][A-Za-z0-9-]{0,48}[A-Za-z0-9]$|^[A-Za-z0-9]$/;
+export const multiSourceReportRequestSchema = z.object({
+  sources: z.array(multiSourceSchema).min(1).max(100),
+});
 
-export function normalizeAzureDevOpsOrganization(value: string): string {
-  const input = value.trim();
+export const sourceStatusSchema = z.object({
+  provider: z.enum(['azure-devops', 'github']),
+  subject: z.string(),
+  scope: z.string().optional(),
+  status: z.enum(['included', 'skipped']),
+  committerCount: z.number().int().nonnegative().default(0),
+  reason: z.string().optional(),
+  remediation: z.string().optional(),
+});
+export type SourceStatus = z.infer<typeof sourceStatusSchema>;
 
-  try {
-    const url = new URL(input);
-    if (url.protocol !== 'https:' || url.username || url.password || url.port) return input;
-
-    if (url.hostname.toLowerCase() === 'dev.azure.com') {
-      return url.pathname.split('/').filter(Boolean)[0] ?? input;
-    }
-
-    const legacyHost = url.hostname.match(
-      /^([A-Za-z0-9][A-Za-z0-9-]{0,48}[A-Za-z0-9]|[A-Za-z0-9])\.visualstudio\.com$/i,
-    );
-    if (legacyHost) return legacyHost[1] ?? input;
-  } catch {
-    // A bare organization name is the normal non-URL input.
-  }
-
-  return input;
+export interface ExecutiveSummary {
+  requestedSources: number;
+  includedSources: number;
+  skippedSources: number;
+  azureIdentityRecords: number;
+  gitHubIdentityRecords: number;
+  uniqueProviderIdentities: number;
 }
 
-export const azureDevOpsOrganizationSchema = z
-  .string()
-  .transform(normalizeAzureDevOpsOrganization)
-  .pipe(
-    z
-      .string()
-      .min(1, 'Organization is required')
-      .max(50, 'Organization name is too long')
-      .regex(AZURE_DEVOPS_ORG_PATTERN, 'Enter an organization name or Azure DevOps URL'),
-  );
+export interface ProviderSummary {
+  provider: MultiSource['provider'];
+  displayName: string;
+  sourceLabel: string;
+  measurement: string;
+  apiVersion: string;
+  methodology: string;
+  includedSources: number;
+  skippedSources: number;
+  identityRecords: number;
+  uniqueIdentities: number;
+  totalCommits?: number;
+}
 
-/** Raw shape returned by the Azure DevOps meterUsageEstimate endpoint (subset actually used). */
-export const azureDevOpsMeterUsageBilledUserSchema = z.object({
-  cuid: z.string().optional(),
-  userId: z.string().optional(),
-  descriptor: z.string().optional(),
-  displayName: z.string().optional(),
-  uniqueName: z.string().optional(),
-  userIdentity: z
-    .object({
-      id: z.string().optional(),
-      descriptor: z.string().optional(),
-      displayName: z.string().optional(),
-      uniqueName: z.string().optional(),
-    })
-    .optional(),
-});
-export type AzureDevOpsMeterUsageBilledUser = z.infer<typeof azureDevOpsMeterUsageBilledUserSchema>;
+export interface Report {
+  reportId: string;
+  provider: 'azure-devops' | 'github' | 'combined';
+  subject: string;
+  organization: string;
+  plans: string[];
+  generatedAt: string;
+  sourceApiVersion: string;
+  azureDevOpsCommitters: AzureDevOpsCommitter[];
+  gitHubCommitters: GitHubCommitter[];
+  sourceStatuses?: SourceStatus[];
+  executiveSummary?: ExecutiveSummary;
+  providerSummaries?: ProviderSummary[];
+  warnings: string[];
+}
 
-export const azureDevOpsMeterUsageEstimateResponseSchema = z.object({
-  uniqueCommitterCount: z.number().int().nonnegative(),
-  billedUsers: z.array(azureDevOpsMeterUsageBilledUserSchema).default([]),
-});
-export type AzureDevOpsMeterUsageEstimateResponse = z.infer<
-  typeof azureDevOpsMeterUsageEstimateResponseSchema
->;
-
-export const azureDevOpsAllMeterUsageEstimateResponseSchema = z.object({
-  codeSecurityMeterUsageEstimate: azureDevOpsMeterUsageEstimateResponseSchema,
-  secretProtectionMeterUsageEstimate: azureDevOpsMeterUsageEstimateResponseSchema,
-});
-
-/** Normalized Azure DevOps committer record retained by this application. */
-export const azureDevOpsCommitterSchema = z.object({
-  provider: z.literal('azure-devops'),
-  organization: z.string(),
-  plan: azureDevOpsPlanSchema,
-  resultType: azureDevOpsResultTypeSchema,
-  cuid: z.string().optional(),
-  identityId: z.string().optional(),
-  descriptor: z.string().optional(),
-  displayName: z.string().optional(),
-  userPrincipalName: z.string().optional(),
-  isEstimated: z.boolean(),
-  isLicensed: z.boolean(),
-  collectedAt: z.string().datetime(),
-  sourceApiVersion: z.string(),
-});
-export type AzureDevOpsCommitter = z.infer<typeof azureDevOpsCommitterSchema>;
-
-export const reportRequestSchema = z.object({
-  organization: azureDevOpsOrganizationSchema,
-  plans: z.array(azureDevOpsPlanSchema).min(1),
-  resultTypes: z.array(azureDevOpsResultTypeSchema).min(1).default(['estimated']),
-});
-export type ReportRequest = z.infer<typeof reportRequestSchema>;
+export const exportFormats = ['xlsx', 'csv', 'pdf', 'html'] as const;
+export type ExportFormat = (typeof exportFormats)[number];
 
 /** Typed error model for upstream and portal API failures. */
 export const providerErrorCodeSchema = z.enum([

@@ -4,23 +4,30 @@ import { createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { extname, join, normalize, resolve } from 'node:path';
 import { getAsset, isSea } from 'node:sea';
-import { reportRequestSchema, type ProviderErrorCode } from '@ninjapaw/contracts';
 import {
-  AzureDevOpsAdapterError,
-  fetchAzureDevOpsEstimate,
-} from './adapters/azure-devops/estimate-client.js';
-import { acquireAzureDevOpsToken } from './auth/local-credential.js';
-import { generateReportWorkbook, safeExportFilename } from './exports/excel-workbook.js';
-import { toCsv } from './exports/sanitize.js';
+  gitHubReportRequestSchema,
+  multiSourceReportRequestSchema,
+  reportRequestSchema,
+  type ProviderErrorCode,
+  type ExportFormat,
+} from '@ninjapaw/contracts';
+import { AzureDevOpsAdapterError } from './adapters/azure-devops/estimate-client.js';
+import { generateReportExport } from './exports/report-export.js';
+import { createCombinedReport, preflightSources } from './reports/combined-report.js';
 import { reportStore, type StoredReport } from './reports/report-store.js';
-import { config } from './shared/config.js';
-import { newOpaqueId } from './shared/ids.js';
+import {
+  connectAzureDevOps,
+  createAzureReport,
+  discoverAzureDevOpsSources,
+} from './services/azure-devops.js';
+import { connectGitHub, createGitHubReport, discoverGitHubSources } from './services/github.js';
 
 const HOST = '127.0.0.1';
 const appRoot = resolve(process.cwd(), 'app/dist');
 // This unguessable capability is the authorization boundary for the one local browser session.
 const capability = randomBytes(32).toString('base64url');
 let signedIn = false;
+let githubSignedIn = false;
 
 const securityHeaders = {
   'Cache-Control': 'no-store',
@@ -142,67 +149,28 @@ async function createReport(request: IncomingMessage, response: ServerResponse):
     sendJson(response, 400, { message: 'The report request is invalid.' });
     return;
   }
-  const { organization, plans, resultTypes } = parsed.data;
-  const accessToken = await acquireAzureDevOpsToken();
-  const azureDevOpsCommitters = (
-    await Promise.all(
-      plans.flatMap((plan) =>
-        resultTypes.map((resultType) =>
-          fetchAzureDevOpsEstimate({ organization, plan, resultType, accessToken }),
-        ),
-      ),
-    )
-  ).flat();
-  const reportId = newOpaqueId();
-  const generatedAt = new Date().toISOString();
-  const report: StoredReport = {
-    reportId,
+  const { organization, plans } = parsed.data;
+  const report = await createAzureReport({
+    provider: 'azure-devops',
     organization,
     plans,
-    generatedAt,
-    sourceApiVersion: config.azureDevOps.apiVersion(),
-    azureDevOpsCommitters,
-    warnings: ['This report uses an Azure DevOps preview API.'],
-  };
-  reportStore.put(report);
+  });
+  const { reportId, generatedAt } = report;
   sendJson(response, 201, { reportId, generatedAt, warnings: report.warnings });
 }
 
 async function exportReport(
   response: ServerResponse,
   report: StoredReport,
-  extension: 'xlsx' | 'csv',
+  extension: ExportFormat,
 ): Promise<void> {
-  const filename = safeExportFilename(report.organization, report.generatedAt, extension);
-  if (extension === 'xlsx') {
-    const workbook = await generateReportWorkbook({
-      ...report,
-      warnings: report.warnings.map((message) => ({ message })),
-    });
-    response.writeHead(200, {
-      ...securityHeaders,
-      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': `attachment; filename="${filename}"`,
-    });
-    response.end(Buffer.from(workbook));
-    return;
-  }
-  const csv = toCsv(report.azureDevOpsCommitters as unknown as Record<string, unknown>[], [
-    'displayName',
-    'userPrincipalName',
-    'organization',
-    'resultType',
-    'plan',
-    'cuid',
-    'identityId',
-    'collectedAt',
-  ]);
+  const output = await generateReportExport(report, extension);
   response.writeHead(200, {
     ...securityHeaders,
-    'Content-Type': 'text/csv; charset=utf-8',
-    'Content-Disposition': `attachment; filename="${filename}"`,
+    'Content-Type': output.contentType,
+    'Content-Disposition': `attachment; filename="${output.filename}"`,
   });
-  response.end(csv);
+  response.end(output.body);
 }
 
 async function handleApi(
@@ -219,11 +187,78 @@ async function handleApi(
     });
   }
   if (request.method === 'POST' && pathname === '/api/auth/sign-in') {
-    await acquireAzureDevOpsToken();
+    const connection = await connectAzureDevOps();
     signedIn = true;
-    return sendJson(response, 200, { authenticated: true });
+    return sendJson(response, 200, connection);
+  }
+  if (request.method === 'POST' && pathname === '/api/auth/github/sign-in') {
+    const connection = await connectGitHub();
+    githubSignedIn = true;
+    return sendJson(response, 200, connection);
+  }
+  if (request.method === 'GET' && pathname === '/api/connections/github/repositories') {
+    if (!githubSignedIn) {
+      return sendJson(response, 401, { message: 'Sign in with GitHub CLI to continue.' });
+    }
+    const repositories = await discoverGitHubSources();
+    return sendJson(response, 200, { repositories });
+  }
+  if (request.method === 'POST' && pathname === '/api/reports/github') {
+    if (!githubSignedIn) {
+      return sendJson(response, 401, { message: 'Sign in with GitHub CLI to continue.' });
+    }
+    const parsed = gitHubReportRequestSchema.safeParse(await readJson(request));
+    if (!parsed.success) {
+      return sendJson(response, 400, { message: 'The GitHub report request is invalid.' });
+    }
+    const report = await createGitHubReport({ provider: 'github', ...parsed.data });
+    const { reportId, generatedAt } = report;
+    return sendJson(response, 201, { reportId, generatedAt, warnings: report.warnings });
+  }
+  if (request.method === 'POST' && pathname === '/api/reports/combined/preflight') {
+    const parsed = multiSourceReportRequestSchema.safeParse(await readJson(request));
+    if (!parsed.success) {
+      return sendJson(response, 400, { message: 'Select at least one valid source.' });
+    }
+    return sendJson(response, 200, { statuses: await preflightSources(parsed.data.sources) });
+  }
+  if (request.method === 'POST' && pathname === '/api/reports/combined') {
+    const parsed = multiSourceReportRequestSchema.safeParse(await readJson(request));
+    if (!parsed.success) {
+      return sendJson(response, 400, { message: 'Select at least one valid source.' });
+    }
+    const report = await createCombinedReport(parsed.data.sources);
+    const { reportId, generatedAt } = report;
+    return sendJson(response, 201, {
+      reportId,
+      generatedAt,
+      statuses: report.sourceStatuses,
+      summary: report.executiveSummary,
+    });
+  }
+  const reportMatch = pathname.match(/^\/api\/reports\/([^/]+)$/);
+  if (request.method === 'GET' && reportMatch) {
+    const report = reportForLocalUser(reportMatch[1]);
+    if (!report) return sendJson(response, 404, { message: 'Report not found.' });
+    return sendJson(response, 200, report);
+  }
+  const exportMatch = pathname.match(/^\/api\/reports\/([^/]+)\/export\.(xlsx|csv|html|pdf)$/);
+  if (request.method === 'GET' && exportMatch) {
+    const report = reportForLocalUser(exportMatch[1]);
+    if (!report) return sendJson(response, 404, { message: 'Report not found.' });
+    return exportReport(response, report, exportMatch[2] as ExportFormat);
   }
   if (!signedIn) return sendJson(response, 401, { message: 'Sign in with Microsoft to continue.' });
+  if (request.method === 'GET' && pathname === '/api/connections/azure-devops/organizations') {
+    try {
+      const organizations = await discoverAzureDevOpsSources();
+      return sendJson(response, 200, { organizations });
+    } catch {
+      return sendJson(response, 502, {
+        message: 'Organization discovery is unavailable. Enter an organization name or URL.',
+      });
+    }
+  }
   if (request.method === 'POST' && pathname === '/api/connections/azure-devops/validate') {
     const value = ((await readJson(request)) as { organization?: unknown }).organization;
     const organizationSchema = reportRequestSchema.shape.organization;
@@ -235,18 +270,6 @@ async function handleApi(
   }
   if (request.method === 'POST' && pathname === '/api/reports/azure-devops') {
     return createReport(request, response);
-  }
-  const reportMatch = pathname.match(/^\/api\/reports\/([^/]+)$/);
-  if (request.method === 'GET' && reportMatch) {
-    const report = reportForLocalUser(reportMatch[1]);
-    if (!report) return sendJson(response, 404, { message: 'Report not found.' });
-    return sendJson(response, 200, report);
-  }
-  const exportMatch = pathname.match(/^\/api\/reports\/([^/]+)\/export\.(xlsx|csv)$/);
-  if (request.method === 'GET' && exportMatch) {
-    const report = reportForLocalUser(exportMatch[1]);
-    if (!report) return sendJson(response, 404, { message: 'Report not found.' });
-    return exportReport(response, report, exportMatch[2] as 'xlsx' | 'csv');
   }
   return sendJson(response, 404, { message: 'Not found.' });
 }

@@ -165,8 +165,8 @@ export async function fetchAzureDevOpsEstimate(
             descriptor: user.userIdentity?.descriptor ?? user.descriptor,
             displayName: user.userIdentity?.displayName ?? user.displayName,
             userPrincipalName: user.userIdentity?.uniqueName ?? user.uniqueName,
-            isEstimated: resultType === 'estimated',
-            isLicensed: resultType === 'licensed',
+            isEstimated: true,
+            isLicensed: false,
             collectedAt,
             sourceApiVersion: config.azureDevOps.apiVersion(),
           };

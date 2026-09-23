@@ -15,6 +15,7 @@
     "@azure/identity": "^4.4.1",
     "@ninjapaw/contracts": "^0.1.0",
     "exceljs": "^4.4.0",
+    "pdf-lib": "1.17.1",
     "uuid": "11.1.1"
   },
   "devDependencies": {

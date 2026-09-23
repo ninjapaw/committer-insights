@@ -1,7 +1,7 @@
 import type { PropsWithChildren } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { getLocalSession } from './get-token';
+import { requestJson } from '../services/local-api';
 
 /**
  * Frontend route guard. This is a UX convenience only; the API
@@ -9,7 +9,11 @@ import { getLocalSession } from './get-token';
  * route regardless of this guard's state.
  */
 export function RequireAuth({ children }: PropsWithChildren): JSX.Element {
-  const session = useQuery({ queryKey: ['local-session'], queryFn: getLocalSession, retry: false });
+  const session = useQuery({
+    queryKey: ['local-session'],
+    queryFn: () => requestJson<{ authenticated: boolean }>('/api/session'),
+    retry: false,
+  });
   if (session.isPending) return <p aria-live="polite">Checking local session...</p>;
   if (session.isError || !session.data.authenticated) {
     return <Navigate to="/sign-in" replace />;

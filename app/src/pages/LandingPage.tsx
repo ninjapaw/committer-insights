@@ -2,21 +2,50 @@ import { Link } from 'react-router-dom';
 
 export function LandingPage(): JSX.Element {
   return (
-    <section aria-labelledby="landing-title">
-      <h1 id="landing-title">Active Committer Portal</h1>
-      <p>
-        Review Azure DevOps Advanced Security committer estimates and export the results to Excel or
-        CSV.
-      </p>
-      <p role="status">
-        The portal uses delegated, read-only access. It does not ask for an Azure DevOps personal
-        access token.
-      </p>
-      <Link to="/connect" role="button">
-        Connect Azure DevOps
-      </Link>
-      <nav aria-label="Secondary actions">
-        <Link to="/connect">How access works</Link>
+    <section className="landing" aria-labelledby="landing-title">
+      <div className="landing__intro">
+        <span className="eyebrow">Local reporting workspace</span>
+        <h1 id="landing-title">Active Committer Portal</h1>
+        <p className="landing__lead">
+          Review Azure DevOps Advanced Security estimates or GitHub repository committers, then
+          export the results to Excel or CSV.
+        </p>
+        <p className="callout" role="status">
+          Delegated, read-only access. The portal does not ask for an Azure DevOps personal access
+          token and uses no hosted API or cloud database.
+        </p>
+      </div>
+      <div className="provider-grid" aria-label="Choose a provider">
+        <article className="provider-card provider-card--azure">
+          <span className="provider-card__mark" aria-hidden="true">
+            AZ
+          </span>
+          <div>
+            <span className="eyebrow">Advanced Security</span>
+            <h2>Azure DevOps</h2>
+            <p>Estimate active committers across Code Security and Secret Protection plans.</p>
+          </div>
+          <Link className="btn btn-primary" to="/connect" role="button">
+            Connect Azure DevOps
+          </Link>
+        </article>
+        <article className="provider-card provider-card--github">
+          <span className="provider-card__mark" aria-hidden="true">
+            GH
+          </span>
+          <div>
+            <span className="eyebrow">Repository activity</span>
+            <h2>GitHub</h2>
+            <p>Count committers on a repository default branch over a selected date window.</p>
+          </div>
+          <Link className="btn btn-secondary" to="/connect/github" role="button">
+            Connect GitHub
+          </Link>
+        </article>
+      </div>
+      <nav className="landing__links" aria-label="Secondary actions">
+        <Link to="/connect">How Azure access works</Link>
+        <Link to="/connect/github">How GitHub access works</Link>
         <Link to="/security-privacy">Security and privacy</Link>
       </nav>
     </section>

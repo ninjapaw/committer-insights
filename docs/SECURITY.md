@@ -6,6 +6,8 @@ The executable first requests an Azure DevOps token through the user's existing 
 
 Access remains constrained by the signed-in user's existing Azure DevOps permissions. The executable does not accept PATs and does not use application-only Azure DevOps access.
 
+GitHub authentication reuses the active `gh` CLI credential from the operating-system credential store. The executable strips environment-provided GitHub token variables before invoking `gh`, never launches or mutates `gh auth login`, validates the account through `GET /user`, and keeps the retrieved token in process memory only. The existing CLI token can be broader than the read operations used by Committer Insights; users should review it with `gh auth status --active` and use a dedicated account when required.
+
 ## Loopback boundary
 
 - Bind only to `127.0.0.1` with an OS-assigned port.
@@ -19,7 +21,7 @@ Loopback alone is not considered authorization. These controls protect against D
 
 ## Data handling
 
-Azure tokens and reports remain in process memory. Tokens are never returned to the browser, logged, placed in URLs, or persisted. Reports are written only through an explicit authenticated browser download. Exported identity values are neutralized against spreadsheet formula injection.
+Azure/GitHub tokens and reports remain in process memory. Tokens are never returned to the browser, logged, placed in URLs, or persisted by Committer Insights. Reports are written only through an explicit authenticated browser download. Exported identity values are neutralized against spreadsheet formula injection.
 
 Closing the process destroys the session capability, credential object, connection state, and in-memory reports.
 

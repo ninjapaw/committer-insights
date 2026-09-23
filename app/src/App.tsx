@@ -1,14 +1,13 @@
-import { Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppLayout } from './layouts/AppLayout';
-import { RequireAuth } from './auth/RequireAuth';
 import { LandingPage } from './pages/LandingPage';
 import { SecurityPrivacyPage } from './pages/SecurityPrivacyPage';
 import { SignInPage } from './pages/SignInPage';
 import { ConsentExplanationPage } from './pages/ConsentExplanationPage';
-import { OrganizationConfigPage } from './pages/OrganizationConfigPage';
-import { ReportConfigurationPage } from './pages/ReportConfigurationPage';
 import { ResultsDashboardPage } from './pages/ResultsDashboardPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { GitHubConnectPage } from './pages/GitHubConnectPage';
+import { CombinedReportPage } from './pages/CombinedReportPage';
 
 export function App() {
   return (
@@ -18,30 +17,19 @@ export function App() {
         <Route path="/security-privacy" element={<SecurityPrivacyPage />} />
         <Route path="/sign-in" element={<SignInPage />} />
         <Route path="/connect" element={<ConsentExplanationPage />} />
+        <Route path="/connect/github" element={<GitHubConnectPage />} />
+        <Route path="/connections" element={<CombinedReportPage />} />
+        <Route
+          path="/connections/github/repository"
+          element={<Navigate to="/connections" replace />}
+        />
+        <Route path="/reports/combined" element={<Navigate to="/connections" replace />} />
         <Route
           path="/connections/azure-devops/organization"
-          element={
-            <RequireAuth>
-              <OrganizationConfigPage />
-            </RequireAuth>
-          }
+          element={<Navigate to="/connections" replace />}
         />
-        <Route
-          path="/reports/new"
-          element={
-            <RequireAuth>
-              <ReportConfigurationPage />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/reports/:reportId"
-          element={
-            <RequireAuth>
-              <ResultsDashboardPage />
-            </RequireAuth>
-          }
-        />
+        <Route path="/reports/new" element={<Navigate to="/connections" replace />} />
+        <Route path="/reports/:reportId" element={<ResultsDashboardPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </AppLayout>

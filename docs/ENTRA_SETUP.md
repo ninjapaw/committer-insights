@@ -2,6 +2,8 @@
 
 No Committer Insights app registration is needed when users have Azure CLI installed and have run `az login`. The executable reuses that first-party CLI session to request an Azure DevOps token.
 
+Azure CLI-first authentication also enables organization discovery through the signed-in user's Azure DevOps profile. The optional publisher fallback intentionally does not request a broader profile-read permission by default; if discovery is unavailable, users can enter their organization name or URL manually.
+
 The following publisher setup is an optional fallback for users without Azure CLI. Customers do not create app registrations or provide tenant IDs, client secrets, certificates, or PATs.
 
 1. Create a multitenant app registration for accounts in any organizational directory.
