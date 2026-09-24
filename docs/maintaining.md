@@ -112,7 +112,7 @@ Missing quantities stay unavailable; explicit zero is valid. Basic has a separat
 - Run `npm run demo:test` for deterministic synthetic CSV/HTML/PDF generation, desktop/mobile results, downloads, partial/empty reports and network isolation. Fixture version 5 includes other-service what-if calculations.
 - Account selection is configured through the pinned CLI's WAM flow; automated tests do not approve a real account or establish customer Conditional Access compatibility. App cache cleanup does not remove Windows broker credentials.
 - Billing tests use synthetic responses. No invoice reconciliation, tenant-wide entitlement inventory or future-charge guarantee is implied. The additional service quantities are manual planning inputs, not collected usage.
-- Build artifacts stay ignored. A source commit/push is not a release: preserve the published beta.9 notes until the explicit release procedure above is completed for a new tag.
+- Build artifacts stay ignored. Beta.10 packages this work through the explicit release procedure above; preserve beta.9 notes as historical behavior. A source commit/push alone is not a release.
 
 ### Provider Evidence
 

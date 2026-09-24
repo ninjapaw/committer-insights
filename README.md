@@ -22,13 +22,13 @@ Explore Azure DevOps and GitHub repository activity, security settings, and cost
 5. Select security plans and an activity window, review the access check, and generate your report. Inaccessible sources are reported explicitly.
 6. Review the results and download the formats you need. Closing the application clears its in-memory reports; exported files remain on disk.
 
-Beta.9 Windows builds include Node.js, GitHub CLI, and Azure CLI. No separate runtime, CLI installation, administrator rights, or PATH changes are needed. Internet access and authorized provider accounts are required for sign-in and collection. Endpoint controls and organization approval still apply.
+Beta.10 Windows builds include Node.js, GitHub CLI, and Azure CLI. No separate runtime, CLI installation, administrator rights, or PATH changes are needed. Internet access and authorized provider accounts are required for sign-in and collection. Endpoint controls and organization approval still apply.
 
 ## Sign In
 
-This section describes the current development build. Published beta.9 still exposes Azure CLI as a separate option; the changes below require a newer published release or a local build run with `--skip-update-check`.
+This section describes beta.10. Beta.9 exposed Azure CLI as a separate option; upgrade to beta.10 for the default modern Microsoft account picker.
 
-**Microsoft (Windows package):** **Sign in with Microsoft** and **Change account** use bundled Azure CLI 2.90.0 with Windows Web Account Manager (WAM) enabled. Microsoft's modern account picker lets you choose a Windows account or sign in with another account; the application never requests your password. The CLI requests account selection rather than supplying a username. Device-code authentication is not forced; any browser or device fallback is controlled by the CLI, not an automatic SDK retry. There is no separate Azure CLI button and no publisher application ID is required for this default path. First use extracts and verifies the runtime; allow additional startup time and about 275 MB of tool-cache space. This change is local and not in published beta.9.
+**Microsoft (Windows package):** **Sign in with Microsoft** and **Change account** use bundled Azure CLI 2.90.0 with Windows Web Account Manager (WAM) enabled. Microsoft's modern account picker lets you choose a Windows account or sign in with another account; the application never requests your password. The CLI requests account selection rather than supplying a username. Device-code authentication is not forced; any browser or device fallback is controlled by the CLI, not an automatic SDK retry. There is no separate Azure CLI button and no publisher application ID is required for this default path. First use extracts and verifies the runtime; allow additional startup time and about 275 MB of tool-cache space.
 
 **Sign in with a device code** remains a separate, explicit Azure Identity option that requires publisher configuration. It is not used automatically if CLI sign-in fails. Customers do not create app registrations or provide client secrets or PATs. The CLI default requires the Windows x64 package; source/non-Windows runs do not fall back to a system CLI or the SDK. Tenant consent, MFA, Conditional Access, and provider permissions remain authoritative for both methods.
 
@@ -48,11 +48,11 @@ The application makes read-only reporting requests, but GitHub CLI's OAuth scope
 
 PDF reports use a print-friendly version of the application's blue-and-neutral theme, with headline metrics, structured evidence, repeating table headers, clickable repository links, and continuous page numbering across provider sections.
 
-Local builds now put **Collection at a glance** and **Reported usage subtotals** before detailed evidence. Prices appear once per provider; HTML raw datasets are expandable and retain all rows. Usage subtotals prefer complete monthly summaries to overlapping daily detail, keeping accounts, periods, products and units separate. Azure billing failures distinguish HTTP status, unsupported response format, truncation and timeout without exposing raw provider messages. Older exports cannot reveal which of those failures occurred; regenerate the report with the updated build. These consolidation changes are not yet in published beta.9.
+Beta.10 puts **Collection at a glance** and **Reported usage subtotals** before detailed evidence. Prices appear once per provider; HTML raw datasets are expandable and retain all rows. Usage subtotals prefer complete monthly summaries to overlapping daily detail, keeping accounts, periods, products and units separate. Azure billing failures distinguish HTTP status, unsupported response format, truncation and timeout without exposing raw provider messages. Older exports cannot reveal which of those failures occurred; regenerate the report with the updated build.
 
 **Azure DevOps provider-reported billing:** opt in to per-product billing snapshots and identities, with an optional UTC billing date and separately selected diagnostic details. Reports retain provider counts, subscription scope, collection status, and available project/repository/push evidence. Unmatched diagnostic identities are not added to totals. Reconciled counts cover only the selected organizations with complete same-date identity lists, not an entire subscription or invoice. Diagnostic data can include personal identities and email addresses.
 
-**Azure DevOps enablement scenarios (unreleased):** selected security plans always request Microsoft's organization-level enablement estimate, even when billing is unavailable or the product is disabled. In the Azure billing section, **Azure billing and enablement scenarios** compares the dated billable count with the provider estimate and modeled monthly/annualized cost. Provider counts remain usable when names are incomplete; each product reports its own success or failure. The evidence and provenance views retain completeness warnings, visible repository settings, billing date, collection timestamp, source URL, and price assumptions.
+**Azure DevOps enablement scenarios:** selected security plans always request Microsoft's organization-level enablement estimate, even when billing is unavailable or the product is disabled. In the Azure billing section, **Azure billing and enablement scenarios** compares the dated billable count with the provider estimate and modeled monthly/annualized cost. Provider counts remain usable when names are incomplete; each product reports its own success or failure. The evidence and provenance views retain completeness warnings, visible repository settings, billing date, collection timestamp, source URL, and price assumptions.
 
 Code Security uses USD 30 and Secret Protection USD 19 per estimated committer/month, checked against [Azure DevOps pricing](https://azure.microsoft.com/en-us/pricing/details/devops/azure-devops-services/) on 2026-09-24. For example, an estimate of 12 Code Security committers models $360/month even if the dated billing snapshot says disabled with zero billed committers. This is not a charge, quote, or guaranteed number of additional seats. Do not add estimates to billed counts or sum organizations sharing a subscription. The snapshot-count monthly equivalent is also only a model, not an invoice. No product is enabled or billing setting changed.
 
@@ -84,7 +84,7 @@ Startup stops if the newest release cannot be confirmed or verified. For deliber
 
 Use `--help` to view options without contacting GitHub. Updates trust this repository's release publishers; checksums do not replace code signing. Beta.6 and earlier need a one-time manual upgrade to obtain the updater.
 
-## Other Azure DevOps Service Estimates (Unreleased)
+## Other Azure DevOps Service Estimates
 
 Report setup now includes per-organization what-if quantities for Basic, Basic + Test Plans, Pipelines, Artifacts and GitHub AI credits for Azure DevOps. The preview, results dashboard and CSV/HTML/PDF exports use the same calculations. These quantities are user-entered, not collected license or usage inventories; an empty quantity stays unavailable instead of becoming zero. Security committer estimates are never reused as user-license counts.
 
@@ -110,7 +110,7 @@ Reports can contain organization and repository identifiers, project metadata, c
 
 The local server binds to loopback and requires a per-launch session credential. It is not designed to protect against a compromised computer, same-user malware, or privileged browser extensions. Do not share local session URLs or device codes. Report vulnerabilities privately through [SECURITY.md](SECURITY.md), not public issues.
 
-## Unreleased Changes
+## What's New in Beta.10
 
 - Default Microsoft sign-in and account changes use the bundled Azure CLI with the modern Windows account picker. Device codes are not forced; Windows broker credentials remain managed by Windows.
 - Azure security estimates retain provider counts even when identity detail is incomplete or billing history is unavailable. Each selected product has independent calculations and collection status.
@@ -118,7 +118,7 @@ The local server binds to loopback and requires a per-launch session credential.
 - Consolidated coverage summaries, nonoverlapping usage subtotals and expandable HTML evidence make missing data and pricing assumptions visible.
 - Synthetic fixtures cover service-pricing tiers, disabled products, denied billing, and partial estimates. These changes do not enable products or change provider billing settings.
 
-Local validation includes automated tests, Windows packaging and CLI smoke checks, plus desktop/mobile synthetic export checks. Live WAM sign-in, customer invoice reconciliation and clean-machine certification remain separate acceptance checks. A commit to `dev` does not publish a downloadable release or update the public demo.
+Validation includes 264 automated tests, Windows packaging and CLI smoke checks, plus desktop/mobile synthetic export checks. Live WAM sign-in, customer invoice reconciliation and clean-machine certification remain separate acceptance checks. This is an unsigned evaluation prerelease; see [beta.10 release notes](https://github.com/ninjapaw/committer-insights/releases/tag/v0.1.0-beta.10) for the downloadable package and checksums.
 
 ## What's New in Beta.9
 
