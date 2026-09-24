@@ -158,18 +158,6 @@ export function GitHubSignIn({
               ? 'Change account'
               : 'Sign in with GitHub'}
         </button>
-        {!connected && (
-          <button
-            type="button"
-            className="secondary-button"
-            disabled={busy}
-            onClick={() => browser.mutate('device-code')}
-          >
-            {browser.isPending && browser.variables === 'device-code'
-              ? 'Requesting device code...'
-              : 'Sign in with a device code'}
-          </button>
-        )}
       </div>
       {pending && (
         <div className="device-challenge" role="status" aria-live="polite">

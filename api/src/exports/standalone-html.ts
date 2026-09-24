@@ -12,6 +12,8 @@ import {
   buildCioBrief,
   cioBriefTables,
   cioMethodology,
+  azureBillingNote,
+  githubBillingNote,
 } from '@ninjapaw/contracts';
 import { uniqueAzureDevOpsCommitters } from '@ninjapaw/contracts';
 
@@ -140,7 +142,9 @@ ${provider.totalCommits === undefined ? '' : `<dt>Commits</dt><dd>${provider.tot
           (table) =>
             `<section><h3>${escapeHtml(table.title)}</h3>${table.rows.length ? `<div class="table-wrap" tabindex="0" role="region" aria-label="${escapeHtml(table.title)}"><table><thead><tr>${table.columns.map((column) => `<th scope="col">${escapeHtml(column)}</th>`).join('')}</tr></thead><tbody>${table.rows.map((row, rowIndex) => `<tr>${row.map((cell, columnIndex) => `<td>${table.columns[columnIndex] === 'Repository' ? repositoryLink(cell, table.repositoryUrls?.[rowIndex]) : escapeHtml(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : '<p>No rows collected. See collection evidence for availability.</p>'}</section>`,
         )
-        .join('')}</section>`
+        .join(
+          '',
+        )}${report.insights.azureBilling?.length ? `<p>${escapeHtml(azureBillingNote)}</p>` : ''}${report.insights.githubBilling?.length ? `<p>${escapeHtml(githubBillingNote)}</p>` : ''}</section>`
     : '';
   const start = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">

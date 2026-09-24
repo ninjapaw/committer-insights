@@ -70,6 +70,12 @@ export function providerReport(report: Report, provider: MultiSource['provider']
     costEstimates: report.costEstimates?.filter((item) => item.provider === provider),
     insights: report.insights
       ? {
+          ...(provider === 'github' && report.insights.githubBilling
+            ? { githubBilling: report.insights.githubBilling }
+            : {}),
+          ...(provider === 'azure-devops' && report.insights.azureBilling
+            ? { azureBilling: report.insights.azureBilling }
+            : {}),
           repositories: report.insights.repositories.filter((item) => item.provider === provider),
           billing: report.insights.billing.filter((item) => item.provider === provider),
           checks: report.insights.checks.filter((item) => item.provider === provider),

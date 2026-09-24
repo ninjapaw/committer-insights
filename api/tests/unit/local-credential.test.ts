@@ -7,6 +7,14 @@ const credentials = vi.hoisted(() => ({
   device: vi.fn(),
   authenticate: vi.fn(),
 }));
+const bundled = vi.hoisted(() => ({ authenticate: vi.fn(), getToken: vi.fn(), dispose: vi.fn() }));
+vi.mock('../../src/auth/azure-cli-sign-in.js', () => ({
+  createAzureCliSignIn: vi.fn(() => ({
+    authenticate: bundled.authenticate,
+    credential: { getToken: bundled.getToken },
+    dispose: bundled.dispose,
+  })),
+}));
 vi.mock('@azure/identity', () => ({
   DeviceCodeCredential: class {
     constructor(options: unknown) {
@@ -34,6 +42,55 @@ afterEach(() => {
   vi.unstubAllEnvs();
   vi.resetAllMocks();
   vi.resetModules();
+});
+
+describe('Explicit Azure CLI sign-in', () => {
+  it('works without a publisher client ID, renews through CLI, and disposes on disconnect', async () => {
+    vi.stubEnv('COMMITTER_INSIGHTS_CLIENT_ID', '');
+    bundled.authenticate.mockResolvedValue({
+      username: 'cli@example.test',
+      tenantId: 'test-tenant',
+    });
+    bundled.getToken.mockResolvedValue({ token: 'cli-token' });
+    const auth = await import('../../src/auth/local-credential.js');
+    const state = auth.startAzureCliSignIn();
+    await vi.waitFor(() => expect(auth.getDeviceSignIn(state.id)?.status).toBe('authenticated'));
+    expect(await auth.acquireAzureDevOpsToken()).toBe('cli-token');
+    expect(credentials.browser).not.toHaveBeenCalled();
+    expect(credentials.device).not.toHaveBeenCalled();
+    auth.disconnectMicrosoftAccount();
+    expect(bundled.dispose).toHaveBeenCalled();
+    expect(auth.getMicrosoftAccount()).toBeUndefined();
+  });
+
+  it('ignores completion after cancellation and never falls back to SDK', async () => {
+    let finish!: (account: { username: string; tenantId: string }) => void;
+    bundled.authenticate.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const auth = await import('../../src/auth/local-credential.js');
+    const state = auth.startAzureCliSignIn();
+    auth.cancelDeviceSignIn(state.id);
+    finish({ username: 'late@example.test', tenantId: 'tenant' });
+    await Promise.resolve();
+    expect(auth.getDeviceSignIn(state.id)?.status).toBe('canceled');
+    expect(auth.getMicrosoftAccount()).toBeUndefined();
+    expect(bundled.dispose).toHaveBeenCalled();
+    expect(credentials.browser).not.toHaveBeenCalled();
+  });
+
+  it('redacts CLI failures and releases its credential cache', async () => {
+    bundled.authenticate.mockRejectedValue(new Error('private token details'));
+    const auth = await import('../../src/auth/local-credential.js');
+    const state = auth.startAzureCliSignIn();
+    await vi.waitFor(() => expect(auth.getDeviceSignIn(state.id)?.status).toBe('failed'));
+    expect(JSON.stringify(auth.getDeviceSignIn(state.id))).not.toContain('private token');
+    expect(bundled.dispose).toHaveBeenCalled();
+    expect(credentials.browser).not.toHaveBeenCalled();
+  });
 });
 
 describe('Microsoft device sign-in', () => {

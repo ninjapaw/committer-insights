@@ -14,6 +14,10 @@ export function startDeviceSignIn() {
   return postJson<DeviceSignInState>('/api/auth/device-code');
 }
 
+export function startAzureCliSignIn() {
+  return postJson<DeviceSignInState>('/api/auth/azure-cli');
+}
+
 export function getDeviceSignIn(id: string) {
   return requestJson<DeviceSignInState>(`/api/auth/device-code/${encodeURIComponent(id)}`);
 }

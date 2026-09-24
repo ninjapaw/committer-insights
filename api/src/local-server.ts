@@ -16,12 +16,14 @@ import {
 import { AzureDevOpsAdapterError } from './adapters/azure-devops/estimate-client.js';
 import { listGitHubAccounts, disconnectGitHubAccount } from './auth/github-cli.js';
 import { cancelGitHubSignIn, getGitHubSignIn, startGitHubSignIn } from './auth/github-sign-in.js';
+import { getAzureCliVersion } from './auth/azure-cli-sign-in.js';
 import {
   cancelDeviceSignIn,
   disconnectMicrosoftAccount,
   getMicrosoftAccount,
   getDeviceSignIn,
   startDeviceSignIn,
+  startAzureCliSignIn,
 } from './auth/local-credential.js';
 import { generateReportExport } from './exports/report-export.js';
 import { createCombinedReport, preflightSources } from './reports/combined-report.js';
@@ -194,6 +196,12 @@ async function handleApi(
   if (request.method === 'POST' && pathname === '/api/auth/sign-in') {
     const connection = await connectAzureDevOps();
     return sendJson(response, 200, connection);
+  }
+  if (request.method === 'POST' && pathname === '/api/auth/azure-cli') {
+    return sendJson(response, 202, startAzureCliSignIn());
+  }
+  if (request.method === 'GET' && pathname === '/api/auth/azure-cli/info') {
+    return sendJson(response, 200, { version: await getAzureCliVersion() });
   }
   if (request.method === 'POST' && pathname === '/api/auth/device-code') {
     return sendJson(response, 202, startDeviceSignIn());

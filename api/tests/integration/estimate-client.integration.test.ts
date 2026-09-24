@@ -57,6 +57,18 @@ describe('fetchAzureDevOpsEstimate integration', () => {
     expect(result).toEqual([]);
   });
 
+  it('rejects a positive provider count without matching identity detail instead of returning zero', async () => {
+    server.use(http.get(ESTIMATE_URL, () => HttpResponse.json({ uniqueCommitterCount: 12 })));
+    await expect(
+      fetchAzureDevOpsEstimate({
+        organization: 'contoso',
+        plan: 'codeSecurity',
+        resultType: 'estimated',
+        accessToken: 'token',
+      }),
+    ).rejects.toBeInstanceOf(AzureDevOpsAdapterError);
+  });
+
   it('normalizes the nested response returned for plan=all', async () => {
     server.use(
       http.get(ESTIMATE_URL, () =>

@@ -7,6 +7,7 @@ import {
   type TokenCredential,
 } from '@azure/identity';
 import { config } from '../shared/config.js';
+import { createAzureCliSignIn } from './azure-cli-sign-in.js';
 
 let interactiveCredential: TokenCredential | undefined;
 let deviceAttempt:
@@ -14,6 +15,7 @@ let deviceAttempt:
       id: string;
       controller: AbortController;
       timer?: ReturnType<typeof setTimeout>;
+      dispose?: () => void;
       state: DeviceSignInState;
     }
   | undefined;
@@ -38,12 +40,14 @@ export function cancelDeviceSignIn(id: string): DeviceSignInState | undefined {
     deviceAttempt.state = { id, status: 'canceled' };
     clearTimeout(deviceAttempt.timer);
     deviceAttempt.controller.abort();
+    deviceAttempt.dispose?.();
   }
   return deviceAttempt.state;
 }
 
 function createSignInAttempt() {
   if (deviceAttempt) cancelDeviceSignIn(deviceAttempt.id);
+  deviceAttempt?.dispose?.();
   interactiveCredential = undefined;
   const id = randomUUID();
   const expiresOnTimestamp = Date.now() + 10 * 60 * 1000;
@@ -57,6 +61,7 @@ function createSignInAttempt() {
     if (attempt.state.status !== 'pending') return;
     attempt.state = { id, status: 'expired' };
     attempt.controller.abort();
+    attempt.dispose?.();
   };
   attempt.timer = setTimeout(expire, 10 * 60 * 1000);
   attempt.timer.unref();
@@ -66,7 +71,7 @@ function createSignInAttempt() {
 function completeSignIn(
   attempt: NonNullable<typeof deviceAttempt>,
   credential: TokenCredential,
-  record: AuthenticationRecord | undefined,
+  record: Pick<AuthenticationRecord, 'username' | 'tenantId'> | undefined,
 ): void {
   // A canceled or superseded request must never replace the current account.
   if (deviceAttempt !== attempt || attempt.state.status !== 'pending') return;
@@ -87,8 +92,37 @@ export function getMicrosoftAccount(): DeviceSignInState['account'] {
 
 export function disconnectMicrosoftAccount(): void {
   if (deviceAttempt) cancelDeviceSignIn(deviceAttempt.id);
+  deviceAttempt?.dispose?.();
   interactiveCredential = undefined;
   deviceAttempt = undefined;
+}
+
+export function startAzureCliSignIn(): DeviceSignInState {
+  const { attempt, expiresOnTimestamp } = createSignInAttempt();
+  const session = createAzureCliSignIn(attempt.controller.signal);
+  attempt.dispose = () => session.dispose();
+  void session
+    .authenticate((challenge) => {
+      if (deviceAttempt !== attempt || attempt.state.status !== 'pending') return;
+      attempt.state = {
+        id: attempt.id,
+        status: 'pending',
+        challenge: { ...challenge, expiresOnTimestamp },
+      };
+    })
+    .then((account) => completeSignIn(attempt, session.credential, account))
+    .catch(() => {
+      session.dispose();
+      if (attempt.state.status !== 'pending') return;
+      attempt.state = {
+        id: attempt.id,
+        status: 'failed',
+        message:
+          'Azure CLI sign-in failed. Use the Windows x64 package and retry, or ask your administrator to review CLI access and device-code policy. No SDK fallback was attempted.',
+      };
+    })
+    .finally(() => clearTimeout(attempt.timer));
+  return attempt.state;
 }
 
 export function startDeviceSignIn(): DeviceSignInState {

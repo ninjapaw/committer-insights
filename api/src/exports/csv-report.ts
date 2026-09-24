@@ -7,6 +7,8 @@ import {
   buildCioBrief,
   cioBriefTables,
   uniqueAzureDevOpsCommitters,
+  azureBillingNote,
+  githubBillingNote,
   type Report,
 } from '@ninjapaw/contracts';
 import { toCsv } from './sanitize.js';
@@ -109,6 +111,18 @@ export function generateCsv(report: Report): string {
         basis: solutionPricingNote,
       })),
       ...report.warnings.map((warning) => ({ rowType: 'warning', reason: warning })),
+      ...(report.insights?.azureBilling?.length
+        ? [
+            {
+              rowType: 'azure-billing-methodology',
+              provider: 'azure-devops',
+              basis: azureBillingNote,
+            },
+          ]
+        : []),
+      ...(report.insights?.githubBilling?.length
+        ? [{ rowType: 'github-billing-methodology', provider: 'github', basis: githubBillingNote }]
+        : []),
       ...tables.flatMap((table) =>
         table.rows.map((row) => ({
           rowType: table.title.toLowerCase().replaceAll(' ', '-'),

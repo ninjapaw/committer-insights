@@ -130,6 +130,23 @@ async function smokeStartup(args) {
       process.stdout.write(
         'Bundled GitHub CLI smoke passed with empty PATH and fresh user directories.\n',
       );
+      if (args.length === 0) {
+        const deniedCli = await fetch(`${origin}/api/auth/azure-cli/info`);
+        if (deniedCli.status !== 401)
+          throw new Error('Azure CLI info accepted an unauthenticated request.');
+        const cli = await fetch(`${origin}/api/auth/azure-cli/info`, {
+          headers: { Authorization: `Bearer ${capability}` },
+          signal: globalThis.AbortSignal.timeout(240000),
+        });
+        const inventory = JSON.parse(
+          await readFile(join(resolve('.'), 'release/azure-cli.spdx.json'), 'utf8'),
+        );
+        if (!cli.ok || (await cli.json()).version !== inventory.packages[0].versionInfo)
+          throw new Error('Bundled Azure CLI failed isolated version check.');
+        process.stdout.write(
+          'Bundled Azure CLI extraction and version check passed with empty PATH; no login requested.\n',
+        );
+      }
     }
     process.stdout.write('Executable smoke test passed.\n');
   } finally {

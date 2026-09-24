@@ -11,6 +11,7 @@ import {
   discoverGitHubSources,
   summarizeGitHub,
   uniqueGitHubCommitters,
+  preflightGitHub,
 } from '../../src/services/github.js';
 import type { AzureDevOpsCommitter, GitHubCommitter, SourceStatus } from '@ninjapaw/contracts';
 import { reportStore } from '../../src/reports/report-store.js';
@@ -29,6 +30,7 @@ import {
   listGitHubRepositoriesForTarget,
 } from '../../src/adapters/github/github-client.js';
 import { discoverAzureDevOpsOrganizations } from '../../src/adapters/azure-devops/organizations-client.js';
+import { collectGitHubBilling } from '../../src/adapters/github/insights-client.js';
 
 vi.mock('../../src/auth/local-credential.js', () => ({
   acquireAzureDevOpsToken: vi.fn(),
@@ -73,6 +75,42 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe('Azure DevOps report service', () => {
+  it('retains GitHub billing when repository inventory is denied without inventing zero-cost estimates', async () => {
+    vi.mocked(listGitHubRepositoriesForTarget).mockRejectedValue(new Error('Denied'));
+    vi.mocked(collectGitHubBilling).mockImplementation(async (source, _token, insights) => {
+      insights.githubBilling = [
+        {
+          source: source.target,
+          scope: source.targetType,
+          dataset: 'usage-summary',
+          period: '2026-09',
+          collectedAt: '2026-09-24T12:00:00Z',
+          sourceUrl: 'https://api.github.com/enterprises/example/settings/billing/usage/summary',
+          apiVersion: '2026-03-10',
+          status: 'complete',
+          coverage: 'All cost centers',
+          warnings: [],
+          usage: [],
+          repositories: [],
+        },
+      ];
+    });
+    const source = {
+      provider: 'github' as const,
+      targetType: 'enterprise' as const,
+      target: 'example',
+      sinceDays: 7,
+      includeBilling: true,
+    };
+    await expect(preflightGitHub(source)).resolves.toBeUndefined();
+    const report = await createGitHubReport(source);
+    expect(report.insights?.githubBilling).toHaveLength(1);
+    expect(report.insights?.checks).toContainEqual(
+      expect.objectContaining({ dataset: 'Repository activity', status: 'unavailable' }),
+    );
+    expect(report.costEstimates).toEqual([]);
+    expect(fetchGitHubCommitters).not.toHaveBeenCalled();
+  });
   it('pins GitHub connections to the selected, verified identity', async () => {
     vi.mocked(getGitHubViewer).mockResolvedValue({ id: '2', login: 'second' });
     expect(await connectGitHub('second')).toMatchObject({ viewer: { login: 'second' } });

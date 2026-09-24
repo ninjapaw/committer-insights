@@ -24,6 +24,9 @@ interface ReportDraft {
   plans: AzureDevOpsPlan[];
   sinceDays: number;
   includeBilling: boolean;
+  includeAzureBilling: boolean;
+  includeAzureBillingDetails: boolean;
+  billingDate: string;
 }
 
 const emptyDraft: ReportDraft = {
@@ -33,6 +36,9 @@ const emptyDraft: ReportDraft = {
   plans: ['all'],
   sinceDays: 90,
   includeBilling: false,
+  includeAzureBilling: false,
+  includeAzureBillingDetails: false,
+  billingDate: '',
 };
 
 export function CombinedReportPage(): JSX.Element {
@@ -56,6 +62,13 @@ export function CombinedReportPage(): JSX.Element {
       organization,
       plans,
       sinceDays,
+      ...(draft.includeAzureBilling
+        ? {
+            includeAzureBilling: true,
+            includeAzureBillingDetails: draft.includeAzureBillingDetails,
+            ...(draft.billingDate ? { billingDate: draft.billingDate } : {}),
+          }
+        : {}),
     })),
     ...githubSelected.map((target) => ({
       provider: 'github' as const,
@@ -107,7 +120,15 @@ export function CombinedReportPage(): JSX.Element {
   };
   const readyCount = statuses?.filter((status) => status.status === 'included').length ?? 0;
   const busy = preflight.isPending || generate.isPending;
-  const valid = sources.length > 0 && (azureSelected.length === 0 || plans.length > 0);
+  const validDate =
+    !draft.includeAzureBilling ||
+    !draft.billingDate ||
+    (/^\d{4}-\d{2}-\d{2}$/.test(draft.billingDate) &&
+      !Number.isNaN(Date.parse(`${draft.billingDate}T00:00:00Z`)) &&
+      new Date(`${draft.billingDate}T00:00:00Z`).toISOString().slice(0, 10) === draft.billingDate &&
+      draft.billingDate <= new Date().toISOString().slice(0, 10));
+  const valid =
+    sources.length > 0 && (azureSelected.length === 0 || (plans.length > 0 && validDate));
 
   return (
     <section className="combined-page" aria-labelledby="combined-title">
@@ -222,8 +243,60 @@ export function CombinedReportPage(): JSX.Element {
                   disabled={busy}
                   onChange={(event) => updateDraft({ includeBilling: event.currentTarget.checked })}
                 />
-                Include GitHub organization billing usage with existing access
+                Include GitHub billing snapshots, push identities/emails and usage charges with
+                existing access
               </label>
+            )}
+            {azureSelected.length > 0 && (
+              <fieldset disabled={busy}>
+                <legend>Azure DevOps billing evidence</legend>
+                <label className="billing-option">
+                  <input
+                    type="checkbox"
+                    checked={draft.includeAzureBilling ?? false}
+                    onChange={(event) =>
+                      updateDraft({
+                        includeAzureBilling: event.currentTarget.checked,
+                        includeAzureBillingDetails: false,
+                      })
+                    }
+                  />
+                  Include provider-reported billing snapshots and identities
+                </label>
+                {draft.includeAzureBilling && (
+                  <>
+                    <label htmlFor="azure-billing-date">
+                      Billing date (UTC, blank for latest available)
+                    </label>
+                    <input
+                      id="azure-billing-date"
+                      type="date"
+                      max={new Date().toISOString().slice(0, 10)}
+                      value={draft.billingDate ?? ''}
+                      onChange={(event) => updateDraft({ billingDate: event.currentTarget.value })}
+                    />
+                    {!validDate && (
+                      <p role="alert">Enter a valid billing date, not in the future.</p>
+                    )}
+                    <label className="billing-option">
+                      <input
+                        type="checkbox"
+                        checked={draft.includeAzureBillingDetails ?? false}
+                        onChange={(event) =>
+                          updateDraft({ includeAzureBillingDetails: event.currentTarget.checked })
+                        }
+                      />
+                      Include billing diagnostic details (names, emails, repositories and push
+                      evidence)
+                    </label>
+                    <p>
+                      Billing identities and diagnostic details may contain personal information.
+                      Existing access only; unavailable preview data remains unknown. Billing dates
+                      are independent of the Git activity window.
+                    </p>
+                  </>
+                )}
+              </fieldset>
             )}
             <p>
               Read-only collection. Missing permissions leave individual datasets unavailable.

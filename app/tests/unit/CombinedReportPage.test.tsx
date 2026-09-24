@@ -75,7 +75,7 @@ async function selectGitHubSource() {
 }
 
 describe('CombinedReportPage', () => {
-  it.each(['browser', 'device-code'] as const)(
+  it.each(['browser'] as const)(
     'prompts for GitHub %s login and connects after approval',
     async (mode) => {
       const onConnected = vi.fn();
@@ -100,11 +100,11 @@ describe('CombinedReportPage', () => {
         within(screen.getByRole('button', { name: 'Sign in with GitHub' }).parentElement!)
           .getAllByRole('button')
           .map((button) => button.textContent),
-      ).toEqual(['Sign in with GitHub', 'Sign in with a device code']);
+      ).toEqual(['Sign in with GitHub']);
       expect(screen.getByText('Saved accounts').closest('details')).not.toHaveAttribute('open');
       fireEvent.click(
         screen.getByRole('button', {
-          name: mode === 'browser' ? 'Sign in with GitHub' : 'Sign in with a device code',
+          name: 'Sign in with GitHub',
         }),
       );
       await waitFor(() => expect(onConnected).toHaveBeenCalledOnce());
@@ -173,7 +173,10 @@ describe('CombinedReportPage', () => {
       'href',
       'https://github.com/login/device',
     );
-    expect(screen.getByRole('button', { name: 'Sign in with a device code' })).toBeDisabled();
+    expect(
+      screen.queryByRole('button', { name: 'Sign in with a device code' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sign in with GitHub' })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Cancel GitHub sign-in' }));
     await screen.findByText('GitHub sign-in canceled.');
     expect(onConnected).not.toHaveBeenCalled();

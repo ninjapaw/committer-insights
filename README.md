@@ -22,13 +22,15 @@ Explore Azure DevOps and GitHub repository activity, security settings, and cost
 5. Select security plans and an activity window, review the access check, and generate your report. Inaccessible sources are reported explicitly.
 6. Review the results and download the formats you need. Closing the application clears its in-memory reports; exported files remain on disk.
 
-The Windows package includes Node.js and GitHub CLI. No separate runtime, CLI installation, administrator rights, or PATH changes are needed. Internet access and authorized provider accounts are required for sign-in and collection. Endpoint controls and organization approval still apply.
+Beta.9 Windows builds include Node.js, GitHub CLI, and Azure CLI. No separate runtime, CLI installation, administrator rights, or PATH changes are needed. Internet access and authorized provider accounts are required for sign-in and collection. Endpoint controls and organization approval still apply.
 
 ## Sign In
 
 **Microsoft:** choose **Sign in with Microsoft** or **Sign in with a device code**. Authentication uses Azure Identity directly, not Azure CLI. Customers do not create app registrations or provide client secrets or PATs. Organizational Microsoft accounts are supported; personal Microsoft accounts are not. Tenant consent and Conditional Access may require administrator approval or block device codes.
 
-**GitHub:** choose **Sign in with GitHub** to open the verification page automatically, or **Sign in with a device code** to display a code and link without opening a browser. Enter only the code shown by your running app. Both options use the bundled GitHub CLI and support cancellation. Existing CLI accounts are available under **Saved accounts**.
+**Azure CLI (Windows package):** the explicit **Sign in with Azure CLI** option uses bundled Azure CLI 2.90.0 and displays a Microsoft verification link and device code. Use it only where your organization permits CLI authentication. It does not bypass consent, MFA, Conditional Access, or provider permissions, and is never selected automatically after SDK sign-in fails. No publisher application ID is required for this option. First use extracts and verifies the full runtime; allow additional startup time and about 275 MB of tool-cache space.
+
+**GitHub:** choose **Sign in with GitHub** to open the verification page automatically and display the device code and link. Enter only the code shown by your running app. This flow uses the bundled GitHub CLI and supports cancellation. Existing CLI accounts are available under **Saved accounts**.
 
 **Change account** starts a fresh sign-in and clears that provider's source selections while preserving the other provider's selections. Existing reports remain historical snapshots.
 
@@ -38,9 +40,17 @@ The application makes read-only reporting requests, but GitHub CLI's OAuth scope
 
 - Repository inventory, default-branch activity, daily/weekly/monthly charts, and identity contribution details.
 - Current security-setting snapshots with enabled, disabled, and unknown states.
-- Provider-specific cost scenarios, optional GitHub organization billing usage, and collection coverage.
+- Provider-specific cost scenarios, optional GitHub organization/enterprise billing evidence, and collection coverage.
 - Evidence-linked review recommendations generated locally by deterministic rules, not an AI model.
 - CSV, PDF, and standalone HTML exports containing the collected report, not just the current display filter.
+
+PDF reports use a print-friendly version of the application's blue-and-neutral theme, with headline metrics, structured evidence, repeating table headers, clickable repository links, and continuous page numbering across provider sections.
+
+**Azure DevOps provider-reported billing:** opt in to per-product billing snapshots and identities, with an optional UTC billing date and separately selected diagnostic details. Reports retain provider counts, subscription scope, collection status, and available project/repository/push evidence. Unmatched diagnostic identities are not added to totals. Reconciled counts cover only the selected organizations with complete same-date identity lists, not an entire subscription or invoice. Diagnostic data can include personal identities and email addresses.
+
+**GitHub provider-reported billing:** opt in to billing snapshots when selecting sources. The GitHub billing section contains current organization security committer counts, repository breakdowns, user logins, last-push dates/emails, and organization or enterprise usage charges. Usage summary, premium-request, and AI-credit reports retain units, rates, gross amounts, discounts, and net amounts separately. Your account/token needs the corresponding billing access; this option does not grant permissions or change authentication scopes.
+
+Security snapshots are current at collection and do not follow the activity date filter. Daily usage detail follows the selected window; aggregate reports cover each full calendar month intersecting that window (current month to date). Enterprise usage summaries include all cost centers; the detailed enterprise usage endpoint defaults to unassigned-cost-center usage only. These datasets overlap: do not add detail to summaries, premium/AI data to other usage, or organizations to their parent enterprise. Bundle and standalone security products are queried independently; an inapplicable product may be unavailable. Enterprise-wide security-seat reconciliation, Enterprise license inventories, invoices, payments, tax and contractual adjustments are not supplied by this report. Empty, denied, and incomplete results remain explicitly labeled.
 
 Azure DevOps and GitHub quantities and costs remain separate. Missing, failed, or capped data is unavailable, not zero. Observed committers are not verified licensed seats. Security settings are not proof of successful scans, historical coverage, compliance, or entitlement. Estimates are planning scenarios, not invoices or purchasing recommendations; validate current prices, contracts, eligibility, and discounts with the providers.
 
@@ -66,20 +76,24 @@ Use `--help` to view options without contacting GitHub. Updates trust this repos
 
 ## Privacy and Security
 
-Committer Insights has no report-processing backend and sends no product telemetry. Authentication and collection contact Microsoft and GitHub directly; update checks contact GitHub Releases. Provider access tokens are not returned to the browser. Microsoft tokens and reports remain in application memory; GitHub CLI manages its own credential storage.
+Committer Insights has no report-processing backend and sends no product telemetry. Authentication and collection contact Microsoft and GitHub directly; update checks contact GitHub Releases. Provider access tokens are not returned to the browser. SDK Microsoft tokens and reports remain in application memory; GitHub CLI manages its own credential storage.
 
-Reports can contain organization and repository identifiers, project metadata, contributor identities, activity, security settings, timestamps, and optional billing amounts. Source files, commit messages, patches, and GitHub author email addresses are not retained in reports. Exports may contain personal and commercially sensitive information: apply your organization's retention and sharing policies.
+The optional Azure CLI flow uses a fresh temporary credential directory for each sign-in, separate from your existing CLI accounts. It disables CLI telemetry, dynamic extension installation, and the Windows authentication broker. The directory is removed on cancellation, account change, sign-out, or normal process exit; a crash or forced termination may leave sensitive files under your temporary directory (`committer-azure-sign-in-*`). Remove those leftovers only when the application is closed. Deleting a local cache does not revoke issued tokens. The verified tool runtime remains under `%LOCALAPPDATA%\CommitterInsights\tools\azure-cli`.
+
+Reports can contain organization and repository identifiers, project metadata, contributor identities, activity, security settings, timestamps, and optional billing amounts. Source files, commit messages, patches, and GitHub author email addresses from activity collection are not retained. Opt-in GitHub security billing includes provider-reported last-push email addresses and logins. Exports may contain personal and commercially sensitive information: apply your organization's retention and sharing policies.
 
 The local server binds to loopback and requires a per-launch session credential. It is not designed to protect against a compromised computer, same-user malware, or privileged browser extensions. Do not share local session URLs or device codes. Report vulnerabilities privately through [SECURITY.md](SECURITY.md), not public issues.
 
-## What's New in Beta.8
+## What's New in Beta.9
 
-- Bundled GitHub CLI 2.101.0 removes the separate CLI installation requirement for the Windows x64 app.
-- The official binary is pinned and checksum-verified, extracted privately, and invoked by its exact path. Cache corruption is detected before execution.
-- GitHub CLI license notices and a companion SPDX inventory are included in the executable and release downloads.
-- Documentation is focused on end users, with build and publishing details in the [maintainer guide](docs/maintaining.md).
+- Separate Azure DevOps and GitHub provider-reported billing views, including counts, identities, coverage, and available usage charges in the dashboard and all exports.
+- Preserved provider counts and explicit incomplete-data states instead of treating missing identity detail as zero. Billing remains separate from activity-based estimates.
+- Bundled Azure CLI 2.90.0 with an explicit sign-in option, verified runtime files, and an isolated temporary credential cache. Existing SDK sign-in and bundled GitHub CLI remain available.
+- Print-friendly PDF styling, readable tables, improved pagination, and continuous page numbers.
+- A single GitHub sign-in action that retains its device code and cancellation controls.
+- Expanded fictional demos covering overlapping billing identities, older commits pushed recently, unmatched identities, and denied billing access.
 
-Beta.7 users receive the new package through the startup update check once published. Older downloaded packages are not modified in place. See [GitHub Releases](https://github.com/ninjapaw/committer-insights/releases) for full notes, validation details, and previous versions.
+Billing behavior is validated with synthetic responses, not live customer invoices or tenant-wide reconciliation. Preview API availability and permissions vary. Beta.7 and beta.8 users receive the new package through the startup update check once published; older downloaded packages are not modified in place. See [GitHub Releases](https://github.com/ninjapaw/committer-insights/releases) for full notes, validation details, and previous versions.
 
 ## Troubleshooting
 
@@ -102,4 +116,4 @@ The public demo uses deterministic fictional data only. It does not perform prov
 
 ## License
 
-MIT. See [LICENSE](LICENSE). Bundled GitHub CLI has its own MIT license, reproduced in the release's `THIRD-PARTY-NOTICES.txt`. Microsoft, Azure, Azure DevOps, and GitHub names identify the products discussed and do not imply affiliation or trademark rights.
+MIT. See [LICENSE](LICENSE). Bundled GitHub CLI has its own MIT license, reproduced in the release's `THIRD-PARTY-NOTICES.txt`. The Azure CLI distribution preserves its Python and dependency license files; consult its companion inventory and bundled notices. Microsoft, Azure, Azure DevOps, and GitHub names identify the products discussed and do not imply affiliation or trademark rights.

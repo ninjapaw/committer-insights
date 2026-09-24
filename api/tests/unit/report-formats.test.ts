@@ -49,6 +49,139 @@ const report: StoredReport = {
 };
 
 describe('standalone report formats', () => {
+  it('preserves GitHub billing snapshots and charges separately in every export and provider view', async () => {
+    const input: StoredReport = {
+      ...report,
+      insights: {
+        repositories: [],
+        billing: [],
+        checks: [],
+        githubBilling: [
+          {
+            source: 'synthetic-billing-org',
+            scope: 'organization',
+            dataset: 'code-security',
+            period: 'Current snapshot',
+            collectedAt: report.generatedAt,
+            sourceUrl:
+              'https://api.github.com/orgs/synthetic-billing-org/settings/billing/advanced-security',
+            apiVersion: '2026-03-10',
+            status: 'partial',
+            coverage: 'Current security snapshot, not activity counts',
+            warnings: ['Incomplete identity list'],
+            providerCount: 12,
+            repositoryCount: 1,
+            repositories: [
+              {
+                name: 'synthetic-billing-org/repo',
+                providerCount: 12,
+                identities: [
+                  {
+                    login: '<sample>',
+                    lastPushedAt: '2026-09-20T10:00:00Z',
+                    lastPushedEmail: 'synthetic@example.test',
+                  },
+                ],
+              },
+            ],
+            usage: [
+              {
+                product: 'Actions',
+                sku: 'linux',
+                unit: 'minutes',
+                quantity: 100,
+                pricePerUnit: 0.01,
+                grossUsd: 1,
+                discountUsd: 0.4,
+                netUsd: 0.6,
+              },
+            ],
+          },
+        ],
+      },
+    };
+    expect(providerReport(input, 'azure-devops').insights?.githubBilling).toBeUndefined();
+    expect(providerReport(input, 'github').insights?.githubBilling?.[0]?.providerCount).toBe(12);
+    const csv = generateCsv(input);
+    const html = generateStandaloneHtml(input);
+    for (const text of [csv, html]) {
+      expect(text).toContain('synthetic@example.test');
+      expect(text).toContain('Incomplete identity list');
+      expect(text).toContain('2026-03-10');
+      expect(text).toContain('Do not add organizations');
+    }
+    expect(html).toContain('&lt;sample&gt;');
+    expect(html).not.toContain('<sample>');
+    const draw = vi.spyOn(PDFPage.prototype, 'drawText');
+    try {
+      await generateExecutivePdf(input);
+      const lines = draw.mock.calls.map(([line]) => line);
+      expect(lines.filter((line) => line === 'GitHub billing snapshots')).toHaveLength(1);
+      expect(lines.join(' ')).toContain('synthetic@example.test');
+      expect(lines.join(' ')).toContain('Provider committer count: 12');
+    } finally {
+      draw.mockRestore();
+    }
+  });
+  it('paginates branded PDFs with repeated table headers, bounded text and continuous page numbers', async () => {
+    const draw = vi.spyOn(PDFPage.prototype, 'drawText');
+    try {
+      const input: StoredReport = {
+        ...report,
+        warnings: ['Long evidence ' + 'unbroken'.repeat(800)],
+        insights: {
+          repositories: [
+            {
+              provider: 'github',
+              source: 'example',
+              id: 'example/repo',
+              name: 'example/repository',
+              visibility: 'private',
+              state: 'active',
+              observedAt: report.generatedAt,
+              features: [],
+              activity: {
+                status: 'complete',
+                from: report.generatedAt,
+                to: report.generatedAt,
+                daily: Array.from({ length: 90 }, (_, index) => ({
+                  date: `2026-09-${String((index % 28) + 1).padStart(2, '0')}`,
+                  commits: index,
+                })),
+              },
+            },
+          ],
+          billing: [],
+          checks: [],
+        },
+      };
+      const pdf = await PDFDocument.load(await generateExecutivePdf(input));
+      expect(pdf.getTitle()).toBe('Committer Insights - Executive report');
+      expect(pdf.getPageCount()).toBeGreaterThan(4);
+      const text = draw.mock.calls.map(([value]) => value);
+      expect(text.filter((value) => value === 'COMMITTER INSIGHTS')).toHaveLength(
+        pdf.getPageCount(),
+      );
+      expect(text.filter((value) => value === 'Date UTC').length).toBeGreaterThan(1);
+      expect(text).toContain('0');
+      expect(text).toContain('89');
+      for (let index = 1; index <= pdf.getPageCount(); index++) {
+        expect(text.filter((value) => value === `${index} / ${pdf.getPageCount()}`)).toHaveLength(
+          1,
+        );
+      }
+      for (const [line, options] of draw.mock.calls) {
+        const right = options!.x! + options!.font!.widthOfTextAtSize(line, options!.size!);
+        expect(options!.x).toBeGreaterThanOrEqual(46);
+        expect(right).toBeLessThanOrEqual(566.01);
+        expect(
+          options!.y === 30 || options!.y === 752 || (options!.y! >= 64 && options!.y! <= 710),
+        ).toBe(true);
+      }
+    } finally {
+      draw.mockRestore();
+    }
+  });
   it('uses the selected timezone for timestamps, including daylight saving, but not date-only values', () => {
     expect(formatReportDateTime('2026-09-24T02:00:00Z', 'America/Toronto')).toBe(
       'Sep 23, 2026, 22:00 America/Toronto',
@@ -551,8 +684,9 @@ describe('standalone report formats', () => {
       const lines = draw.mock.calls.map(([line]) => line);
       expect(lines.join(' ')).toContain('Report-wide warning: Collection incomplete');
       expect(lines.join(' ')).toContain('??');
+      expect(lines.join(' ')).toContain('Example Person');
       expect(lines.join(' ')).toContain(
-        'Example Person | example | Code Security | Billing: Estimated',
+        'Organization: example; Plan: Code Security; Billing: Estimated',
       );
       expect(lines.join(' ')).toContain('Unknown repositories');
       for (const [line, options] of draw.mock.calls)

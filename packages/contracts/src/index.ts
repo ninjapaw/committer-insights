@@ -25,7 +25,9 @@ export type DeviceSignInState = {
 
 export * from './azure-devops.js';
 export * from './azure-devops-display.js';
+export * from './azure-billing.js';
 export * from './github.js';
+export * from './github-billing.js';
 export * from './insights.js';
 export * from './provider-report.js';
 export * from './cio-brief.js';
@@ -44,6 +46,20 @@ export const multiSourceSchema = z.discriminatedUnion('provider', [
     organization: azureDevOpsOrganizationSchema,
     plans: z.array(azureDevOpsPlanSchema).min(1).default(['all']),
     sinceDays: z.number().int().min(1).max(365).optional(),
+    includeAzureBilling: z.boolean().optional(),
+    includeAzureBillingDetails: z.boolean().optional(),
+    billingDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .refine((value) => {
+        const date = new Date(`${value}T00:00:00Z`);
+        return (
+          Number.isFinite(date.getTime()) &&
+          date.toISOString().slice(0, 10) === value &&
+          date.getTime() <= Date.now()
+        );
+      }, 'Enter a valid UTC billing date, not in the future.')
+      .optional(),
   }),
   z.object({
     provider: z.literal('github'),

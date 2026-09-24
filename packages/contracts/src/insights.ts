@@ -1,4 +1,6 @@
 import type { DailyActivity } from './github.js';
+import { azureBillingTables, type AzureBillingSnapshot } from './azure-billing.js';
+import { githubBillingTables, type GitHubBillingSnapshot } from './github-billing.js';
 import { formatReportDateTime, resolveReportTimeZone } from './date-display.js';
 
 export const reportingWindows = [7, 30, 90, 180, 365] as const;
@@ -47,6 +49,8 @@ export interface BillingUsage {
   netUsd: number;
 }
 export interface ReportInsights {
+  githubBilling?: GitHubBillingSnapshot[];
+  azureBilling?: AzureBillingSnapshot[];
   repositories: RepositoryInsight[];
   billing: BillingUsage[];
   checks: CollectionCheck[];
@@ -170,6 +174,8 @@ export function insightTables(
     ? (value: string) => formatReportDateTime(value, timeZone)
     : (value: string) => value;
   return [
+    ...azureBillingTables(insights.azureBilling ?? [], options),
+    ...githubBillingTables(insights.githubBilling ?? []),
     {
       title: 'Repository inventory',
       repositoryUrls: insights.repositories.map(repositoryWebUrl),

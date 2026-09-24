@@ -234,8 +234,26 @@ export async function collectGitHub(
   insights?: ReportInsights,
 ): Promise<GitHubCommitter[]> {
   const accessToken = await acquireGitHubToken();
-  const repositories = await listGitHubRepositoriesForTarget({ ...source, accessToken });
-  if (repositories.length === 0) throw new Error('GitHub source has no accessible repositories.');
+  if (insights) await collectGitHubBilling(source, accessToken, insights);
+  const hasBilling = insights?.githubBilling?.some(
+    (item) => item.source === source.target && item.status !== 'unavailable',
+  );
+  let repositories: string[];
+  try {
+    repositories = await listGitHubRepositoriesForTarget({ ...source, accessToken });
+    if (repositories.length === 0) throw new Error('GitHub source has no accessible repositories.');
+  } catch (error) {
+    if (!insights || !hasBilling) throw error;
+    insights.checks.push({
+      provider: 'github',
+      source: source.target,
+      dataset: 'Repository activity',
+      status: 'unavailable',
+      detail:
+        'Billing evidence collected, but repository inventory is unavailable. Activity estimates omitted; missing data is not zero.',
+    });
+    return [];
+  }
   const committers: GitHubCommitter[] = [];
   let successfulReads = 0;
   let collectionError: unknown;
@@ -334,7 +352,7 @@ export async function collectGitHub(
       }
     }),
   );
-  if (successfulReads === 0)
+  if (successfulReads === 0 && !hasBilling)
     throw collectionError ?? new Error('No GitHub repository data could be read.');
   if (insights) {
     insights.checks.push({
@@ -367,15 +385,21 @@ export async function collectGitHub(
       detail:
         'Missing security fields are unknown; GitHub may require an existing security-manager, owner or repository-admin role to expose them. No role changes are requested. Secret scanning enablement does not by itself prove a paid Secret Protection subscription.',
     });
-    await collectGitHubBilling(source, accessToken, insights);
   }
   return uniqueGitHubCommitters(committers);
 }
 
 export async function preflightGitHub(source: GitHubSource): Promise<void> {
   const accessToken = await acquireGitHubToken();
-  const repositories = await listGitHubRepositoriesForTarget({ ...source, accessToken });
-  if (repositories.length === 0) throw new Error('GitHub source has no accessible repositories.');
+  try {
+    const repositories = await listGitHubRepositoriesForTarget({ ...source, accessToken });
+    if (repositories.length === 0) throw new Error('GitHub source has no accessible repositories.');
+  } catch (error) {
+    if (!source.includeBilling) throw error;
+    const insights = emptyInsights();
+    await collectGitHubBilling(source, accessToken, insights);
+    if (!insights.githubBilling?.some((item) => item.status !== 'unavailable')) throw error;
+  }
 }
 
 export function githubIdentityKey(committer: GitHubCommitter): string {

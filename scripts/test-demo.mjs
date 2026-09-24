@@ -7,7 +7,12 @@ import { dirname, extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
 import { PDFDocument } from 'pdf-lib';
-import { azureDevOpsCommitterSchema, gitHubCommitterSchema } from '@ninjapaw/contracts';
+import {
+  azureDevOpsCommitterSchema,
+  gitHubCommitterSchema,
+  azureBillingGroups,
+  azureBillingTables,
+} from '@ninjapaw/contracts';
 import { createDemoReports } from './demo-fixtures.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -45,6 +50,41 @@ for (const report of reports) {
   assert.ok(report.warnings.some((warning) => warning.startsWith('SYNTHETIC DEMO')));
 }
 const [complete, partial, empty] = reports;
+assert.equal(first.fixtureVersion, 3);
+assert.equal(complete.insights.githubBilling[0].providerCount, 1);
+assert.equal(complete.insights.githubBilling[0].repositories.length, 2);
+assert.ok(
+  partial.insights.githubBilling.every(
+    (snapshot) => snapshot.status === 'unavailable' && snapshot.providerCount === undefined,
+  ),
+);
+assert.equal(complete.insights.azureBilling.length, 2);
+assert.deepEqual(
+  azureBillingGroups(complete.insights.azureBilling).map((group) => group.uniqueCount),
+  [2, 2],
+);
+const olderCommit = complete.insights.azureBilling[0].details[0];
+assert.ok(olderCommit.commitTime < complete.insights.repositories[0].activity.from);
+assert.ok(olderCommit.pushedTime >= complete.insights.repositories[0].activity.from);
+assert.ok(olderCommit.pushedTime < complete.insights.azureBilling[0].billingDate);
+const diagnostics = azureBillingTables(complete.insights.azureBilling).find(
+  (table) => table.title === 'Azure billing diagnostic details',
+);
+assert.equal(diagnostics.rows[0][5], 'synthetic-cuid-1');
+assert.equal(diagnostics.rows[1][5], 'Unmatched or ambiguous; not added to totals');
+assert.equal(partial.insights.azureBilling[0].providerCount, 2);
+assert.equal(partial.insights.azureBilling[0].identities.length, 1);
+assert.equal(azureBillingGroups(partial.insights.azureBilling)[0].uniqueCount, undefined);
+assert.equal(empty.insights.azureBilling?.length ?? 0, 0);
+for (const format of ['csv', 'html']) {
+  const body = await readFile(resolve(generated, `synthetic-complete.${format}`), 'utf8');
+  for (const expected of [
+    'synthetic-cuid-1',
+    'Unmatched or ambiguous; not added to totals',
+    'unmatched@example.test',
+  ])
+    assert.ok(body.includes(expected));
+}
 assert.equal(complete.azureDevOpsCommitters.length, 32);
 assert.equal(complete.gitHubCommitters.length, 18);
 assert.equal(complete.insights.repositories.length, 8);
@@ -128,7 +168,48 @@ try {
       .getByRole('link', { name: 'Synthetic example - complete collection', exact: true })
       .click();
     await page.getByRole('heading', { name: 'Results dashboard' }).waitFor();
+    await page.getByRole('tab', { name: 'Azure DevOps', exact: true }).click();
+    await page
+      .getByRole('heading', { name: 'Provider-reported Azure billing', exact: true })
+      .waitFor();
+    await page.getByLabel(/^Billing dataset/).selectOption('Azure billing diagnostic details');
+    await page.getByLabel('Filter billing rows', { exact: true }).fill('unmatched@example.test');
+    assert.equal(
+      await page
+        .getByRole('cell', { name: 'Unmatched or ambiguous; not added to totals', exact: true })
+        .count(),
+      2,
+    );
+    await page.getByLabel('Filter billing rows', { exact: true }).fill('');
+    await page.getByLabel(/^Billing dataset/).selectOption('Azure billing reconciliation');
+    assert.equal(await page.getByRole('cell', { name: '2', exact: true }).count(), 2);
+    assert.ok(
+      await page.evaluate(
+        () => globalThis.document.documentElement.scrollWidth <= globalThis.innerWidth,
+      ),
+    );
+    await page
+      .getByRole('heading', { name: 'Provider-reported Azure billing', exact: true })
+      .scrollIntoViewIfNeeded();
+    await page.screenshot({ path: resolve(root, `test-results/demo/billing-${width}.png`) });
     await page.getByRole('tab', { name: 'GitHub Enterprise', exact: true }).click();
+    await page
+      .getByRole('heading', { name: 'Provider-reported GitHub billing', exact: true })
+      .waitFor();
+    await page.getByLabel(/^Billing dataset/).selectOption('GitHub security billing identities');
+    await page
+      .getByLabel('Filter billing rows', { exact: true })
+      .fill('billed-developer@example.test');
+    assert.equal(
+      await page.getByRole('cell', { name: 'billed-developer@example.test', exact: true }).count(),
+      4,
+    );
+    await page.getByLabel(/^Billing dataset/).selectOption('GitHub provider usage charges');
+    assert.equal(await page.getByRole('cell', { name: '0.6', exact: true }).count(), 3);
+    await page
+      .getByRole('region', { name: 'GitHub provider usage charges', exact: true })
+      .scrollIntoViewIfNeeded();
+    await page.screenshot({ path: resolve(root, `test-results/demo/github-billing-${width}.png`) });
     await page.getByRole('heading', { name: 'Usage and coverage', exact: true }).waitFor();
     await page.getByLabel('Repositories', { exact: true }).click();
     await page.getByLabel('Repository search', { exact: true }).fill('no-synthetic-match');
@@ -154,6 +235,13 @@ try {
       await page.goto(`${origin}${base}reports/${report.reportId}/`);
       await page.getByRole('heading', { name: 'Results dashboard' }).waitFor();
       assert.ok(await page.getByText(report.subject, { exact: false }).count());
+      if (report === partial) {
+        await page.getByRole('tab', { name: 'GitHub Enterprise', exact: true }).click();
+        await page
+          .getByLabel('Filter billing rows', { exact: true })
+          .fill('Synthetic billing access denied');
+        assert.equal(await page.getByRole('cell', { name: 'unavailable', exact: true }).count(), 5);
+      }
     }
     assert.deepEqual(
       failures,

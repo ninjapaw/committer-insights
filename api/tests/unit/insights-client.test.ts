@@ -113,15 +113,22 @@ describe('read-only reporting evidence', () => {
       product: 'Actions',
       sku: 'linux',
       quantity: 10,
+      pricePerUnit: 0.1,
       unitType: 'minutes',
       grossAmount: 1,
       discountAmount: 0.4,
       netAmount: 0.6,
     };
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValueOnce(Response.json({ usageItems: [item, { ...item, date: '2025-01-01' }] }))
-      .mockResolvedValueOnce(Response.json({ usageItems: [{ ...item, date: '2026-01-02' }] }));
+    const fetchImpl = vi.fn(async (value: string | URL | Request) => {
+      const input = new URL(String(value));
+      if (input.pathname.endsWith('/billing/usage'))
+        return Response.json({
+          usageItems: [
+            input.searchParams.get('year') === '2025' ? item : { ...item, date: '2026-01-02' },
+          ],
+        });
+      return new Response('', { status: 403 });
+    });
     await collectGitHubBilling(
       {
         provider: 'github',
@@ -134,7 +141,7 @@ describe('read-only reporting evidence', () => {
       insights,
       fetchImpl,
     );
-    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(fetchImpl).toHaveBeenCalledTimes(11);
     expect(insights.billing).toHaveLength(2);
     expect(insights.billing[0]).toMatchObject({
       unit: 'minutes',
@@ -142,7 +149,12 @@ describe('read-only reporting evidence', () => {
       discountUsd: 0.4,
       netUsd: 0.6,
     });
-    expect(insights.checks[0]?.status).toBe('complete');
+    expect(insights.checks[0]?.status).toBe('partial');
+    expect(
+      insights.githubBilling
+        ?.filter((item) => item.dataset === 'usage')
+        .every((item) => item.status === 'complete'),
+    ).toBe(true);
   });
 
   it('collects Azure settings and daily history without retaining identities or code', async () => {

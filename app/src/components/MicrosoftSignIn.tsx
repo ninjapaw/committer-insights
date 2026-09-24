@@ -7,6 +7,7 @@ import {
   connectAzure,
   getDeviceSignIn,
   startDeviceSignIn,
+  startAzureCliSignIn,
 } from '../providers/azure-devops';
 
 export function MicrosoftSignIn({
@@ -59,6 +60,9 @@ export function MicrosoftSignIn({
   const device = useMutation({
     mutationFn: () => receiveAttempt(startDeviceSignIn),
   });
+  const cli = useMutation({
+    mutationFn: () => receiveAttempt(startAzureCliSignIn),
+  });
   const status = useQuery({
     queryKey: ['microsoft-device-sign-in', attempt?.id],
     queryFn: () => getDeviceSignIn(attempt!.id),
@@ -90,10 +94,20 @@ export function MicrosoftSignIn({
     onError: (error) => setCancelError(error.message),
   });
   const pending = current?.status === 'pending' && attempt?.status === 'pending';
-  const busy = disabled || browser.isPending || device.isPending || pending || cancel.isPending;
+  const busy =
+    disabled ||
+    browser.isPending ||
+    device.isPending ||
+    cli.isPending ||
+    pending ||
+    cancel.isPending;
   const challenge = pending ? current?.challenge : undefined;
   const error =
-    cancelError || browser.error?.message || device.error?.message || status.error?.message;
+    cancelError ||
+    browser.error?.message ||
+    device.error?.message ||
+    cli.error?.message ||
+    status.error?.message;
 
   return (
     <div className="microsoft-sign-in">
@@ -109,6 +123,7 @@ export function MicrosoftSignIn({
           onClick={() => {
             setAttempt(undefined);
             device.reset();
+            cli.reset();
             setCancelError('');
             browser.mutate();
           }}
@@ -128,10 +143,27 @@ export function MicrosoftSignIn({
               setAttempt(undefined);
               setCancelError('');
               browser.reset();
+              cli.reset();
               device.mutate();
             }}
           >
             Sign in with a device code
+          </button>
+        )}
+        {!connected && (
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={busy}
+            onClick={() => {
+              setAttempt(undefined);
+              setCancelError('');
+              browser.reset();
+              device.reset();
+              cli.mutate();
+            }}
+          >
+            Sign in with Azure CLI
           </button>
         )}
       </div>

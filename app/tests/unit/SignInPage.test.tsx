@@ -8,11 +8,13 @@ import {
   connectAzure,
   getDeviceSignIn,
   startDeviceSignIn,
+  startAzureCliSignIn,
 } from '../../src/providers/azure-devops';
 
 vi.mock('../../src/providers/azure-devops', () => ({
   connectAzure: vi.fn(),
   startDeviceSignIn: vi.fn(),
+  startAzureCliSignIn: vi.fn(),
   getDeviceSignIn: vi.fn(),
   cancelDeviceSignIn: vi.fn(),
   disconnectAzure: vi.fn(),
@@ -70,6 +72,21 @@ function renderPage(initialEntry: string) {
 }
 
 describe('SignInPage', () => {
+  it('starts Azure CLI only from its explicit button and preserves device cancellation', async () => {
+    vi.mocked(startAzureCliSignIn).mockResolvedValue(pending);
+    vi.mocked(getDeviceSignIn).mockResolvedValue(pending);
+    vi.mocked(cancelDeviceSignIn).mockResolvedValue({ id: pending.id, status: 'canceled' });
+    renderPage('/sign-in');
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in with Azure CLI' }));
+    await screen.findByLabelText('Device sign-in code');
+    expect(startAzureCliSignIn).toHaveBeenCalledOnce();
+    expect(connectAzure).not.toHaveBeenCalled();
+    expect(startDeviceSignIn).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Sign in with Azure CLI' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel device sign-in' }));
+    await screen.findByText('Device sign-in canceled.');
+    expect(screen.getByRole('button', { name: 'Sign in with Azure CLI' })).toBeEnabled();
+  });
   it('shows restart guidance when the local session is invalid', () => {
     renderPage('/sign-in?reason=session');
     expect(screen.getByRole('heading', { name: 'Local session expired' })).toBeInTheDocument();
@@ -88,7 +105,7 @@ describe('SignInPage', () => {
     expect(screen.getByRole('button', { name: 'Sign in with Microsoft' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sign in with a device code' })).toBeVisible();
     expect(screen.queryByText('Other sign-in options')).not.toBeInTheDocument();
-    expect(screen.queryByText(/Azure CLI/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sign in with Azure CLI' })).toBeVisible();
   });
 
   it('keeps browser sign-in independent from device-code requests', async () => {

@@ -7,6 +7,7 @@ import {
   type SourceStatus,
 } from '@ninjapaw/contracts';
 import { fetchAzureDevOpsEstimate } from '../adapters/azure-devops/estimate-client.js';
+import { collectAzureBilling } from '../adapters/azure-devops/billing-client.js';
 import { discoverAzureDevOpsOrganizations } from '../adapters/azure-devops/organizations-client.js';
 import { acquireAzureDevOpsToken, signInWithBrowser } from '../auth/local-credential.js';
 import { saveReport } from '../reports/report-store.js';
@@ -83,6 +84,7 @@ export async function collectAzureDevOps(
   insights?: ReportInsights,
 ): Promise<AzureDevOpsCommitter[]> {
   const accessToken = await acquireAzureDevOpsToken();
+  if (insights) await collectAzureBilling(source, insights, acquireAzureDevOpsToken);
   if (insights)
     await collectAzureRepositoryInsights(
       source.organization,
@@ -124,6 +126,10 @@ export async function collectAzureDevOps(
     if (
       !insights.repositories.some(
         (row) => row.provider === 'azure-devops' && row.source === source.organization,
+      ) &&
+      !insights.azureBilling?.some(
+        (snapshot) =>
+          snapshot.organization === source.organization && snapshot.status !== 'unavailable',
       )
     )
       throw error;
@@ -135,7 +141,20 @@ export async function preflightAzureDevOps(source: AzureSource): Promise<void> {
   try {
     await collectAzureDevOps(source);
   } catch {
-    await preflightAzureRepositoryAccess(source.organization, await acquireAzureDevOpsToken());
+    try {
+      await preflightAzureRepositoryAccess(source.organization, await acquireAzureDevOpsToken());
+    } catch (error) {
+      if (source.includeAzureBilling) {
+        const insights = emptyInsights();
+        await collectAzureBilling(
+          { ...source, includeAzureBillingDetails: false },
+          insights,
+          acquireAzureDevOpsToken,
+        );
+        if (insights.azureBilling?.some((snapshot) => snapshot.status !== 'unavailable')) return;
+      }
+      throw error;
+    }
   }
 }
 

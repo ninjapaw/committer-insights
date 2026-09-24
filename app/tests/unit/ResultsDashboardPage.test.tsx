@@ -312,7 +312,10 @@ describe('Results dashboard', () => {
       expect(screen.getByTitle(generatedAt)).toHaveTextContent(displayed);
       expect(screen.getByTitle(generatedAt)).toHaveAttribute('datetime', generatedAt);
       const navigation = screen.getByRole('navigation', { name: 'Azure DevOps report sections' });
-      expect(within(navigation).getAllByRole('link')).toHaveLength(7);
+      expect(within(navigation).getAllByRole('link')).toHaveLength(8);
+      expect(
+        within(navigation).getByRole('link', { name: 'Provider-reported billing' }),
+      ).toHaveAttribute('href', '#report-azure-billing');
       for (const link of within(navigation).getAllByRole('link')) {
         const target = document.querySelector(link.getAttribute('href')!);
         expect(target).not.toBeNull();
@@ -326,6 +329,10 @@ describe('Results dashboard', () => {
       expect(screen.queryByText('GitHub activity only')).not.toBeInTheDocument();
       expect(screen.queryByRole('region', { name: 'GitHub committers' })).not.toBeInTheDocument();
       fireEvent.click(screen.getByRole('tab', { name: 'GitHub Enterprise' }));
+      expect(screen.getByRole('link', { name: 'Provider-reported billing' })).toHaveAttribute(
+        'href',
+        '#report-github-billing',
+      );
       expect(
         screen.getByRole('navigation', { name: 'GitHub Enterprise report sections' }),
       ).toBeInTheDocument();

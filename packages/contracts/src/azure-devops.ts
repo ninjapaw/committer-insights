@@ -78,10 +78,14 @@ export const azureDevOpsMeterUsageBilledUserSchema = z.object({
 });
 export type AzureDevOpsMeterUsageBilledUser = z.infer<typeof azureDevOpsMeterUsageBilledUserSchema>;
 
-export const azureDevOpsMeterUsageEstimateResponseSchema = z.object({
-  uniqueCommitterCount: z.number().int().nonnegative(),
-  billedUsers: z.array(azureDevOpsMeterUsageBilledUserSchema).default([]),
-});
+export const azureDevOpsMeterUsageEstimateResponseSchema = z
+  .object({
+    uniqueCommitterCount: z.number().int().nonnegative(),
+    billedUsers: z.array(azureDevOpsMeterUsageBilledUserSchema).default([]),
+  })
+  .refine((estimate) => estimate.uniqueCommitterCount === estimate.billedUsers.length, {
+    message: 'Provider committer count does not match returned identity details.',
+  });
 export type AzureDevOpsMeterUsageEstimateResponse = z.infer<
   typeof azureDevOpsMeterUsageEstimateResponseSchema
 >;

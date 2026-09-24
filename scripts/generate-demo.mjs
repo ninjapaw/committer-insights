@@ -36,7 +36,7 @@ await emit(
 );
 await writeFile(
   new URL('manifest.json', output),
-  `${JSON.stringify({ synthetic: true, fixtureVersion: 1, generatedAt: demoDate, files }, null, 2)}\n`,
+  `${JSON.stringify({ synthetic: true, fixtureVersion: 3, generatedAt: demoDate, files }, null, 2)}\n`,
 );
 process.stdout.write(
   `Generated ${reports.length} synthetic reports and production CSV/HTML/PDF exports. No provider calls or credentials used.\n`,

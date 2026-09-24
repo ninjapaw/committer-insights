@@ -13,11 +13,11 @@ export class GitHubRequestError extends Error {
   }
 }
 
-function headers(token: string): Record<string, string> {
+function headers(token: string, apiVersion: string): Record<string, string> {
   return {
     Authorization: `Bearer ${token}`,
     Accept: 'application/vnd.github+json',
-    'X-GitHub-Api-Version': API_VERSION,
+    'X-GitHub-Api-Version': apiVersion,
     'User-Agent': 'committer-insights',
   };
 }
@@ -33,10 +33,15 @@ export function nextPage(response: Response): URL | undefined {
   return url;
 }
 
-export async function request(url: URL, token: string, fetchImpl: typeof fetch): Promise<Response> {
+export async function request(
+  url: URL,
+  token: string,
+  fetchImpl: typeof fetch,
+  apiVersion = API_VERSION,
+): Promise<Response> {
   if (url.origin !== API_ORIGIN) throw new Error('GitHub requests must use api.github.com.');
   const response = await fetchImpl(url, {
-    headers: headers(token),
+    headers: headers(token, apiVersion),
     method: 'GET',
     redirect: 'error',
     signal: AbortSignal.timeout(20_000),

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { executableBundleOptions } from './executable-bundle-options.mjs';
 import { bundleGitHubCli } from './bundle-github-cli.mjs';
+import { bundleAzureCli } from './bundle-azure-cli.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const buildDir = join(root, 'build');
@@ -45,6 +46,7 @@ const assets = Object.fromEntries(
   ]),
 );
 Object.assign(assets, await bundleGitHubCli(root, buildDir, releaseDir));
+Object.assign(assets, await bundleAzureCli(root, buildDir, releaseDir));
 const seaConfigPath = join(buildDir, 'sea-config.json');
 await writeFile(
   seaConfigPath,

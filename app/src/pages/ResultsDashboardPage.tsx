@@ -18,6 +18,7 @@ import { ReportTable } from '../components/ReportTable';
 import { RepositoryLink } from '../components/RepositoryLink';
 import { ReportInsightsPanel } from '../components/ReportInsightsPanel';
 import { CioBriefPanel } from '../components/CioBriefPanel';
+import { AzureBillingPanel, GitHubBillingPanel } from '../components/AzureBillingPanel';
 import { azureColumns } from '../providers/azure-devops';
 import { githubColumnsForTimeZone } from '../providers/github';
 import { localRequest, requestJson } from '../services/local-api';
@@ -118,6 +119,7 @@ export function ResultsDashboardPage({
     query.data.sourceStatuses?.some((item) => item.provider === 'azure-devops') ||
     query.data.providerSummaries?.some((item) => item.provider === 'azure-devops') ||
     query.data.insights?.repositories.some((item) => item.provider === 'azure-devops') ||
+    Boolean(query.data.insights?.azureBilling?.length) ||
     query.data.costEstimates?.some((item) => item.provider === 'azure-devops');
   const provider = selectedProvider ?? (hasAzure ? 'azure-devops' : 'github');
   return (
@@ -228,6 +230,8 @@ function ProviderResults({
         !report.azureDevOpsCommitters.length &&
         !report.gitHubCommitters.length &&
         !report.insights?.repositories.length &&
+        !report.insights?.azureBilling?.length &&
+        !report.insights?.githubBilling?.length &&
         !report.insights?.billing.length && (
           <p>No sources or usage collected for this provider. Pricing is unavailable, not zero.</p>
         )}
@@ -244,6 +248,12 @@ function ProviderResults({
           <a href="#report-usage">Usage and security</a>
           <a href="#report-evidence">Collection evidence</a>
           <a href="#report-pricing">Estimated billing</a>
+          {report.provider === 'azure-devops' && (
+            <a href="#report-azure-billing">Provider-reported billing</a>
+          )}
+          {report.provider === 'github' && (
+            <a href="#report-github-billing">Provider-reported billing</a>
+          )}
           <a href="#report-identities">Identity detail</a>
           <a href="#report-downloads">Export report</a>
         </nav>
@@ -278,6 +288,27 @@ function ProviderResults({
                 </div>
               </div>
               <SolutionPricing report={query.data} />
+            </section>
+          )}
+          {report.provider === 'azure-devops' && (
+            <section
+              id="report-azure-billing"
+              tabIndex={-1}
+              aria-label="Provider-reported Azure billing"
+            >
+              <AzureBillingPanel
+                snapshots={report.insights?.azureBilling ?? []}
+                timeZone={report.timeZone}
+              />
+            </section>
+          )}
+          {report.provider === 'github' && (
+            <section
+              id="report-github-billing"
+              tabIndex={-1}
+              aria-label="Provider-reported GitHub billing"
+            >
+              <GitHubBillingPanel snapshots={report.insights?.githubBilling ?? []} />
             </section>
           )}
           <section
