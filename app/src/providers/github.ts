@@ -1,13 +1,12 @@
 import type { ColumnDef } from '@tanstack/react-table';
-import type { GitHubCommitter, GitHubTargetType } from '@ninjapaw/contracts';
+import {
+  getGitHubContributions,
+  formatReportDateTime,
+  reportingWindows,
+  type GitHubCommitter,
+  type GitHubSourceOption,
+} from '@ninjapaw/contracts';
 import { postJson, requestJson } from '../services/local-api';
-
-export interface GitHubTargetOption {
-  id: string;
-  name: string;
-  targetType: GitHubTargetType;
-  url?: string;
-}
 
 export function connectGitHub() {
   return postJson<{ viewer: { login: string; name?: string } }>('/api/auth/github/sign-in');
@@ -15,27 +14,28 @@ export function connectGitHub() {
 
 export async function discoverGitHubTargets() {
   const result = await requestJson<{
-    targets: GitHubTargetOption[];
+    targets: GitHubSourceOption[];
   }>('/api/connections/github/targets');
   return result.targets;
 }
 
-export function createGitHubReport(input: {
-  targetType: GitHubTargetType;
-  target: string;
-  sinceDays: number;
-}) {
-  return postJson<{ reportId: string }>('/api/reports/github', input);
-}
-
-export const githubColumns: ColumnDef<GitHubCommitter>[] = [
+export const githubColumnsForTimeZone = (timeZone = 'UTC'): ColumnDef<GitHubCommitter>[] => [
   { accessorKey: 'login', header: 'Login' },
   { accessorKey: 'displayName', header: 'Display name' },
-  { accessorKey: 'repository', header: 'Repository' },
-  { id: 'billableCommitter', header: 'Billable committer', accessorFn: () => 'No' },
+  {
+    id: 'repositoryCount',
+    header: 'Repositories contributed to',
+    accessorFn: (row) => getGitHubContributions(row).length || 'Unavailable',
+  },
+  { id: 'billableCommitter', header: 'Billing status', accessorFn: () => 'Unknown' },
   { accessorKey: 'commitCount', header: 'Commit count' },
-  { accessorKey: 'lastCommitAt', header: 'Last commit at' },
+  {
+    accessorKey: 'lastCommitAt',
+    header: `Last commit (${timeZone})`,
+    cell: ({ row }) => formatReportDateTime(row.original.lastCommitAt, timeZone),
+  },
   { accessorKey: 'profileUrl', header: 'Profile URL' },
 ];
 
-export const commitWindows = [30, 90, 180, 365] as const;
+export const githubColumns = githubColumnsForTimeZone();
+export const commitWindows = reportingWindows;

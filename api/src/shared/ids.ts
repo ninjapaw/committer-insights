@@ -5,6 +5,5 @@ export function newCorrelationId(): string {
 }
 
 export function newOpaqueId(): string {
-  // 128 bits of randomness, URL-safe, non-sequential by construction.
   return randomUUID().replace(/-/g, '');
 }

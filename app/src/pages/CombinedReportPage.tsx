@@ -21,6 +21,7 @@ interface ReportDraft {
   githubTargetTypes: Record<string, GitHubTargetType>;
   plans: AzureDevOpsPlan[];
   sinceDays: number;
+  includeBilling: boolean;
 }
 
 const emptyDraft: ReportDraft = {
@@ -29,6 +30,7 @@ const emptyDraft: ReportDraft = {
   githubTargetTypes: {},
   plans: ['all'],
   sinceDays: 90,
+  includeBilling: false,
 };
 
 export function CombinedReportPage(): JSX.Element {
@@ -40,7 +42,8 @@ export function CombinedReportPage(): JSX.Element {
     staleTime: Infinity,
     gcTime: Infinity,
   });
-  const { azureSelected, githubSelected, githubTargetTypes, plans, sinceDays } = draft;
+  const { azureSelected, githubSelected, githubTargetTypes, plans, sinceDays, includeBilling } =
+    draft;
   const [reviewing, setReviewing] = useState(false);
   const [statuses, setStatuses] = useState<SourceStatus[] | null>(null);
   const navigate = useNavigate();
@@ -50,12 +53,14 @@ export function CombinedReportPage(): JSX.Element {
       provider: 'azure-devops' as const,
       organization,
       plans,
+      sinceDays,
     })),
     ...githubSelected.map((target) => ({
       provider: 'github' as const,
       targetType: githubTargetTypes[target] ?? ('organization' as const),
       target,
       sinceDays,
+      ...(includeBilling ? { includeBilling: true } : {}),
     })),
   ];
 
@@ -170,9 +175,9 @@ export function CombinedReportPage(): JSX.Element {
                 disabled={busy}
               />
             )}
-            {githubSelected.length > 0 && (
+            {sources.length > 0 && (
               <div>
-                <label htmlFor="combined-window">Commit window</label>
+                <label htmlFor="combined-window">Activity window (UTC)</label>
                 <select
                   id="combined-window"
                   disabled={busy}
@@ -189,6 +194,22 @@ export function CombinedReportPage(): JSX.Element {
                 </select>
               </div>
             )}
+            {githubSelected.length > 0 && (
+              <label className="billing-option">
+                <input
+                  type="checkbox"
+                  checked={includeBilling}
+                  disabled={busy}
+                  onChange={(event) => updateDraft({ includeBilling: event.currentTarget.checked })}
+                />
+                Include GitHub organization billing usage with existing access
+              </label>
+            )}
+            <p>
+              Read-only collection. Missing permissions leave individual datasets unavailable.
+              Security settings are current snapshots; activity windows do not change provider
+              billing rules.
+            </p>
           </section>
           {!statuses && (
             <div className="review-sources">

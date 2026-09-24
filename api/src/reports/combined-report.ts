@@ -5,7 +5,9 @@ import type {
   SourceStatus,
   ExecutiveSummary,
   ProviderSummary,
+  ReportInsights,
 } from '@ninjapaw/contracts';
+import { emptyInsights, uniqueRepositories } from '@ninjapaw/contracts';
 import {
   azureRemediation,
   azureSourceScope,
@@ -33,15 +35,37 @@ export async function createCombinedReport(sources: MultiSource[]) {
     sourceApiVersion: 'multiple',
     azureDevOpsCommitters: collection.azureDevOpsCommitters,
     gitHubCommitters: collection.gitHubCommitters,
+    insights: collection.insights,
     sourceStatuses: collection.statuses,
     executiveSummary: collection.summary,
     providerSummaries: collection.providerSummaries,
     costEstimates: [
-      ...buildAzureDevOpsCostEstimates(collection.azureDevOpsCommitters),
-      ...buildGitHubCostEstimates(
-        collection.gitHubCommitters,
-        collection.providerSummaries.find((summary) => summary.provider === 'github'),
-      ),
+      ...(collection.providerSummaries.some(
+        (summary) => summary.provider === 'azure-devops' && summary.includedSources > 0,
+      )
+        ? buildAzureDevOpsCostEstimates(
+            collection.azureDevOpsCommitters,
+            sources.flatMap((source) =>
+              source.provider === 'azure-devops' &&
+              collection.statuses.some(
+                (status) =>
+                  status.provider === 'azure-devops' &&
+                  status.subject === source.organization &&
+                  status.status === 'included',
+              )
+                ? source.plans
+                : [],
+            ),
+          )
+        : []),
+      ...(collection.providerSummaries.some(
+        (summary) => summary.provider === 'github' && summary.includedSources > 0,
+      )
+        ? buildGitHubCostEstimates(
+            collection.gitHubCommitters,
+            collection.providerSummaries.find((summary) => summary.provider === 'github'),
+          )
+        : []),
     ],
     warnings: [
       'Skipped sources are excluded from totals and listed with remediation guidance.',
@@ -51,6 +75,7 @@ export async function createCombinedReport(sources: MultiSource[]) {
 }
 
 export interface CombinedCollection {
+  insights: ReportInsights;
   statuses: SourceStatus[];
   azureDevOpsCommitters: AzureDevOpsCommitter[];
   gitHubCommitters: GitHubCommitter[];
@@ -90,6 +115,16 @@ function scope(source: MultiSource): string {
   return source.provider === 'azure-devops' ? azureSourceScope(source) : githubSourceScope(source);
 }
 
+function sourceStatus(source: MultiSource, result: number | SourceStatus): SourceStatus {
+  return {
+    ...(typeof result === 'number'
+      ? { provider: source.provider, status: 'included' as const, committerCount: result }
+      : result),
+    subject: subject(source),
+    scope: scope(source),
+  };
+}
+
 export async function preflightSources(sources: MultiSource[]): Promise<SourceStatus[]> {
   const statuses: SourceStatus[] = [];
   for (const source of sources) {
@@ -99,25 +134,16 @@ export async function preflightSources(sources: MultiSource[]): Promise<SourceSt
       } else {
         await preflightGitHub(source);
       }
-      statuses.push({
-        provider: source.provider,
-        subject: subject(source),
-        scope: scope(source),
-        status: 'included',
-        committerCount: 0,
-      });
+      statuses.push(sourceStatus(source, 0));
     } catch (error) {
-      statuses.push({
-        ...remediation(source.provider, error),
-        subject: subject(source),
-        scope: scope(source),
-      });
+      statuses.push(sourceStatus(source, remediation(source.provider, error)));
     }
   }
   return statuses;
 }
 
 export async function collectSources(sources: MultiSource[]): Promise<CombinedCollection> {
+  const insights = emptyInsights();
   const statuses: SourceStatus[] = [];
   const azureDevOpsCommitters: AzureDevOpsCommitter[] = [];
   const gitHubCommitters: GitHubCommitter[] = [];
@@ -125,32 +151,16 @@ export async function collectSources(sources: MultiSource[]): Promise<CombinedCo
   for (const source of sources) {
     try {
       if (source.provider === 'azure-devops') {
-        const committers = await collectAzureDevOps(source);
+        const committers = await collectAzureDevOps(source, insights);
         azureDevOpsCommitters.push(...committers);
-        statuses.push({
-          provider: source.provider,
-          subject: source.organization,
-          scope: scope(source),
-          status: 'included',
-          committerCount: committers.length,
-        });
+        statuses.push(sourceStatus(source, committers.length));
       } else {
-        const committers = await collectGitHub(source);
+        const committers = await collectGitHub(source, insights);
         gitHubCommitters.push(...committers);
-        statuses.push({
-          provider: source.provider,
-          subject: source.target,
-          scope: scope(source),
-          status: 'included',
-          committerCount: committers.length,
-        });
+        statuses.push(sourceStatus(source, committers.length));
       }
     } catch (error) {
-      statuses.push({
-        ...remediation(source.provider, error),
-        subject: subject(source),
-        scope: scope(source),
-      });
+      statuses.push(sourceStatus(source, remediation(source.provider, error)));
     }
   }
 
@@ -166,6 +176,7 @@ export async function collectSources(sources: MultiSource[]): Promise<CombinedCo
       : []),
   ];
   return {
+    insights: { ...insights, repositories: uniqueRepositories(insights.repositories) },
     statuses,
     azureDevOpsCommitters,
     gitHubCommitters,

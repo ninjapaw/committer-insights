@@ -35,7 +35,12 @@ export function nextPage(response: Response): URL | undefined {
 
 export async function request(url: URL, token: string, fetchImpl: typeof fetch): Promise<Response> {
   if (url.origin !== API_ORIGIN) throw new Error('GitHub requests must use api.github.com.');
-  const response = await fetchImpl(url, { headers: headers(token) });
+  const response = await fetchImpl(url, {
+    headers: headers(token),
+    method: 'GET',
+    redirect: 'error',
+    signal: AbortSignal.timeout(20_000),
+  });
   if (!response.ok) {
     const remainingHeader = response.headers.get('x-ratelimit-remaining');
     const rateLimited = response.status === 403 && remainingHeader === '0';

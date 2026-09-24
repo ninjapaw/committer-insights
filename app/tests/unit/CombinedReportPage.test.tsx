@@ -217,7 +217,7 @@ describe('CombinedReportPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Review report' }));
     const generate = screen.getByRole('button', { name: 'Generate report' });
     await waitFor(() => expect(checkbox).toBeDisabled());
-    expect(screen.getByLabelText('Commit window')).toBeDisabled();
+    expect(screen.getByLabelText('Activity window (UTC)')).toBeDisabled();
     expect(generate).toBeDisabled();
     await act(async () => {
       finish(Response.json({ statuses: [ready] }));
@@ -247,7 +247,7 @@ describe('CombinedReportPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Review report' }));
     const generate = screen.getByRole('button', { name: 'Generate report' });
     await waitFor(() => expect(generate).toBeEnabled());
-    fireEvent.change(screen.getByLabelText('Commit window'), { target: { value: '30' } });
+    fireEvent.change(screen.getByLabelText('Activity window (UTC)'), { target: { value: '30' } });
     expect(generate).toBeDisabled();
     expect(screen.queryByText('Ready')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Check access' }));

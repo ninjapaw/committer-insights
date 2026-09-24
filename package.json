@@ -2,7 +2,7 @@
   "name": "@ninjapaw/committer-insights",
   "version": "0.1.0",
   "private": true,
-  "description": "Local Azure DevOps Advanced Security committer reports with Excel and CSV exports.",
+  "description": "Local Azure DevOps and GitHub committer reports with CSV, PDF, and HTML exports.",
   "license": "MIT",
   "author": "Microsoft Corporation",
   "repository": {
@@ -15,11 +15,6 @@
     "npm": "11.17.0"
   },
   "packageManager": "npm@11.17.0",
-  "overrides": {
-    "exceljs": {
-      "uuid": "11.1.1"
-    }
-  },
   "workspaces": [
     "app",
     "api",
@@ -27,6 +22,7 @@
   ],
   "scripts": {
     "dev": "npm run build && npm run start --workspace api",
+    "prebuild": "node scripts/clean-build.mjs",
     "build": "npm run build --workspace packages/contracts && npm run build --workspace app && npm run build --workspace api",
     "build:exe": "npm run build && node scripts/build-executable.mjs",
     "test:exe": "node scripts/smoke-executable.mjs",

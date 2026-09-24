@@ -2,30 +2,17 @@ import {
   gitHubCommitterSchema,
   gitHubCommitsResponseSchema,
   gitHubRepositorySchema,
+  reportingWindow,
   type GitHubCommitter,
 } from '@ninjapaw/contracts';
 import { API_ORIGIN, API_VERSION, MAX_PAGES, nextPage, request } from './http-client.js';
-
-export async function preflightGitHubRepository(
-  repositoryInput: string,
-  accessToken: string,
-  fetchImpl: typeof fetch = fetch,
-): Promise<string> {
-  const repository = gitHubRepositorySchema.parse(repositoryInput);
-  await request(
-    new URL(`/repos/${repository}/commits?per_page=1`, API_ORIGIN),
-    accessToken,
-    fetchImpl,
-  );
-  return repository;
-}
 
 export async function fetchGitHubCommitters(
   input: { repository: string; sinceDays: number; accessToken: string },
   fetchImpl: typeof fetch = fetch,
 ): Promise<GitHubCommitter[]> {
   const repository = gitHubRepositorySchema.parse(input.repository);
-  const since = new Date(Date.now() - input.sinceDays * 24 * 60 * 60 * 1000).toISOString();
+  const window = reportingWindow(input.sinceDays);
   const aggregated = new Map<
     string,
     {
@@ -35,10 +22,11 @@ export async function fetchGitHubCommitters(
       profileUrl?: string;
       count: number;
       lastCommitAt: string;
+      activity: Map<string, number>;
     }
   >();
   let url: URL | undefined = new URL(
-    `/repos/${repository}/commits?since=${encodeURIComponent(since)}&per_page=100`,
+    `/repos/${repository}/commits?since=${encodeURIComponent(window.from)}&until=${encodeURIComponent(window.to)}&per_page=100`,
     API_ORIGIN,
   );
 
@@ -48,17 +36,24 @@ export async function fetchGitHubCommitters(
     if (!parsed.success) throw new Error('GitHub returned an unexpected commits response.');
     for (const item of parsed.data) {
       const authoredAt = item.commit.author?.date;
-      const displayName = item.commit.author?.name;
-      if (!authoredAt || !displayName) continue;
+      const displayName = item.commit.author?.name ?? item.author?.login ?? 'Unknown author';
+      if (!authoredAt)
+        throw new Error('GitHub commit date is missing; activity coverage is incomplete.');
+      const timestamp = new Date(authoredAt).toISOString();
+      if (timestamp < window.from || timestamp > window.to) continue;
       const login = item.author?.login ?? displayName;
       const key = login.toLowerCase();
       const current = aggregated.get(key);
+      const activity = current?.activity ?? new Map<string, number>();
+      const date = new Date(authoredAt).toISOString().slice(0, 10);
+      activity.set(date, (activity.get(date) ?? 0) + 1);
       aggregated.set(key, {
         ...(item.author?.id ? { userId: String(item.author.id) } : {}),
         login,
         displayName,
         ...(item.author?.html_url ? { profileUrl: item.author.html_url } : {}),
         count: (current?.count ?? 0) + 1,
+        activity,
         lastCommitAt:
           !current || authoredAt > current.lastCommitAt ? authoredAt : current.lastCommitAt,
       });
@@ -81,6 +76,9 @@ export async function fetchGitHubCommitters(
         lastCommitAt: committer.lastCommitAt,
         collectedAt,
         sourceApiVersion: API_VERSION,
+        dailyActivity: [...committer.activity]
+          .sort(([left], [right]) => left.localeCompare(right))
+          .map(([date, commits]) => ({ date, commits })),
       }),
     )
     .sort(

@@ -1,7 +1,6 @@
-import type { AzureDevOpsPlan } from '@ninjapaw/contracts';
+import { azurePlanLabels, type AzureDevOpsPlan } from '@ninjapaw/contracts';
 
 const individualPlans = ['codeSecurity', 'secretProtection'] as const;
-const labels = { codeSecurity: 'Code Security', secretProtection: 'Secret Protection' };
 
 export function AzurePlanPicker({
   plans,
@@ -22,7 +21,7 @@ export function AzurePlanPicker({
           checked={all}
           onChange={() => onChange(all ? [...individualPlans] : ['all'])}
         />
-        All plans
+        {azurePlanLabels.all}
       </label>
       {individualPlans.map((plan) => (
         <label key={plan} className={all ? 'plan-picker__included' : undefined}>
@@ -36,7 +35,7 @@ export function AzurePlanPicker({
               )
             }
           />
-          {labels[plan]}
+          {azurePlanLabels[plan]}
         </label>
       ))}
     </fieldset>

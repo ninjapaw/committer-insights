@@ -4,6 +4,8 @@
  * SSRF-relevant configuration stays auditable in one file.
  */
 
+import { resolveReportTimeZone } from '@ninjapaw/contracts';
+
 function readEnv(name: string, fallback?: string): string {
   const value = process.env[name] ?? fallback;
   if (value === undefined) {
@@ -18,6 +20,9 @@ const embeddedClientId =
   typeof __COMMITTER_INSIGHTS_CLIENT_ID__ === 'string' ? __COMMITTER_INSIGHTS_CLIENT_ID__ : '';
 
 export const config = {
+  report: {
+    timeZone: () => resolveReportTimeZone(process.env.COMMITTER_INSIGHTS_TIMEZONE),
+  },
   entra: {
     clientId: () => process.env.COMMITTER_INSIGHTS_CLIENT_ID ?? embeddedClientId,
     tenantId: () => readEnv('COMMITTER_INSIGHTS_TENANT_ID', 'organizations'),

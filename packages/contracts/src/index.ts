@@ -1,7 +1,13 @@
 import { z } from 'zod';
 
 export * from './azure-devops.js';
+export * from './azure-devops-display.js';
 export * from './github.js';
+export * from './insights.js';
+export * from './provider-report.js';
+export * from './cio-brief.js';
+export * from './date-display.js';
+import type { ReportInsights } from './insights.js';
 import {
   azureDevOpsOrganizationSchema,
   azureDevOpsPlanSchema,
@@ -14,12 +20,14 @@ export const multiSourceSchema = z.discriminatedUnion('provider', [
     provider: z.literal('azure-devops'),
     organization: azureDevOpsOrganizationSchema,
     plans: z.array(azureDevOpsPlanSchema).min(1).default(['all']),
+    sinceDays: z.number().int().min(1).max(365).optional(),
   }),
   z.object({
     provider: z.literal('github'),
     targetType: gitHubTargetTypeSchema,
     target: gitHubTargetSchema,
     sinceDays: z.number().int().min(1).max(365).default(90),
+    includeBilling: z.boolean().optional(),
   }),
 ]);
 export type MultiSource = z.infer<typeof multiSourceSchema>;
@@ -65,12 +73,46 @@ export interface ProviderSummary {
 
 export interface CostEstimateLineItem {
   provider: MultiSource['provider'];
+  solution?: 'codeSecurity' | 'secretProtection' | 'enterprise';
   label: string;
   count: number;
   unitPriceUsd: number;
   estimatedMonthlyCostUsd: number;
   basis: string;
   source: string;
+}
+
+export const solutionPricingNote =
+  'Totals cover the full collected scope, not screen filters. Counts are product-specific estimates, not confirmed licensed seats. GHAS subtotals combine Code Security and Secret Protection costs; do not add subtotals to their component rows. Annualized estimates are monthly estimates x 12, not annual contract quotes. Other plans without usage evidence remain unpriced.';
+
+export function solutionPricingRows(estimates: CostEstimateLineItem[] = []) {
+  const rows = estimates.map((item) => ({
+    provider: item.provider === 'github' ? 'GitHub' : 'Azure DevOps',
+    solution: item.label,
+    quantity: String(item.count),
+    monthlyUsd: item.estimatedMonthlyCostUsd,
+    annualizedUsd: item.estimatedMonthlyCostUsd * 12,
+  }));
+  const securityTotals: typeof rows = [];
+  for (const provider of ['azure-devops', 'github'] as const) {
+    const code = estimates.filter(
+      (item) => item.provider === provider && item.solution === 'codeSecurity',
+    );
+    const secret = estimates.filter(
+      (item) => item.provider === provider && item.solution === 'secretProtection',
+    );
+    if (code.length !== 1 || secret.length !== 1) continue;
+    const monthlyUsd = code[0]!.estimatedMonthlyCostUsd + secret[0]!.estimatedMonthlyCostUsd;
+    securityTotals.push({
+      provider: provider === 'github' ? 'GitHub' : 'Azure DevOps',
+      solution: 'GHAS subtotal: Code Security + Secret Protection',
+      quantity: `${code[0]!.count} Code Security; ${secret[0]!.count} Secret Protection`,
+      monthlyUsd,
+      annualizedUsd: monthlyUsd * 12,
+    });
+  }
+  rows.push(...securityTotals);
+  return rows;
 }
 
 export interface Report {
@@ -80,6 +122,7 @@ export interface Report {
   organization: string;
   plans: string[];
   generatedAt: string;
+  timeZone?: string;
   sourceApiVersion: string;
   azureDevOpsCommitters: AzureDevOpsCommitter[];
   gitHubCommitters: GitHubCommitter[];
@@ -87,10 +130,11 @@ export interface Report {
   executiveSummary?: ExecutiveSummary;
   providerSummaries?: ProviderSummary[];
   costEstimates?: CostEstimateLineItem[];
+  insights?: ReportInsights;
   warnings: string[];
 }
 
-export const exportFormats = ['xlsx', 'csv', 'pdf', 'html'] as const;
+export const exportFormats = ['csv', 'pdf', 'html'] as const;
 export type ExportFormat = (typeof exportFormats)[number];
 
 /** Typed error model for upstream and portal API failures. */

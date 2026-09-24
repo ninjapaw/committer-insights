@@ -1,6 +1,18 @@
+import type { ExportFormat } from '@ninjapaw/contracts';
+
+export function safeExportFilename(
+  subject: string,
+  generatedAt: string,
+  extension: ExportFormat,
+): string {
+  const safeSubject = subject.replace(/[^A-Za-z0-9-]/g, '_');
+  const timestamp = generatedAt.replace(/[:.]/g, '-');
+  return `active-committers-${safeSubject}-${timestamp}.${extension}`;
+}
+
 /**
  * Guards against spreadsheet formula injection. Values beginning with
- * =, +, -, or @ are prefixed with a leading apostrophe/tab so spreadsheet
+ * =, +, -, or @ are prefixed with an apostrophe so spreadsheet
  * applications treat them as text, per OWASP CSV injection guidance.
  */
 const DANGEROUS_PREFIXES = ['=', '+', '-', '@', '\t', '\r'];

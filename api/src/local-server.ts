@@ -8,6 +8,7 @@ import {
   gitHubReportRequestSchema,
   multiSourceReportRequestSchema,
   reportRequestSchema,
+  HTTP_STATUS_TO_ERROR_CODE,
   type ProviderErrorCode,
   type ExportFormat,
 } from '@ninjapaw/contracts';
@@ -39,17 +40,9 @@ const securityHeaders = {
   'X-Content-Type-Options': 'nosniff',
 };
 
-const providerErrorStatus = {
-  invalid_request: 400,
-  authentication_required: 401,
-  insufficient_permission: 403,
-  not_found: 404,
-  consent_or_account_mismatch: 409,
-  rate_limited: 429,
-  internal_error: 500,
-  upstream_error: 502,
-  upstream_unavailable: 503,
-} as const;
+const providerErrorStatus = Object.fromEntries(
+  Object.entries(HTTP_STATUS_TO_ERROR_CODE).map(([status, code]) => [code, Number(status)]),
+) as Record<ProviderErrorCode, number>;
 
 export function providerStatusForErrorCode(code: ProviderErrorCode): number {
   return providerErrorStatus[code];
@@ -242,7 +235,7 @@ async function handleApi(
     if (!report) return sendJson(response, 404, { message: 'Report not found.' });
     return sendJson(response, 200, report);
   }
-  const exportMatch = pathname.match(/^\/api\/reports\/([^/]+)\/export\.(xlsx|csv|html|pdf)$/);
+  const exportMatch = pathname.match(/^\/api\/reports\/([^/]+)\/export\.(csv|html|pdf)$/);
   if (request.method === 'GET' && exportMatch) {
     const report = reportForLocalUser(exportMatch[1]);
     if (!report) return sendJson(response, 404, { message: 'Report not found.' });

@@ -13,11 +13,13 @@ export function ReportTable<Row>({
   columns,
   globalFilter,
   caption,
+  emptyMessage = 'No matching committers.',
 }: {
   data: Row[];
   columns: ColumnDef<Row>[];
   globalFilter: string;
   caption: string;
+  emptyMessage?: string;
 }): JSX.Element {
   const table = useReactTable({
     data,
@@ -58,7 +60,7 @@ export function ReportTable<Row>({
           </tbody>
         </table>
       </div>
-      {table.getFilteredRowModel().rows.length === 0 && <p>No matching committers.</p>}
+      {table.getFilteredRowModel().rows.length === 0 && <p>{emptyMessage}</p>}
       <nav className="table-pagination" aria-label={`${caption} pages`}>
         <button
           type="button"

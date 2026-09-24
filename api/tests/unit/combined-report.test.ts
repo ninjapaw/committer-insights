@@ -8,6 +8,7 @@ import {
 import { reportStore } from '../../src/reports/report-store.js';
 import { acquireAzureDevOpsToken } from '../../src/auth/local-credential.js';
 import { acquireGitHubToken } from '../../src/auth/github-cli.js';
+import { preflightAzureRepositoryAccess } from '../../src/adapters/azure-devops/insights-client.js';
 import { fetchAzureDevOpsEstimate } from '../../src/adapters/azure-devops/estimate-client.js';
 import {
   fetchGitHubCommitters,
@@ -16,6 +17,15 @@ import {
 
 vi.mock('../../src/auth/local-credential.js', () => ({ acquireAzureDevOpsToken: vi.fn() }));
 vi.mock('../../src/auth/github-cli.js', () => ({ acquireGitHubToken: vi.fn() }));
+vi.mock('../../src/adapters/azure-devops/insights-client.js', () => ({
+  collectAzureRepositoryInsights: vi.fn(),
+  preflightAzureRepositoryAccess: vi.fn(),
+}));
+vi.mock('../../src/adapters/github/insights-client.js', () => ({
+  gitHubSecurityFeatures: { code_security: 'Code Security' },
+  fetchGitHubRepositoryInsight: vi.fn(),
+  collectGitHubBilling: vi.fn(),
+}));
 vi.mock('../../src/adapters/azure-devops/estimate-client.js', () => ({
   fetchAzureDevOpsEstimate: vi.fn(),
 }));
@@ -29,6 +39,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(acquireAzureDevOpsToken).mockResolvedValue('azure-token');
   vi.mocked(acquireGitHubToken).mockResolvedValue('github-token');
+  vi.mocked(preflightAzureRepositoryAccess).mockRejectedValue(new Error('Permission denied'));
   vi.mocked(fetchAzureDevOpsEstimate).mockReset();
   vi.mocked(fetchGitHubCommitters).mockReset();
   vi.mocked(listGitHubRepositoriesForTarget).mockReset();
@@ -170,7 +181,18 @@ describe('combined reports', () => {
       uniqueProviderIdentities: 2,
     });
     expect(report.azureDevOpsCommitters).toEqual([azureRecord]);
-    expect(report.gitHubCommitters).toEqual([githubRecord]);
+    expect(report.gitHubCommitters).toEqual([
+      {
+        ...githubRecord,
+        contributions: [
+          {
+            repository: githubRecord.repository,
+            commitCount: githubRecord.commitCount,
+            lastCommitAt: githubRecord.lastCommitAt,
+          },
+        ],
+      },
+    ]);
     expect(reportStore.get(report.reportId)).toBe(report);
   });
 

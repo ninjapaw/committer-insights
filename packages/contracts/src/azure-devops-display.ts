@@ -1,24 +1,15 @@
-import type { AzureDevOpsCommitter } from '@ninjapaw/contracts';
+import type { AzureDevOpsCommitter } from './azure-devops.js';
 
 export type AzureDevOpsDisplayCommitter = Omit<AzureDevOpsCommitter, 'plan'> & {
   plan: string;
   billableCommitter: string;
 };
 
-const planLabels: Record<AzureDevOpsCommitter['plan'], string> = {
+export const azurePlanLabels: Record<AzureDevOpsCommitter['plan'], string> = {
   codeSecurity: 'Code Security',
   secretProtection: 'Secret Protection',
   all: 'All plans',
 };
-
-function identityKey(committer: AzureDevOpsCommitter): string {
-  return [
-    committer.identityId ?? committer.cuid ?? '',
-    committer.organization,
-    committer.userPrincipalName ?? '',
-    committer.displayName ?? '',
-  ].join(':');
-}
 
 export function uniqueAzureDevOpsCommitters(
   committers: AzureDevOpsCommitter[],
@@ -28,7 +19,12 @@ export function uniqueAzureDevOpsCommitters(
     AzureDevOpsCommitter & { plans: Set<AzureDevOpsCommitter['plan']> }
   >();
   for (const committer of committers) {
-    const key = identityKey(committer);
+    const key = [
+      committer.identityId ?? committer.cuid ?? '',
+      committer.organization,
+      committer.userPrincipalName ?? '',
+      committer.displayName ?? '',
+    ].join(':');
     const existing = rows.get(key);
     if (existing) {
       existing.plans.add(committer.plan);
@@ -39,8 +35,8 @@ export function uniqueAzureDevOpsCommitters(
   return Array.from(rows.values()).map(({ plans, ...committer }) => ({
     ...committer,
     plan: Array.from(plans)
-      .map((plan) => planLabels[plan])
+      .map((plan) => azurePlanLabels[plan])
       .join(', '),
-    billableCommitter: committer.isEstimated || committer.isLicensed ? 'Yes' : 'No',
+    billableCommitter: committer.isEstimated ? 'Estimated' : 'Unknown',
   }));
 }

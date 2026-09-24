@@ -3,7 +3,6 @@ import {
   azureDevOpsCommitterSchema,
   azureDevOpsMeterUsageEstimateResponseSchema,
   azureDevOpsOrganizationSchema,
-  AZURE_DEVOPS_ORG_PATTERN,
   type AzureDevOpsCommitter,
   type AzureDevOpsPlan,
   type AzureDevOpsResultType,
@@ -19,9 +18,6 @@ export class AzureDevOpsAdapterError extends Error {
     this.name = 'AzureDevOpsAdapterError';
   }
 }
-
-/** Re-exported for adapter-level unit tests; the canonical pattern lives in contracts. */
-export { AZURE_DEVOPS_ORG_PATTERN };
 
 /**
  * Validates and normalizes an organization name. Throws on anything that
@@ -40,11 +36,6 @@ export function assertValidOrganization(organization: string): string {
   return parsed.data;
 }
 
-/**
- * Builds the meter-usage-estimate URL from trusted constants and a
- * validated organization only. No part of this URL is ever built from
- * unvalidated request input beyond the organization segment.
- */
 export function buildMeterUsageEstimateUrl(organization: string, plan: AzureDevOpsPlan): URL {
   const org = assertValidOrganization(organization);
   const url = new URL(

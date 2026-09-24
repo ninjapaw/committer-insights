@@ -8,7 +8,7 @@ export function LandingPage(): JSX.Element {
         <h1 id="landing-title">Active Committer Portal</h1>
         <p className="landing__lead">
           Review Azure DevOps Advanced Security estimates or GitHub organization and enterprise
-          committers, then export the results to Excel or CSV.
+          committers, then export the results to CSV, PDF, or HTML.
         </p>
         <p className="callout" role="status">
           Delegated, read-only access. The portal does not ask for an Azure DevOps personal access

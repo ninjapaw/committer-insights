@@ -1,5 +1,6 @@
 import type { Report } from '@ninjapaw/contracts';
 import { newOpaqueId } from '../shared/ids.js';
+import { config } from '../shared/config.js';
 
 export type StoredReport = Report;
 
@@ -19,7 +20,32 @@ export class InMemoryReportStore {
 export const reportStore = new InMemoryReportStore();
 
 export function saveReport(input: Omit<Report, 'reportId' | 'generatedAt'>): Report {
-  const report = { ...input, reportId: newOpaqueId(), generatedAt: new Date().toISOString() };
+  const incompleteProviders = new Set(
+    input.insights?.checks
+      .filter(
+        (check) =>
+          (check.dataset === 'Security estimates' ||
+            (check.provider === 'github' && check.dataset.includes('Repository activity'))) &&
+          (check.status === 'unavailable' || check.status === 'partial'),
+      )
+      .map((check) => check.provider),
+  );
+  for (const source of input.sourceStatuses ?? [])
+    if (source.status === 'skipped') incompleteProviders.add(source.provider);
+  const report: Report = {
+    ...input,
+    reportId: newOpaqueId(),
+    generatedAt: new Date().toISOString(),
+    timeZone: config.report.timeZone(),
+    costEstimates: input.costEstimates?.filter((line) => !incompleteProviders.has(line.provider)),
+    warnings: [
+      ...input.warnings,
+      ...[...incompleteProviders].map(
+        (provider) =>
+          `${provider}: cost scenarios omitted because usage or estimate collection is incomplete. Missing data is not zero usage.`,
+      ),
+    ],
+  };
   reportStore.put(report);
   return report;
 }

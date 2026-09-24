@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AzureDevOpsCommitter } from '@ninjapaw/contracts';
-import { uniqueAzureDevOpsCommitters } from '../../src/providers/azure-devops';
+import { uniqueAzureDevOpsCommitters } from '@ninjapaw/contracts';
 
 function committer(plan: AzureDevOpsCommitter['plan']): AzureDevOpsCommitter {
   return {
@@ -29,7 +29,7 @@ describe('uniqueAzureDevOpsCommitters', () => {
         displayName: 'Dr Bill McIlhargey',
         userPrincipalName: 'bill.mcilhargey@ninjapaws.org',
         plan: 'Code Security, Secret Protection',
-        billableCommitter: 'Yes',
+        billableCommitter: 'Estimated',
       },
     ]);
   });

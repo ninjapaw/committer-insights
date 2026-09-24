@@ -14,6 +14,7 @@ import {
 } from '../../src/services/github.js';
 import type { AzureDevOpsCommitter, GitHubCommitter, SourceStatus } from '@ninjapaw/contracts';
 import { reportStore } from '../../src/reports/report-store.js';
+import { buildAzureDevOpsCostEstimates } from '../../src/reports/billing-estimates.js';
 import { acquireAzureDevOpsToken } from '../../src/auth/local-credential.js';
 import { acquireGitHubToken } from '../../src/auth/github-cli.js';
 import { fetchAzureDevOpsEstimate } from '../../src/adapters/azure-devops/estimate-client.js';
@@ -26,6 +27,15 @@ import {
 import { discoverAzureDevOpsOrganizations } from '../../src/adapters/azure-devops/organizations-client.js';
 
 vi.mock('../../src/auth/local-credential.js', () => ({ acquireAzureDevOpsToken: vi.fn() }));
+vi.mock('../../src/adapters/azure-devops/insights-client.js', () => ({
+  collectAzureRepositoryInsights: vi.fn(),
+  preflightAzureRepositoryAccess: vi.fn(),
+}));
+vi.mock('../../src/adapters/github/insights-client.js', () => ({
+  gitHubSecurityFeatures: { code_security: 'Code Security' },
+  fetchGitHubRepositoryInsight: vi.fn(),
+  collectGitHubBilling: vi.fn(),
+}));
 vi.mock('../../src/auth/github-cli.js', () => ({ acquireGitHubToken: vi.fn() }));
 vi.mock('../../src/adapters/azure-devops/estimate-client.js', () => ({
   fetchAzureDevOpsEstimate: vi.fn(),
@@ -97,6 +107,29 @@ describe('Azure DevOps report service', () => {
 });
 
 describe('GitHub report service', () => {
+  it('does not merge different linked IDs sharing the same display name', () => {
+    const record: GitHubCommitter = {
+      provider: 'github',
+      repository: 'example/repo',
+      login: 'first',
+      userId: '1',
+      displayName: 'Alex Smith',
+      commitCount: 2,
+      lastCommitAt: '2026-09-23T10:00:00.000Z',
+      collectedAt: '2026-09-23T10:00:00.000Z',
+      sourceApiVersion: '2022-11-28',
+    };
+    const records = [
+      record,
+      { ...record, login: 'second', userId: '2' },
+      { ...record, login: 'Alex Smith', userId: undefined },
+    ];
+    for (const input of [records, [...records].reverse()]) {
+      const result = uniqueGitHubCommitters(input);
+      expect(result).toHaveLength(3);
+      expect(result.map((item) => item.commitCount)).toEqual([2, 2, 2]);
+    }
+  });
   it('deduplicates GitHub committers across repositories and excludes dependabot', () => {
     const first: GitHubCommitter = {
       provider: 'github',
@@ -142,6 +175,10 @@ describe('GitHub report service', () => {
       {
         login: 'octocat',
         repository: 'octocat/alpha, octocat/zeta',
+        contributions: [
+          { repository: 'octocat/alpha', commitCount: 2 },
+          { repository: 'octocat/zeta', commitCount: 3 },
+        ],
         commitCount: 5,
         lastCommitAt: '2026-09-23T10:00:00.000Z',
       },
@@ -248,15 +285,21 @@ describe('GitHub report service', () => {
     });
     expect(report.costEstimates).toMatchObject([
       {
-        label: 'GitHub Enterprise observed users',
+        label: 'GitHub Enterprise - observed-user scenario',
         count: 0,
         unitPriceUsd: 21,
         estimatedMonthlyCostUsd: 0,
       },
       {
-        label: 'GitHub Advanced Security estimated active committers',
+        label: 'GitHub Code Security - what-if scenario',
         count: 0,
-        unitPriceUsd: 49,
+        unitPriceUsd: 30,
+        estimatedMonthlyCostUsd: 0,
+      },
+      {
+        label: 'GitHub Secret Protection - what-if scenario',
+        count: 0,
+        unitPriceUsd: 19,
         estimatedMonthlyCostUsd: 0,
       },
     ]);
@@ -278,6 +321,29 @@ describe('GitHub report service', () => {
 });
 
 describe('provider summaries', () => {
+  it('prices Azure products independently and deduplicates only within each organization/product', () => {
+    const record: AzureDevOpsCommitter = {
+      provider: 'azure-devops',
+      organization: 'example',
+      plan: 'codeSecurity',
+      resultType: 'estimated',
+      identityId: '1',
+      isEstimated: true,
+      isLicensed: false,
+      collectedAt: '2026-09-23T10:00:00.000Z',
+      sourceApiVersion: '7.2-preview.3',
+    };
+    expect(buildAzureDevOpsCostEstimates([record, record])).toMatchObject([
+      { count: 1, unitPriceUsd: 30, estimatedMonthlyCostUsd: 30 },
+    ]);
+    expect(
+      buildAzureDevOpsCostEstimates([record, { ...record, plan: 'secretProtection' }], ['all']),
+    ).toMatchObject([
+      { count: 1, estimatedMonthlyCostUsd: 30 },
+      { count: 1, estimatedMonthlyCostUsd: 19 },
+    ]);
+    expect(buildAzureDevOpsCostEstimates([], [])).toEqual([]);
+  });
   it('uses comparable counts but keeps measurement types and skipped sources separate', () => {
     const statuses: SourceStatus[] = [
       { provider: 'azure-devops', subject: 'contoso', status: 'included', committerCount: 2 },

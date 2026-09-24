@@ -4,15 +4,9 @@ import {
   gitHubRepositoriesResponseSchema,
   gitHubTargetSchema,
   type GitHubTargetType,
+  type GitHubSourceOption,
 } from '@ninjapaw/contracts';
 import { API_ORIGIN, GitHubRequestError, MAX_PAGES, nextPage, request } from './http-client.js';
-
-export interface GitHubSourceOption {
-  id: string;
-  name: string;
-  targetType: GitHubTargetType;
-  url?: string;
-}
 
 export async function discoverGitHubTargets(
   token: string,

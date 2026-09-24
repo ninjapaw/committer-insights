@@ -5,6 +5,6 @@ opening a public GitHub issue. See the parent organization's
 [SECURITY.md](https://github.com/ninjapaw/.github/blob/main/SECURITY.md)
 for the reporting process.
 
-See [docs/SECURITY.md](docs/SECURITY.md) for this application's security
-architecture and [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) for the
-STRIDE-oriented threat model.
+See [Privacy and security](README.md#privacy-and-security) for this application's
+data handling and local security boundary, and the
+[threat model](docs/THREAT_MODEL.md) for risks and mitigations.

@@ -97,6 +97,10 @@ describe('GitHub client', () => {
       displayName: 'Octo Cat',
       commitCount: 2,
       lastCommitAt: '2026-09-23T10:00:00.000Z',
+      dailyActivity: [
+        { date: '2026-09-22', commits: 1 },
+        { date: '2026-09-23', commits: 1 },
+      ],
     });
     expect(result[0]).not.toHaveProperty('email');
     expect(result[0]).not.toHaveProperty('message');

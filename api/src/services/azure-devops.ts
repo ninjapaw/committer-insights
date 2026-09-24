@@ -1,4 +1,11 @@
-import type { AzureDevOpsCommitter, MultiSource, SourceStatus } from '@ninjapaw/contracts';
+import {
+  azurePlanLabels,
+  emptyInsights,
+  type ReportInsights,
+  type AzureDevOpsCommitter,
+  type MultiSource,
+  type SourceStatus,
+} from '@ninjapaw/contracts';
 import { fetchAzureDevOpsEstimate } from '../adapters/azure-devops/estimate-client.js';
 import { discoverAzureDevOpsOrganizations } from '../adapters/azure-devops/organizations-client.js';
 import { acquireAzureDevOpsToken } from '../auth/local-credential.js';
@@ -6,18 +13,17 @@ import { saveReport } from '../reports/report-store.js';
 import { config } from '../shared/config.js';
 import { buildProviderSummary } from '../reports/provider-summary.js';
 import { buildAzureDevOpsCostEstimates } from '../reports/billing-estimates.js';
+import {
+  collectAzureRepositoryInsights,
+  preflightAzureRepositoryAccess,
+} from '../adapters/azure-devops/insights-client.js';
 
 type AzureSource = Extract<MultiSource, { provider: 'azure-devops' }>;
 
 export function azureSourceScope(source: AzureSource): string {
-  const labels = {
-    codeSecurity: 'Code Security',
-    secretProtection: 'Secret Protection',
-    all: 'Code Security and Secret Protection',
-  };
   return source.plans.includes('all')
-    ? labels.all
-    : source.plans.map((plan) => labels[plan]).join(', ');
+    ? `${azurePlanLabels.codeSecurity} and ${azurePlanLabels.secretProtection}`
+    : source.plans.map((plan) => azurePlanLabels[plan]).join(', ');
 }
 
 export async function connectAzureDevOps() {
@@ -46,7 +52,8 @@ export function summarizeAzureDevOps(committers: AzureDevOpsCommitter[], statuse
 }
 
 export async function createAzureReport(source: AzureSource) {
-  const azureDevOpsCommitters = await collectAzureDevOps(source);
+  const insights = emptyInsights();
+  const azureDevOpsCommitters = await collectAzureDevOps(source, insights);
   const sourceStatuses: SourceStatus[] = [
     {
       provider: source.provider,
@@ -63,32 +70,74 @@ export async function createAzureReport(source: AzureSource) {
     plans: source.plans,
     sourceApiVersion: config.azureDevOps.apiVersion(),
     azureDevOpsCommitters,
+    insights,
     gitHubCommitters: [],
     sourceStatuses,
     providerSummaries: [summarizeAzureDevOps(azureDevOpsCommitters, sourceStatuses)],
-    costEstimates: buildAzureDevOpsCostEstimates(azureDevOpsCommitters),
+    costEstimates: buildAzureDevOpsCostEstimates(azureDevOpsCommitters, source.plans),
     warnings: ['This report uses an Azure DevOps preview API.'],
   });
 }
 
-export async function collectAzureDevOps(source: AzureSource): Promise<AzureDevOpsCommitter[]> {
+export async function collectAzureDevOps(
+  source: AzureSource,
+  insights?: ReportInsights,
+): Promise<AzureDevOpsCommitter[]> {
   const accessToken = await acquireAzureDevOpsToken();
-  return (
-    await Promise.all(
-      source.plans.map((plan) =>
-        fetchAzureDevOpsEstimate({
-          organization: source.organization,
-          plan,
-          resultType: 'estimated',
-          accessToken,
-        }),
-      ),
+  if (insights)
+    await collectAzureRepositoryInsights(
+      source.organization,
+      source.sinceDays ?? 90,
+      accessToken,
+      insights,
+    );
+  try {
+    const rows = (
+      await Promise.all(
+        source.plans.map((plan) =>
+          fetchAzureDevOpsEstimate({
+            organization: source.organization,
+            plan,
+            resultType: 'estimated',
+            accessToken,
+          }),
+        ),
+      )
+    ).flat();
+    insights?.checks.push({
+      provider: 'azure-devops',
+      source: source.organization,
+      dataset: 'Security estimates',
+      status: 'complete',
+      detail:
+        'Current preview estimate for selected plans. The activity window does not alter the provider billing window.',
+    });
+    return rows;
+  } catch (error) {
+    if (!insights) throw error;
+    insights.checks.push({
+      provider: 'azure-devops',
+      source: source.organization,
+      dataset: 'Security estimates',
+      status: 'unavailable',
+      detail: 'Preview estimate could not be read; costs are unknown, not zero.',
+    });
+    if (
+      !insights.repositories.some(
+        (row) => row.provider === 'azure-devops' && row.source === source.organization,
+      )
     )
-  ).flat();
+      throw error;
+    return [];
+  }
 }
 
 export async function preflightAzureDevOps(source: AzureSource): Promise<void> {
-  await collectAzureDevOps(source);
+  try {
+    await collectAzureDevOps(source);
+  } catch {
+    await preflightAzureRepositoryAccess(source.organization, await acquireAzureDevOpsToken());
+  }
 }
 
 export function azureIdentityKey(committer: AzureDevOpsCommitter): string {
