@@ -1,5 +1,6 @@
 import { startLocalServer } from './local-server.js';
 import { launchHelp, parseLaunchOptions } from './cli.js';
+import { launchLatestRelease } from './release-updater.js';
 
 async function main(): Promise<void> {
   const options = parseLaunchOptions(process.argv.slice(2));
@@ -8,6 +9,7 @@ async function main(): Promise<void> {
     return;
   }
   process.env.COMMITTER_INSIGHTS_TIMEZONE = options.timeZone;
+  if (!options.skipUpdateCheck && (await launchLatestRelease(process.argv.slice(2)))) return;
   await startLocalServer();
 }
 

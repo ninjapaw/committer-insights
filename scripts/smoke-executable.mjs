@@ -33,7 +33,7 @@ for (const args of [
 }
 
 async function smokeStartup(args) {
-  const child = spawn(executable, args, {
+  const child = spawn(executable, [...args, '--skip-update-check'], {
     env: { ...process.env, COMMITTER_INSIGHTS_NO_BROWSER: 'true' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });

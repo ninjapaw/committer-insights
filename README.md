@@ -43,6 +43,22 @@ Explore Azure DevOps and GitHub repository usage, security enablement, and purch
 8. Generate the report, explore usage and coverage, then download CSV, PDF, or standalone HTML output.
 9. Close the executable to erase the in-memory session and reports.
 
+### Automatic updates
+
+Windows executable builds containing the updater check `ninjapaw/committer-insights` on every normal launch before starting the local server. The newest published release is selected by publication time, including beta prereleases; drafts are excluded. The updater does not use GitHub's stable-only `latest` endpoint, GitHub CLI, or account credentials.
+
+If the installed executable matches the published SHA-256, it starts normally. Otherwise, the updater downloads the release executable over HTTPS, verifies its size and `SHA256SUMS.txt` entry (and GitHub's asset digest when supplied), caches it under `%LOCALAPPDATA%\CommitterInsights\releases\<sha256>`, and starts that verified copy with the original arguments. Downloads have time and size limits; redirects are restricted to GitHub's download hosts. Cached copies are reverified before execution. The original executable is left untouched, so its shortcut continues to work without administrator privileges; old cached versions are retained. Only executable files are cached, not reports or provider credentials.
+
+Normal startup stops if the newest release cannot be confirmed or verified, including offline, rate-limited, missing-asset, or corrupt-download cases. It does not silently run an older version. For deliberate offline use, rollback, or local package testing, bypass the check explicitly:
+
+```powershell
+.\committer-insights.exe --skip-update-check
+```
+
+`--help` does not contact GitHub. Source runs and non-Windows builds do not auto-update. Packaged CI smoke tests use the explicit bypass so they test the candidate binary instead of downloading a previously published release. A verified child launch consumes a one-use hash handoff to avoid update loops within the same startup.
+
+Auto-update trusts releases published by this repository. Checksums detect corruption, not malicious publisher changes, and are not a substitute for code signing. The current beta artifacts are unsigned and remain evaluation-only. Previously downloaded beta.6 and older executables do not contain the updater; users must obtain an updater-enabled release once before automatic checks can take effect.
+
 ### Report exports
 
 - **CSV:** one consistent row-type format for single-provider and combined reports, including metadata, summaries, contribution detail, source status, cost scenarios and warnings. Filter by `rowType` and `countUnit` before summing; summary and contribution rows overlap. UTF-8 text and spreadsheet formula neutralization are preserved.
@@ -375,6 +391,14 @@ Node SEA injection modifies the executable after copying Node, so the final bina
 - A production publisher client ID for Microsoft browser sign-in
 
 ## Release notes
+
+### v0.1.0-beta.7 - 2026-09-24
+
+- Added automatic Windows startup checks for the newest published release from this repository, including beta prereleases. Verified releases run from a per-user, SHA-256-addressed cache without overwriting the original executable or requiring administrator rights.
+- Downloads enforce HTTPS host restrictions, time and size limits, executable checksums, and GitHub asset digests when supplied. Cached binaries are reverified before launch; original launch arguments are preserved and a verified handoff prevents relaunch loops.
+- Normal startup stops when the latest release cannot be checked or verified. Use `--skip-update-check` explicitly for offline access, recovery, or testing. Help and source runs do not perform update checks.
+- All 194 application/API tests and the full local CI command passed, including formatting, lint, type checks, executable build, and packaged smoke tests. A real beta.6 download, cache reuse, checksum verification, and packaged launch handoff passed in an isolated temporary cache.
+- **One-time download required:** beta.6 and earlier do not have an updater. Download this release once to enable future startup checks. GitHub CLI is still required separately. Executables remain unsigned and the Entra publisher unverified; checksums do not establish publisher trust. Evaluation use only.
 
 ### v0.1.0-beta.6 - 2026-09-24
 

@@ -20,7 +20,11 @@ afterEach(() => {
 describe('read-only reporting evidence', () => {
   it('accepts launch timezone options with precedence over environment and UTC defaults', () => {
     vi.stubEnv('COMMITTER_INSIGHTS_TIMEZONE', undefined);
-    expect(parseLaunchOptions([])).toEqual({ help: false, timeZone: 'UTC' });
+    expect(parseLaunchOptions([])).toEqual({
+      help: false,
+      timeZone: 'UTC',
+      skipUpdateCheck: false,
+    });
     vi.stubEnv('COMMITTER_INSIGHTS_TIMEZONE', 'Europe/London');
     expect(parseLaunchOptions([]).timeZone).toBe('Europe/London');
     expect(parseLaunchOptions(['--timezone', 'America/Toronto']).timeZone).toBe('America/Toronto');
