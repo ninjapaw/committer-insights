@@ -6,6 +6,7 @@ import { extname, join, normalize, resolve } from 'node:path';
 import { getAsset, isSea } from 'node:sea';
 import {
   gitHubReportRequestSchema,
+  gitHubSignInSchema,
   multiSourceReportRequestSchema,
   reportRequestSchema,
   HTTP_STATUS_TO_ERROR_CODE,
@@ -13,6 +14,7 @@ import {
   type ExportFormat,
 } from '@ninjapaw/contracts';
 import { AzureDevOpsAdapterError } from './adapters/azure-devops/estimate-client.js';
+import { listGitHubAccounts, disconnectGitHubAccount } from './auth/github-cli.js';
 import {
   cancelDeviceSignIn,
   disconnectMicrosoftAccount,
@@ -209,9 +211,23 @@ async function handleApi(
     return sendJson(response, 200, state);
   }
   if (request.method === 'POST' && pathname === '/api/auth/github/sign-in') {
-    const connection = await connectGitHub();
+    const parsed = gitHubSignInSchema.safeParse(
+      request.headers['content-type']?.includes('application/json') ? await readJson(request) : {},
+    );
+    if (!parsed.success)
+      return sendJson(response, 400, { message: 'Select a valid GitHub account.' });
+    githubSignedIn = false;
+    const connection = await connectGitHub(parsed.data.login);
     githubSignedIn = true;
     return sendJson(response, 200, connection);
+  }
+  if (request.method === 'GET' && pathname === '/api/auth/github/accounts') {
+    return sendJson(response, 200, { accounts: await listGitHubAccounts() });
+  }
+  if (request.method === 'POST' && pathname === '/api/auth/github/sign-out') {
+    githubSignedIn = false;
+    disconnectGitHubAccount();
+    return sendJson(response, 200, { authenticated: false });
   }
   if (request.method === 'GET' && pathname === '/api/connections/github/targets') {
     if (!githubSignedIn) {

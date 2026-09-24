@@ -1,0 +1,59 @@
+.demo-header,
+.demo-main,
+.demo-footer {
+  max-width: 1280px;
+  margin-inline: auto;
+  padding: 1.5rem;
+}
+.demo-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.demo-brand {
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+.demo-header nav,
+.demo-report-list nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.demo-notice {
+  padding: 1rem 1.5rem;
+  background: #fff4ce;
+  color: #493600;
+  border-block: 1px solid #d9c377;
+}
+.demo-main {
+  min-height: 65vh;
+}
+.demo-main > .demo-report-list {
+  display: grid;
+  gap: 0;
+}
+.demo-report-list article {
+  border-bottom: 1px solid var(--color-border);
+  padding-block: 1.5rem;
+}
+.demo-report-list h2 {
+  font-size: 1.125rem;
+}
+.demo-footer {
+  font-size: 0.875rem;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+.demo-main .results-page {
+  max-width: none;
+}
+.demo-report-list article {
+  overflow-wrap: anywhere;
+}
+.demo-main .table-scroll table {
+  min-width: 760px;
+}

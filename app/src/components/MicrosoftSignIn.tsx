@@ -119,10 +119,7 @@ export function MicrosoftSignIn({
               ? 'Change account'
               : 'Sign in with Microsoft'}
         </button>
-      </div>
-      {!connected && (
-        <details className="other-sign-in-options">
-          <summary>Other sign-in options</summary>
+        {!connected && (
           <button
             type="button"
             className="secondary-button"
@@ -136,8 +133,8 @@ export function MicrosoftSignIn({
           >
             Sign in with a device code
           </button>
-        </details>
-      )}
+        )}
+      </div>
       {pending && (
         <div className="device-challenge" role="status" aria-live="polite">
           {challenge ? (

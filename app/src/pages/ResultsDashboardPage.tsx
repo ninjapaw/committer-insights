@@ -22,8 +22,14 @@ import { azureColumns } from '../providers/azure-devops';
 import { githubColumnsForTimeZone } from '../providers/github';
 import { localRequest, requestJson } from '../services/local-api';
 
-async function downloadExport(reportId: string, extension: ExportFormat): Promise<void> {
-  const response = await localRequest(`/api/reports/${reportId}/export.${extension}`);
+async function downloadExport(
+  reportId: string,
+  extension: ExportFormat,
+  staticExportBase?: string,
+): Promise<void> {
+  const response = staticExportBase
+    ? await fetch(`${staticExportBase}${encodeURIComponent(reportId)}.${extension}`)
+    : await localRequest(`/api/reports/${reportId}/export.${extension}`);
   if (!response.ok) throw new Error(`Unable to download ${extension.toUpperCase()} report`);
   const disposition = response.headers.get('Content-Disposition') ?? '';
   const filename =
@@ -86,13 +92,22 @@ function SolutionPricing({ report }: { report: Report }): JSX.Element {
   );
 }
 
-export function ResultsDashboardPage(): JSX.Element {
+export function ResultsDashboardPage({
+  staticReport,
+  staticExportBase,
+  sourceHref,
+}: {
+  staticReport?: Report;
+  staticExportBase?: string;
+  sourceHref?: string;
+} = {}): JSX.Element {
   const { reportId } = useParams();
   const [selectedProvider, setSelectedProvider] = useState<'azure-devops' | 'github'>();
   const query = useQuery({
     queryKey: ['report', reportId],
     queryFn: () => requestJson<Report>(`/api/reports/${reportId!}`),
-    enabled: Boolean(reportId),
+    enabled: Boolean(reportId) && !staticReport,
+    initialData: staticReport,
   });
   if (query.isLoading) return <p aria-live="polite">Loading report...</p>;
   if (query.isError) return <div role="alert">{(query.error as Error).message}</div>;
@@ -115,9 +130,15 @@ export function ResultsDashboardPage(): JSX.Element {
         </time>{' '}
         - {query.data.subject}
       </p>
-      <Link to="/connections" className="btn btn-secondary">
-        Change sources
-      </Link>
+      {sourceHref ? (
+        <a href={sourceHref} className="btn btn-secondary">
+          Demo reports
+        </a>
+      ) : (
+        <Link to="/connections" className="btn btn-secondary">
+          Change sources
+        </Link>
+      )}
       <div className="provider-tabs" role="tablist" aria-label="Report provider">
         {(['azure-devops', 'github'] as const).map((value) => (
           <button
@@ -160,6 +181,7 @@ export function ResultsDashboardPage(): JSX.Element {
         <ProviderResults
           key={`${reportId}:${provider}`}
           report={providerReport(query.data, provider)}
+          staticExportBase={staticExportBase}
         />
       </div>
       {query.data.warnings.length > 0 && (
@@ -176,7 +198,13 @@ export function ResultsDashboardPage(): JSX.Element {
   );
 }
 
-function ProviderResults({ report }: { report: Report }): JSX.Element {
+function ProviderResults({
+  report,
+  staticExportBase,
+}: {
+  report: Report;
+  staticExportBase?: string;
+}): JSX.Element {
   const { reportId } = useParams();
   const [globalFilter, setGlobalFilter] = useState('');
   const [downloadError, setDownloadError] = useState('');
@@ -545,8 +573,11 @@ function ProviderResults({ report }: { report: Report }): JSX.Element {
                   type="button"
                   onClick={() => {
                     setDownloadError('');
-                    void downloadExport(reportId, format).catch((error: unknown) =>
-                      setDownloadError(error instanceof Error ? error.message : 'Download failed'),
+                    void downloadExport(reportId, format, staticExportBase).catch(
+                      (error: unknown) =>
+                        setDownloadError(
+                          error instanceof Error ? error.message : 'Download failed',
+                        ),
                     );
                   }}
                 >

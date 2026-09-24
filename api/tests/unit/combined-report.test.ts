@@ -19,7 +19,11 @@ vi.mock('../../src/auth/local-credential.js', () => ({
   acquireAzureDevOpsToken: vi.fn(),
   signInWithBrowser: vi.fn(),
 }));
-vi.mock('../../src/auth/github-cli.js', () => ({ acquireGitHubToken: vi.fn() }));
+vi.mock('../../src/auth/github-cli.js', () => ({
+  acquireGitHubToken: vi.fn(),
+  selectGitHubAccount: vi.fn(),
+  disconnectGitHubAccount: vi.fn(),
+}));
 vi.mock('../../src/adapters/azure-devops/insights-client.js', () => ({
   collectAzureRepositoryInsights: vi.fn(),
   preflightAzureRepositoryAccess: vi.fn(),

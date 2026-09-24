@@ -1,0 +1,32 @@
+---
+import '../../../app/src/styles.css';
+import '../styles.css';
+const { title } = Astro.props;
+const base = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/`;
+---
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Synthetic Committer Insights report examples. Fictional data only; no sign-in or customer data." />
+    <meta name="referrer" content="no-referrer" />
+    <title>{title} | Committer Insights Demo</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to report</a>
+    <header class="demo-header">
+      <a class="demo-brand" href={base}>Committer Insights</a>
+      <nav aria-label="Demo navigation">
+        <a href={base}>Demo reports</a>
+        <a href="https://github.com/ninjapaw/committer-insights/releases">Releases</a>
+        <a href="https://github.com/ninjapaw/committer-insights">Source</a>
+      </nav>
+    </header>
+    <aside class="demo-notice" aria-label="Synthetic data notice">
+      <strong>Synthetic data only.</strong> Fictional organizations, identities and billing. Not customer evidence, an invoice, or a Microsoft/GitHub assessment.
+    </aside>
+    <main id="main-content" class="demo-main"><slot /></main>
+    <footer class="demo-footer">Independent community project. Report examples are generated offline; no account sign-in or provider connection.</footer>
+  </body>
+</html>

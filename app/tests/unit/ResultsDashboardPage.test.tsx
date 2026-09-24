@@ -16,6 +16,46 @@ afterEach(() => {
 });
 
 describe('Results dashboard', () => {
+  it('renders a supplied static report without calling the local API or authentication', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const report: Report = {
+      reportId: 'synthetic-empty',
+      provider: 'github',
+      subject: 'Synthetic demo',
+      organization: 'synthetic-org',
+      plans: [],
+      generatedAt: '2026-09-24T12:00:00.000Z',
+      sourceApiVersion: 'synthetic',
+      warnings: [],
+      azureDevOpsCommitters: [],
+      gitHubCommitters: [],
+    };
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/reports/synthetic-empty']}>
+          <Routes>
+            <Route
+              path="/reports/:reportId"
+              element={
+                <ResultsDashboardPage
+                  staticReport={report}
+                  staticExportBase="/demo/downloads/"
+                  sourceHref="/demo/"
+                />
+              }
+            />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByRole('heading', { name: 'Results dashboard' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Demo reports' })).toHaveAttribute('href', '/demo/');
+    expect(screen.queryByRole('link', { name: 'Change sources' })).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('labels local CIO analysis and copies only the aggregate AI brief with clipboard fallback', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     vi.stubGlobal('navigator', { clipboard: { writeText } });

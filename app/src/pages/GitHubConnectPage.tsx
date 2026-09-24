@@ -1,30 +1,38 @@
 import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { connectGitHub } from '../providers/github';
+import { GitHubSignIn } from '../components/GitHubSignIn';
 
 export function GitHubConnectPage(): JSX.Element {
   const [acknowledged, setAcknowledged] = useState(false);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const signIn = useMutation({
-    mutationFn: connectGitHub,
-    onSuccess: () => {
-      queryClient.setQueryData(['provider-connection', 'GitHub'], true);
-      navigate('/connections');
-    },
-  });
+  const onConnected = () => {
+    queryClient.setQueryData(['provider-connection', 'GitHub'], true);
+    navigate('/connections');
+  };
+  const onChanging = async () => {
+    queryClient.setQueryData(['provider-connection', 'GitHub'], false);
+    await queryClient.cancelQueries({ queryKey: ['source-picker', 'GitHub'] });
+    queryClient.removeQueries({ queryKey: ['source-picker', 'GitHub'] });
+    queryClient.setQueryData<{
+      githubSelected: string[];
+      githubTargetTypes: Record<string, string>;
+    }>(['report-draft'], (draft) =>
+      draft ? { ...draft, githubSelected: [], githubTargetTypes: {} } : draft,
+    );
+  };
 
   return (
     <section aria-labelledby="github-connect-title">
       <h1 id="github-connect-title">Connect GitHub</h1>
       <p>
-        Committer Insights reuses your active GitHub CLI account. Install GitHub CLI and run{' '}
+        Committer Insights uses your selected GitHub CLI account. Install GitHub CLI and run{' '}
         <code>gh auth login</code> once if you are not already signed in.
       </p>
       <h2>What the portal requests</h2>
       <ul>
-        <li>Read-only access through your active GitHub CLI session</li>
+        <li>Read-only access through your selected GitHub CLI account</li>
         <li>Access is limited by your existing GitHub organization and enterprise permissions</li>
         <li>Organization and enterprise source discovery visible to your GitHub account</li>
         <li>Repository commit metadata for visible repositories in the selected source</li>
@@ -32,7 +40,7 @@ export function GitHubConnectPage(): JSX.Element {
 
       <h2>What the portal collects</h2>
       <ul>
-        <li>Organizations and enterprises visible to the active GitHub CLI account</li>
+        <li>Organizations and enterprises visible to the selected GitHub CLI account</li>
         <li>Committer login, display name, profile URL, commit count, and last commit date</li>
         <li>Commits from visible repositories in the selected source and date window</li>
       </ul>
@@ -65,15 +73,8 @@ export function GitHubConnectPage(): JSX.Element {
           I understand the GitHub access being requested and want to continue.
         </label>
 
-        <button
-          type="button"
-          onClick={() => signIn.mutate()}
-          disabled={!acknowledged || signIn.isPending}
-        >
-          Continue with GitHub CLI
-        </button>
+        <GitHubSignIn disabled={!acknowledged} onConnected={onConnected} onChanging={onChanging} />
       </div>
-      {signIn.isError && <div role="alert">{(signIn.error as Error).message}</div>}
     </section>
   );
 }

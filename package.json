@@ -18,14 +18,19 @@
   "workspaces": [
     "app",
     "api",
-    "packages/contracts"
+    "packages/contracts",
+    "demo"
   ],
   "scripts": {
     "dev": "npm run build && npm run start --workspace api",
     "prebuild": "node scripts/clean-build.mjs",
     "build": "npm run build --workspace packages/contracts && npm run build --workspace app && npm run build --workspace api",
     "build:exe": "npm run build && node scripts/build-executable.mjs",
-    "test:exe": "node scripts/smoke-executable.mjs",
+    "test:exe": "node scripts/test-executable-bundle.mjs && node scripts/smoke-executable.mjs",
+    "demo:generate": "npm run build --workspace packages/contracts && npm run build --workspace api && node scripts/generate-demo.mjs",
+    "demo:build": "npm run demo:generate && npm run build --workspace demo",
+    "demo:test": "npm run demo:build && node scripts/test-demo.mjs",
+    "demo:dev": "npm run dev --workspace demo",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
@@ -38,6 +43,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",
+    "@playwright/test": "1.63.0",
     "@typescript-eslint/eslint-plugin": "^8.15.0",
     "@typescript-eslint/parser": "^8.15.0",
     "esbuild": "^0.28.2",

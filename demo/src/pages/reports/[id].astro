@@ -1,0 +1,19 @@
+---
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import type { Report } from '@ninjapaw/contracts';
+import DemoLayout from '../../layouts/DemoLayout.astro';
+import StaticReport from '../../components/StaticReport';
+export function getStaticPaths() {
+  const catalog = JSON.parse(readFileSync(resolve('public/generated/catalog.json'), 'utf8')) as Array<{ id: string }>;
+  return catalog.map(({ id }) => ({ params: { id }, props: { report: JSON.parse(readFileSync(resolve(`public/generated/${id}.json`), 'utf8')) as Report } }));
+}
+const { report } = Astro.props;
+const base = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/`;
+---
+<DemoLayout title={report.subject}>
+  <StaticReport report={report} base={base} client:only="react">
+    <p slot="fallback" role="status">Loading synthetic report...</p>
+  </StaticReport>
+  <noscript><a href={`${base}generated/${report.reportId}.html`}>Open the standalone synthetic HTML report</a></noscript>
+</DemoLayout>

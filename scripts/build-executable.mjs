@@ -4,6 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
+import { executableBundleOptions } from './executable-bundle-options.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const buildDir = join(root, 'build');
@@ -31,19 +32,9 @@ await mkdir(buildDir, { recursive: true });
 await mkdir(releaseDir, { recursive: true });
 
 await build({
+  ...executableBundleOptions(process.env.COMMITTER_INSIGHTS_CLIENT_ID),
   entryPoints: [join(root, 'api/src/index.ts')],
-  bundle: true,
   outfile: bundlePath,
-  platform: 'node',
-  target: 'node24',
-  format: 'cjs',
-  minify: true,
-  sourcemap: false,
-  define: {
-    __COMMITTER_INSIGHTS_CLIENT_ID__: JSON.stringify(
-      process.env.COMMITTER_INSIGHTS_CLIENT_ID ?? '',
-    ),
-  },
 });
 
 const appDirectory = join(root, 'app/dist');

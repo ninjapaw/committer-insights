@@ -5,11 +5,24 @@ import {
   reportingWindows,
   type GitHubCommitter,
   type GitHubSourceOption,
+  type GitHubCliAccount,
 } from '@ninjapaw/contracts';
 import { postJson, requestJson } from '../services/local-api';
 
-export function connectGitHub() {
-  return postJson<{ viewer: { login: string; name?: string } }>('/api/auth/github/sign-in');
+export function connectGitHub(login?: string) {
+  return postJson<{ viewer: { login: string; name?: string } }>(
+    '/api/auth/github/sign-in',
+    login ? { login } : undefined,
+  );
+}
+
+export async function listGitHubAccounts() {
+  return (await requestJson<{ accounts: GitHubCliAccount[] }>('/api/auth/github/accounts'))
+    .accounts;
+}
+
+export function disconnectGitHub() {
+  return postJson<{ authenticated: boolean }>('/api/auth/github/sign-out');
 }
 
 export async function discoverGitHubTargets() {

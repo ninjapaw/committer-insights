@@ -15,7 +15,11 @@ import {
   fetchGitHubCommitters,
   listGitHubRepositoriesForTarget,
 } from '../adapters/github/github-client.js';
-import { acquireGitHubToken } from '../auth/github-cli.js';
+import {
+  acquireGitHubToken,
+  selectGitHubAccount,
+  disconnectGitHubAccount,
+} from '../auth/github-cli.js';
 import { saveReport } from '../reports/report-store.js';
 import { buildProviderSummary } from '../reports/provider-summary.js';
 import { buildGitHubCostEstimates } from '../reports/billing-estimates.js';
@@ -153,9 +157,21 @@ export function githubSourceScope(source: GitHubSource): string {
   return `${target}, default branch, last ${source.sinceDays} days`;
 }
 
-export async function connectGitHub() {
-  const viewer = await getGitHubViewer(await acquireGitHubToken());
-  return { authenticated: true, viewer };
+export async function connectGitHub(login?: string) {
+  selectGitHubAccount();
+  try {
+    const viewer = await getGitHubViewer(await acquireGitHubToken(login));
+    if (login && viewer.login.toLowerCase() !== login.toLowerCase()) {
+      throw new Error(
+        'GitHub returned a different account. Refresh the account list and try again.',
+      );
+    }
+    selectGitHubAccount(viewer.login);
+    return { authenticated: true, viewer };
+  } catch (error) {
+    disconnectGitHubAccount();
+    throw error;
+  }
 }
 
 export async function discoverGitHubSources() {

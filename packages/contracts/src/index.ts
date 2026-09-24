@@ -1,5 +1,13 @@
 import { z } from 'zod';
 
+export const gitHubAccountLoginSchema = z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,99}$/);
+export const gitHubSignInSchema = z.object({ login: gitHubAccountLoginSchema.optional() }).strict();
+export interface GitHubCliAccount {
+  login: string;
+  active: boolean;
+  available: boolean;
+}
+
 export type DeviceSignInState = {
   id: string;
   status: 'pending' | 'authenticated' | 'canceled' | 'expired' | 'failed';

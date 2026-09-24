@@ -16,7 +16,11 @@ import type { AzureDevOpsCommitter, GitHubCommitter, SourceStatus } from '@ninja
 import { reportStore } from '../../src/reports/report-store.js';
 import { buildAzureDevOpsCostEstimates } from '../../src/reports/billing-estimates.js';
 import { acquireAzureDevOpsToken, signInWithBrowser } from '../../src/auth/local-credential.js';
-import { acquireGitHubToken } from '../../src/auth/github-cli.js';
+import {
+  acquireGitHubToken,
+  selectGitHubAccount,
+  disconnectGitHubAccount,
+} from '../../src/auth/github-cli.js';
 import { fetchAzureDevOpsEstimate } from '../../src/adapters/azure-devops/estimate-client.js';
 import {
   discoverGitHubTargets,
@@ -39,7 +43,11 @@ vi.mock('../../src/adapters/github/insights-client.js', () => ({
   fetchGitHubRepositoryInsight: vi.fn(),
   collectGitHubBilling: vi.fn(),
 }));
-vi.mock('../../src/auth/github-cli.js', () => ({ acquireGitHubToken: vi.fn() }));
+vi.mock('../../src/auth/github-cli.js', () => ({
+  acquireGitHubToken: vi.fn(),
+  selectGitHubAccount: vi.fn(),
+  disconnectGitHubAccount: vi.fn(),
+}));
 vi.mock('../../src/adapters/azure-devops/estimate-client.js', () => ({
   fetchAzureDevOpsEstimate: vi.fn(),
 }));
@@ -65,6 +73,16 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe('Azure DevOps report service', () => {
+  it('pins GitHub connections to the selected, verified identity', async () => {
+    vi.mocked(getGitHubViewer).mockResolvedValue({ id: '2', login: 'second' });
+    expect(await connectGitHub('second')).toMatchObject({ viewer: { login: 'second' } });
+    expect(acquireGitHubToken).toHaveBeenCalledWith('second');
+    expect(selectGitHubAccount).toHaveBeenLastCalledWith('second');
+    vi.mocked(getGitHubViewer).mockResolvedValue({ id: '3', login: 'wrong-account' });
+    await expect(connectGitHub('second')).rejects.toThrow('different account');
+    expect(disconnectGitHubAccount).toHaveBeenCalled();
+  });
+
   it('connects and discovers organizations using only Azure credentials', async () => {
     const organizations = [{ id: 'org-1', name: 'contoso', url: 'https://dev.azure.com/contoso' }];
     vi.mocked(discoverAzureDevOpsOrganizations).mockResolvedValue(organizations);

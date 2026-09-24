@@ -44,7 +44,6 @@ function mockSuccess() {
 }
 
 function chooseDevice() {
-  fireEvent.click(screen.getByText('Other sign-in options'));
   fireEvent.click(screen.getByRole('button', { name: 'Sign in with a device code' }));
 }
 
@@ -87,10 +86,8 @@ describe('SignInPage', () => {
     renderPage('/sign-in');
     expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sign in with Microsoft' })).toBeInTheDocument();
-    expect(screen.getByText('Other sign-in options').closest('details')).not.toHaveAttribute(
-      'open',
-    );
-    expect(screen.getByText('Other sign-in options')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sign in with a device code' })).toBeVisible();
+    expect(screen.queryByText('Other sign-in options')).not.toBeInTheDocument();
     expect(screen.queryByText(/Azure CLI/)).not.toBeInTheDocument();
   });
 

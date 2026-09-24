@@ -12,6 +12,7 @@ import {
 import { AzurePlanPicker } from '../components/AzurePlanPicker';
 import { SourcePicker } from '../components/SourcePicker';
 import { MicrosoftSignIn } from '../components/MicrosoftSignIn';
+import { GitHubSignIn } from '../components/GitHubSignIn';
 import { connectAzure, discoverOrganizations } from '../providers/azure-devops';
 import { commitWindows, connectGitHub, discoverGitHubTargets } from '../providers/github';
 import { postJson } from '../services/local-api';
@@ -144,6 +145,15 @@ export function CombinedReportPage(): JSX.Element {
           legend="Organizations and enterprises"
           connectLabel="Connect GitHub CLI"
           connect={connectGitHub}
+          renderConnection={(onConnected, onChanging, connected) => (
+            <GitHubSignIn
+              disabled={busy}
+              connected={connected}
+              onChanging={onChanging}
+              onConnected={onConnected}
+            />
+          )}
+          onDisconnect={() => updateDraft({ githubSelected: [], githubTargetTypes: {} })}
           discover={discoverGitHubTargets}
           parseSource={(value) => {
             const parsed = parseGitHubTargetInput(value);

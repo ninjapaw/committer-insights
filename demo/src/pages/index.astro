@@ -1,0 +1,22 @@
+---
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import DemoLayout from '../layouts/DemoLayout.astro';
+const catalog = JSON.parse(readFileSync(resolve('public/generated/catalog.json'), 'utf8')) as Array<{ id: string; title: string }>;
+const base = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/`;
+---
+<DemoLayout title="Report examples">
+  <h1>Report examples</h1>
+  <div class="demo-report-list">
+    {catalog.map(item => <article>
+      <h2><a href={`${base}reports/${item.id}/`}>{item.title}</a></h2>
+      <nav aria-label={`${item.title} exports`}>
+        <a href={`${base}reports/${item.id}/`}>Open dashboard</a>
+        <a href={`${base}generated/${item.id}.json`} download>JSON</a>
+        <a href={`${base}generated/${item.id}.csv`} download>CSV</a>
+        <a href={`${base}generated/${item.id}.pdf`} download>PDF</a>
+        <a href={`${base}generated/${item.id}.html`}>Standalone HTML</a>
+      </nav>
+    </article>)}
+  </div>
+</DemoLayout>

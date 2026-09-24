@@ -77,16 +77,24 @@
   flex-wrap: wrap;
   gap: 0.5rem;
 }
-.microsoft-sign-in {
+.microsoft-sign-in,
+.github-sign-in {
   min-width: 0;
   overflow-wrap: anywhere;
 }
-.other-sign-in-options {
-  margin-block: 0.75rem;
+.github-account-picker {
+  display: grid;
+  gap: 0.75rem;
+  margin-block: 1rem;
 }
-.other-sign-in-options summary {
-  cursor: pointer;
-  margin-bottom: 0.5rem;
+.github-account-picker label {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.github-account-picker select {
+  width: 100%;
+  min-width: 0;
 }
 .sign-in-actions button,
 .device-challenge button {

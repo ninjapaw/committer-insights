@@ -17,6 +17,7 @@ Explore Azure DevOps and GitHub repository usage, security enablement, and purch
 - [Microsoft Entra setup](#microsoft-entra-setup)
 - [Build from source](#build-from-source)
 - [Development](#development)
+- [Static report demo](#static-report-demo)
 - [Validation](#validation)
 - [Release boundary](#release-boundary)
 - [Release notes](#release-notes)
@@ -34,8 +35,8 @@ Explore Azure DevOps and GitHub repository usage, security enablement, and purch
 
 1. Download the Windows executable and `SHA256SUMS.txt` from the release.
 2. Verify the checksum and review its signing status. Unsigned beta artifacts are for evaluation only; a checksum does not verify the publisher. Production distribution requires a verified publisher signature.
-3. For Azure DevOps, select **Sign in with Microsoft** and choose your account on Microsoft's page. The app connects directly and shows the signed-in username with **Change account**. Device-code sign-in is available under **Other sign-in options**. Both methods use the publisher application; your tenant may require administrator consent or block device-code authentication.
-4. For GitHub, install GitHub CLI once and run `gh auth login`.
+3. For Azure DevOps, select **Sign in with Microsoft** or the adjacent **Sign in with a device code** button. Choose your account on Microsoft's page. The app connects directly and shows the signed-in username with **Change account**. Both methods use the publisher application; your tenant may require administrator consent or block device-code authentication.
+4. For GitHub, install GitHub CLI once and run `gh auth login --hostname github.com`. Use **Connect GitHub CLI** for its active account, or **Select GitHub account** to choose a stored account. Once connected, the app shows the username and **Change account**.
 5. Run the executable without Node.js, administrator rights, or installation.
 6. Choose Azure DevOps organizations and/or GitHub organizations or enterprises, security plans, and a 7/30/90/180/365-day activity window. Optionally include GitHub organization billing usage using existing account access.
 7. Run the minimum-permission check. Inaccessible sources are skipped with a reason and remediation while accessible sources continue.
@@ -114,7 +115,11 @@ Endpoint references: [Azure repository API](https://learn.microsoft.com/en-us/re
 
 The application never asks for an Azure DevOps PAT, customer app registration, client secret, or tenant identifier. Microsoft browser authentication uses the publisher's public-client registration and the signed-in user's Azure DevOps permissions. Tenant policy may require administrator approval.
 
-GitHub access reuses the active GitHub CLI account. Committer Insights never returns the GitHub token to the browser, but the CLI token may have broader scopes than this report needs. Use a dedicated least-privilege GitHub CLI account when organizational policy requires tighter isolation.
+GitHub access uses your selected GitHub CLI account. **Select GitHub account** lists locally stored `github.com` accounts, marks the CLI-active account, and disables accounts that need sign-in. Use **Refresh accounts** after adding another account with `gh auth login --hostname github.com`. Account discovery requires a GitHub CLI version supporting `gh auth status --json hosts`; update GitHub CLI if listing is unavailable.
+
+**Change account** disconnects the app's GitHub session, clears GitHub source selections and discovery data, and lets you select another stored account. Azure selections are preserved. After GitHub verifies the selected identity, subsequent requests use `gh auth token --user <login>` so an unrelated global CLI account switch cannot silently change the report identity. The app does not run `gh auth switch`, sign other tools out, or delete CLI credentials. Existing reports remain historical snapshots; generate a new report after changing accounts.
+
+Committer Insights never returns the GitHub token to the browser, but the CLI token may have broader scopes than this report needs. Use a dedicated least-privilege GitHub CLI account when organizational policy requires tighter isolation. Adding new GitHub accounts still happens in GitHub CLI, not through a browser-token or PAT input in this app.
 
 ## Privacy and security
 
@@ -130,7 +135,7 @@ Reports remain in memory until the process closes; only explicit downloads persi
 
 - The host binds only to an OS-assigned port on `127.0.0.1` and validates the exact `Host` header.
 - Every API route requires a random 256-bit per-launch capability. The browser reads it from a launch-URL fragment into memory and removes the fragment from browser history. Mutating requests also require the exact loopback origin; cross-origin access is disabled.
-- Provider tokens never enter browser storage. GitHub CLI retrieval runs without a shell, ignores environment-provided GitHub token variables and validates the active account with GitHub.
+- Provider tokens never enter browser storage. GitHub CLI retrieval runs without a shell, ignores environment-provided GitHub token variables and validates the selected account with GitHub. Account-list responses expose only usernames, CLI-active status and availability through the protected local API.
 - Provider requests use validated identifiers and fixed hosts. Inventory, history, settings and billing calls reject redirects, have 20-second timeouts and bounded pagination. Activity uses at most four repository workers per source and a 10,000-commit-per-repository cap; capped histories are reported as unavailable.
 - CSV values are neutralized against spreadsheet formula injection. HTML output escapes provider-supplied values.
 - Normal production logs must exclude credentials, authorization headers, identities, source names, report contents and capability-bearing URLs. Explicit no-browser test mode exposes the launch URL; treat it as a session credential.
@@ -178,7 +183,7 @@ Every explicit browser sign-in uses a fresh credential and calls `authenticate` 
 
 Both methods connect directly after Microsoft authentication, without a second confirmation screen. The Sources page displays the username returned by the SDK authentication record. **Change account** disconnects the local Microsoft credential and opens a fresh Microsoft account picker; it does not sign you out of Microsoft in other applications. No access token is decoded or sent to the UI to identify the account.
 
-For device codes, expand **Other sign-in options** and choose the intended account on Microsoft's verification page. The device-code protocol does not offer the browser flow's `prompt=select_account` parameter. If Microsoft's page uses the wrong signed-in account, use its different-account option or a private browser window. You can also use **Change account** after connection. Neither method bypasses tenant access policies or grants additional permissions.
+For device codes, select **Sign in with a device code** and choose the intended account on Microsoft's verification page. The device-code protocol does not offer the browser flow's `prompt=select_account` parameter. If Microsoft's page uses the wrong signed-in account, use its different-account option or a private browser window. You can also use **Change account** after connection. Neither method bypasses tenant access policies or grants additional permissions.
 
 Pending attempts expire after ten minutes. Leaving the screen cancels an available pending attempt; stale or canceled completions are ignored.
 
@@ -313,6 +318,34 @@ $env:COMMITTER_INSIGHTS_TIMEZONE = 'America/Toronto'
 .\release\committer-insights.exe
 ```
 
+## Static report demo
+
+The [demo](demo) workspace is a static Astro/React site built with Node.js. It reuses the production results dashboard and report exporters, but supplies generated data and static download URLs instead of the local API. No sign-in, client ID, provider credentials, customer report upload, hosted Node server or Azure resources are required to use the demo. Every page and export identifies the data as synthetic.
+
+[scripts/demo-fixtures.mjs](scripts/demo-fixtures.mjs) creates deterministic complete, partial and empty report cases with a fixed UTC date. The complete fixture contains 16 fictional Azure identities across both security plans, 18 fictional GitHub identities, eight repositories, 90 days of activity, feature states and example billing. Partial data demonstrates unavailable activity/billing and omitted GitHub cost scenarios; empty data exercises the no-observations state. Names and email domains are fictional; generated repository hyperlinks are illustrative and may not resolve.
+
+[scripts/generate-demo.mjs](scripts/generate-demo.mjs) validates normalized identity records with shared schemas, uses the real pricing functions and CSV/HTML/PDF exporters, and writes JSON plus exports and a SHA-256 manifest to `demo/public/generated/`. PDF timestamps are fixed for reproducibility. The generator accepts no customer file input, reads no CLI credentials and makes no provider calls. Do not put real reports in that directory or in `demo/public/`; the entire demo output becomes public.
+
+```powershell
+npm ci
+npm run demo:build
+npx playwright install chromium
+npm run demo:test
+npm run demo:dev -- --port 4359
+```
+
+Open `http://127.0.0.1:4359/committer-insights/`. On machines with Edge installed, set `DEMO_BROWSER_CHANNEL=msedge` when running `demo:test` to use it instead of downloading Chromium. `DEMO_BASE_PATH` defaults to `/committer-insights`; `DEMO_SITE_URL` defaults to `https://ninjapaw.github.io`. Both can be set at build time for another repository or Pages host. Only the built `demo/dist/` directory is deployed.
+
+[scripts/test-demo.mjs](scripts/test-demo.mjs) regenerates the fixtures and compares every output hash, validates expected counts and costs, parses PDFs, serves the built site at its repository subpath, and uses Playwright at desktop/mobile widths to switch providers, filter repositories, download every format and visit partial/empty cases. Unexpected external/API requests, browser errors and missing assets fail the test. Screenshots are written to `test-results/demo/`. This test complements `npm run ci`; it is run separately because it requires an installed browser.
+
+### Release and GitHub Pages
+
+[.github/workflows/release-demo.yml](.github/workflows/release-demo.yml) runs when a release is published, including prereleases, or manually with an existing published `release_tag`. It checks out that exact tag, generates and tests the data/site, attaches `synthetic-report-samples.tar.gz` to the release, uploads browser evidence, and publishes the static output through the `github-pages` environment. All action references are pinned to commit SHAs. GitHub credentials are scoped to release lookup/upload steps; generation and browser tests receive no provider secrets.
+
+The planned Pages URL is `https://ninjapaw.github.io/committer-insights/`. Deployment starts only after this workflow is committed and included in a published release; this local change does not publish a site or alter beta.4. Repository Pages must permit GitHub Actions deployment, and the `github-pages` environment must allow the release tag (approve any protection gate when required). The workflow requests Pages enablement; organization policy may require a repository administrator to enable it first.
+
+The Pages site shows the most recently deployed release. Each release retains its own generated samples archive and source tag for reproduction. Manual reruns replace that release's synthetic archive and the current Pages demo; they never collect live data. The archive's report files are deterministic and checksummed, while the archive container itself may have different filesystem timestamps.
+
 ## Validation
 
 ```powershell
@@ -342,6 +375,23 @@ Node SEA injection modifies the executable after copying Node, so the final bina
 - A production publisher client ID for Microsoft browser sign-in
 
 ## Release notes
+
+### v0.1.0-beta.5 - 2026-09-24
+
+- Added deterministic synthetic report generation, real CSV/HTML/PDF/JSON samples, a static Astro demo reusing the report dashboard, and a release-triggered GitHub Pages workflow with reproducibility and desktop/mobile browser tests.
+- Added GitHub account selection, signed-in username display, and **Change account** on both connection screens. Account selection is local to the app, preserves the global CLI active account, and clears stale GitHub selections without affecting Azure sources.
+- Browser and device-code sign-in are now two visible buttons on both Microsoft connection screens, without expanding an options menu. The buttons wrap on narrow screens.
+- Fixed packaged Microsoft browser sign-in failing with `The "path" argument must be of type string or an instance of URL. Received undefined`. The CommonJS executable bundle now preserves a runtime module URL for the SDK's browser-opening dependency.
+- Added a bundled browser-launch regression test that reproduces the old failure and verifies the full authorization URL reaches the OS launcher. It runs with `npm run test:exe` and `npm run ci` without opening a real browser.
+- Published beta.4 binaries are unchanged. Use **Other sign-in options > Sign in with a device code** as a workaround in beta.4, subject to tenant policy, or use a rebuilt executable containing this fix.
+
+#### Beta.5 validation and limitations
+
+- Local `npm run ci` passed all 171 app/API tests, formatting, lint, type checks, executable packaging, bundled browser-launch regression and packaged startup checks.
+- A local packaged Microsoft browser sign-in returned authenticated successfully after the bundle fix. This is not a guarantee of consent or report access in every customer tenant.
+- GitHub account discovery was checked against the local CLI without returning tokens. Synthetic desktop/mobile tests cover account selection, switching, unavailable accounts and source cleanup; changing accounts does not modify the CLI's global active account.
+- `npm run demo:test` passed repeat-generation hash checks, schema/count/cost assertions, PDF parsing, desktop/mobile report navigation, filters and downloads, and network isolation. The Pages demo contains only deterministic fictional reports, not customer data.
+- The Windows executable remains unsigned and its Entra publisher remains unverified. Customer policies may require administrator approval. Full cross-tenant collection, consent and token renewal require further validation; use this beta for evaluation only.
 
 ### v0.1.0-beta.4 - 2026-09-24
 
@@ -396,7 +446,7 @@ Publisher verification is intentionally not required for this beta: the Entra pu
 - **Organization cannot be accessed:** verify the organization URL and that the signed-in user is a member with Advanced Security reporting access.
 - **Administrator approval appears:** ask the tenant administrator to review and approve the publisher application's delegated access. The app cannot bypass tenant consent or Conditional Access.
 - **GitHub sign-in fails:** run `gh auth login --hostname github.com`, confirm the intended active account with `gh auth status --active`, and retry.
-- **A GitHub repository is missing:** ensure the active GitHub CLI credential can access it and has completed any required organization SAML authorization.
+- **A GitHub repository is missing:** use **Change account** to select a stored account with access and confirm it has completed any required organization SAML authorization.
 - **Browser did not open:** copy the loopback URL shown by the application only in explicit no-browser/test mode; normal releases open the default browser automatically.
 
 ## License

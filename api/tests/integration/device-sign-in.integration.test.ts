@@ -1,6 +1,18 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { Server } from 'node:http';
 import { startLocalServer } from '../../src/local-server.js';
+import { listGitHubAccounts, disconnectGitHubAccount } from '../../src/auth/github-cli.js';
+import { connectGitHub } from '../../src/services/github.js';
+
+vi.mock('../../src/auth/github-cli.js', () => ({
+  listGitHubAccounts: vi.fn(),
+  disconnectGitHubAccount: vi.fn(),
+}));
+vi.mock('../../src/services/github.js', () => ({
+  connectGitHub: vi.fn(),
+  createGitHubReport: vi.fn(),
+  discoverGitHubSources: vi.fn(),
+}));
 import {
   cancelDeviceSignIn,
   disconnectMicrosoftAccount,
@@ -62,6 +74,71 @@ afterAll(async () => {
 });
 
 describe('device sign-in local API boundary', () => {
+  it('protects GitHub account listing, selection, and sign-out behind capability and origin checks', async () => {
+    for (const [path, method] of [
+      ['/api/auth/github/accounts', 'GET'],
+      ['/api/auth/github/sign-in', 'POST'],
+      ['/api/auth/github/sign-out', 'POST'],
+    ]) {
+      expect((await fetch(`${origin}${path}`, { method })).status).toBe(401);
+      if (method === 'POST')
+        expect(
+          (
+            await fetch(`${origin}${path}`, {
+              method,
+              headers: { authorization, origin: 'https://example.com' },
+            })
+          ).status,
+        ).toBe(401);
+    }
+    expect(listGitHubAccounts).not.toHaveBeenCalled();
+    expect(connectGitHub).not.toHaveBeenCalled();
+    expect(disconnectGitHubAccount).not.toHaveBeenCalled();
+    vi.mocked(listGitHubAccounts).mockResolvedValue([
+      { login: 'second', active: false, available: true },
+    ]);
+    const accounts = await fetch(`${origin}/api/auth/github/accounts`, {
+      headers: { authorization },
+    });
+    expect(accounts.headers.get('cache-control')).toBe('no-store');
+    expect(await accounts.json()).toEqual({
+      accounts: [{ login: 'second', active: false, available: true }],
+    });
+    const headers = { authorization, origin, 'Content-Type': 'application/json' };
+    expect(
+      (
+        await fetch(`${origin}/api/auth/github/sign-in`, {
+          method: 'POST',
+          headers,
+          body: '{"login":"--unsafe"}',
+        })
+      ).status,
+    ).toBe(400);
+    expect(connectGitHub).not.toHaveBeenCalled();
+    vi.mocked(connectGitHub).mockResolvedValue({
+      authenticated: true,
+      viewer: { id: '2', login: 'second' },
+    });
+    expect(
+      (
+        await fetch(`${origin}/api/auth/github/sign-in`, {
+          method: 'POST',
+          headers,
+          body: '{"login":"second"}',
+        })
+      ).status,
+    ).toBe(200);
+    expect(connectGitHub).toHaveBeenCalledWith('second');
+    expect(
+      (await fetch(`${origin}/api/auth/github/sign-out`, { method: 'POST', headers })).status,
+    ).toBe(200);
+    expect(disconnectGitHubAccount).toHaveBeenCalledTimes(1);
+    expect(
+      (await fetch(`${origin}/api/connections/github/targets`, { headers: { authorization } }))
+        .status,
+    ).toBe(401);
+  });
+
   it('rejects unauthenticated reads and writes, and cross-origin mutations', async () => {
     for (const [path, method] of [
       ['/api/auth/device-code', 'POST'],

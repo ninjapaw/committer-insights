@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { SourceStatus } from '@ninjapaw/contracts';
@@ -73,6 +73,107 @@ async function selectGitHubSource() {
 }
 
 describe('CombinedReportPage', () => {
+  it('selects and changes GitHub accounts without retaining stale GitHub sources or clearing Azure sources', async () => {
+    let account = '';
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const path = String(input);
+      if (path === '/api/auth/github/accounts')
+        return Response.json({
+          accounts: [
+            { login: 'first', active: true, available: true },
+            { login: 'second', active: false, available: true },
+            { login: 'expired', active: false, available: false },
+          ],
+        });
+      if (path === '/api/auth/github/sign-in') {
+        account = JSON.parse(String(init?.body)).login;
+        return Response.json({ authenticated: true, viewer: { login: account } });
+      }
+      if (path === '/api/auth/github/sign-out') return Response.json({ authenticated: false });
+      if (path === '/api/connections/github/targets')
+        return Response.json({ targets: [{ name: `${account}-org`, targetType: 'organization' }] });
+      throw new Error(`Unexpected request: ${path}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(['report-draft'], {
+      azureSelected: ['kept-azure'],
+      githubSelected: [],
+      githubTargetTypes: {},
+      plans: ['all'],
+      sinceDays: 90,
+      includeBilling: false,
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <CombinedReportPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    const github = within(screen.getByRole('region', { name: 'GitHub', exact: true }));
+    fireEvent.click(github.getByRole('button', { name: 'Select GitHub account' }));
+    const select = await github.findByRole('combobox', { name: 'GitHub account' });
+    await github.findByRole('option', { name: 'second' });
+    expect(github.getByRole('option', { name: 'expired (sign-in required)' })).toBeDisabled();
+    fireEvent.change(select, { target: { value: 'second' } });
+    fireEvent.click(github.getByRole('button', { name: 'Connect selected account' }));
+    await github.findByText('second', { exact: true });
+    fireEvent.click(await github.findByRole('checkbox', { name: 'second-org (organization)' }));
+    fireEvent.click(github.getByRole('button', { name: 'Change account' }));
+    await github.findByRole('combobox', { name: 'GitHub account' });
+    expect(client.getQueryData(['report-draft'])).toMatchObject({
+      azureSelected: ['kept-azure'],
+      githubSelected: [],
+      githubTargetTypes: {},
+    });
+    expect(
+      github.queryByRole('checkbox', { name: 'second-org (organization)' }),
+    ).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(github.getByRole('button', { name: 'Connect selected account' })).toBeEnabled(),
+    );
+    fireEvent.click(github.getByRole('button', { name: 'Connect selected account' }));
+    await github.findByText('first', { exact: true });
+    await github.findByRole('checkbox', { name: 'first-org (organization)' });
+    expect(
+      fetchMock.mock.calls.filter(([path]) => path === '/api/auth/github/sign-out'),
+    ).toHaveLength(1);
+    expect(client.getQueryData(['report-draft'])).toMatchObject({
+      azureSelected: ['kept-azure'],
+      githubSelected: [],
+    });
+  });
+
+  it('supports refreshing an empty or failed GitHub account list and cancelling selection', async () => {
+    let refreshes = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        refreshes++;
+        if (refreshes === 1)
+          return Response.json({ message: 'Account listing unavailable' }, { status: 503 });
+        return Response.json({ accounts: [] });
+      }),
+    );
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <CombinedReportPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Select GitHub account' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Account listing unavailable');
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh accounts' }));
+    await screen.findByText(/No GitHub CLI accounts found/);
+    expect(screen.getByRole('button', { name: 'Connect selected account' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel', exact: true }));
+    expect(screen.getByRole('button', { name: 'Connect GitHub CLI' })).toBeEnabled();
+    expect(screen.queryByRole('combobox', { name: 'GitHub account' })).not.toBeInTheDocument();
+  });
+
   it('shows the signed-in account and clears only Azure selections when changing it', async () => {
     let signIns = 0;
     const fetchMock = vi.fn(async (input: string | URL | Request) => {
@@ -223,13 +324,13 @@ describe('CombinedReportPage', () => {
         </MemoryRouter>
       </QueryClientProvider>,
     );
-    expect(screen.getByRole('button', { name: 'Continue with GitHub CLI' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Connect GitHub CLI' })).toBeDisabled();
     fireEvent.click(
       screen.getByRole('checkbox', {
         name: 'I understand the GitHub access being requested and want to continue.',
       }),
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Continue with GitHub CLI' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Connect GitHub CLI' }));
     const target = await screen.findByRole('checkbox', { name: 'octocat (organization)' });
     fireEvent.click(target);
     const review = screen.getByRole('button', { name: 'Review report' });
@@ -266,6 +367,7 @@ describe('CombinedReportPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Review report' }));
     const generate = screen.getByRole('button', { name: 'Generate report' });
     await waitFor(() => expect(checkbox).toBeDisabled());
+    expect(screen.getByText('Change account')).toBeDisabled();
     expect(screen.getByLabelText('Activity window (UTC)')).toBeDisabled();
     expect(generate).toBeDisabled();
     await act(async () => {
@@ -286,7 +388,7 @@ describe('CombinedReportPage', () => {
     }
     fireEvent.click(screen.getByRole('link', { name: 'Change sources' }));
     expect(await screen.findByRole('checkbox', { name: 'octocat (organization)' })).toBeChecked();
-    expect(screen.getByRole('button', { name: 'GitHub connected' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Change account' })).toBeEnabled();
     expect(requests.filter(([url]) => url === '/api/auth/github/sign-in')).toHaveLength(1);
   });
 
