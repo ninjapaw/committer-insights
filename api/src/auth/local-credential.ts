@@ -118,7 +118,7 @@ export function startAzureCliSignIn(): DeviceSignInState {
         id: attempt.id,
         status: 'failed',
         message:
-          'Azure CLI sign-in failed. Use the Windows x64 package and retry, or ask your administrator to review CLI access and device-code policy. No SDK fallback was attempted.',
+          'Azure CLI sign-in failed. Use the Windows x64 package and retry, or ask your administrator to review CLI access and interactive sign-in policy. No SDK fallback was attempted.',
       };
     })
     .finally(() => clearTimeout(attempt.timer));

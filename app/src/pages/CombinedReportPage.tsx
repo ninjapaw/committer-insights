@@ -10,6 +10,11 @@ import {
   type SourceStatus,
 } from '@ninjapaw/contracts';
 import { AzurePlanPicker } from '../components/AzurePlanPicker';
+import {
+  AzureServiceScenarioEditor,
+  parseServiceInputs,
+  type AzureServiceInputs,
+} from '../components/AzureServicePricing';
 import { SourcePicker } from '../components/SourcePicker';
 import { MicrosoftSignIn } from '../components/MicrosoftSignIn';
 import { GitHubSignIn } from '../components/GitHubSignIn';
@@ -18,6 +23,7 @@ import { commitWindows, connectGitHub, discoverGitHubTargets } from '../provider
 import { postJson } from '../services/local-api';
 
 interface ReportDraft {
+  azureServiceInputs?: Record<string, AzureServiceInputs>;
   azureSelected: string[];
   githubSelected: string[];
   githubTargetTypes: Record<string, GitHubTargetType>;
@@ -62,6 +68,7 @@ export function CombinedReportPage(): JSX.Element {
       organization,
       plans,
       sinceDays,
+      serviceScenario: parseServiceInputs(draft.azureServiceInputs?.[organization]).data,
       ...(draft.includeAzureBilling
         ? {
             includeAzureBilling: true,
@@ -128,7 +135,13 @@ export function CombinedReportPage(): JSX.Element {
       new Date(`${draft.billingDate}T00:00:00Z`).toISOString().slice(0, 10) === draft.billingDate &&
       draft.billingDate <= new Date().toISOString().slice(0, 10));
   const valid =
-    sources.length > 0 && (azureSelected.length === 0 || (plans.length > 0 && validDate));
+    sources.length > 0 &&
+    (azureSelected.length === 0 ||
+      (plans.length > 0 &&
+        validDate &&
+        azureSelected.every(
+          (organization) => parseServiceInputs(draft.azureServiceInputs?.[organization]).success,
+        )));
 
   return (
     <section className="combined-page" aria-labelledby="combined-title">
@@ -304,6 +317,24 @@ export function CombinedReportPage(): JSX.Element {
               billing rules.
             </p>
           </section>
+          {azureSelected.length > 0 && (
+            <details className="report-options">
+              <summary>Other Azure DevOps services: what-if quantities</summary>
+              {azureSelected.map((organization) => (
+                <AzureServiceScenarioEditor
+                  key={organization}
+                  organization={organization}
+                  disabled={busy}
+                  inputs={draft.azureServiceInputs?.[organization] ?? {}}
+                  onChange={(inputs) =>
+                    updateDraft({
+                      azureServiceInputs: { ...draft.azureServiceInputs, [organization]: inputs },
+                    })
+                  }
+                />
+              ))}
+            </details>
+          )}
           {!statuses && (
             <div className="review-sources">
               <h2>Selected sources</h2>

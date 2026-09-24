@@ -50,7 +50,7 @@ for (const report of reports) {
   assert.ok(report.warnings.some((warning) => warning.startsWith('SYNTHETIC DEMO')));
 }
 const [complete, partial, empty] = reports;
-assert.equal(first.fixtureVersion, 3);
+assert.equal(first.fixtureVersion, 5);
 assert.equal(complete.insights.githubBilling[0].providerCount, 1);
 assert.equal(complete.insights.githubBilling[0].repositories.length, 2);
 assert.ok(
@@ -168,10 +168,55 @@ try {
       .getByRole('link', { name: 'Synthetic example - complete collection', exact: true })
       .click();
     await page.getByRole('heading', { name: 'Results dashboard' }).waitFor();
+    await page.getByRole('heading', { name: 'Collection at a glance', exact: true }).waitFor();
     await page.getByRole('tab', { name: 'Azure DevOps', exact: true }).click();
+    const services = page.getByRole('region', {
+      name: 'Azure DevOps other services: what-if estimates',
+      exact: true,
+    });
+    await services.scrollIntoViewIfNeeded();
+    for (const amount of [
+      '$42.00',
+      '$156.00',
+      '$40.00',
+      '$30.00',
+      '$106.00',
+      '$6.20',
+      '$10.20',
+      '$5.00',
+    ]) {
+      assert.equal(await services.getByRole('cell', { name: amount, exact: true }).count(), 1);
+    }
+    assert.ok(
+      await page.evaluate(
+        () => globalThis.document.documentElement.scrollWidth <= globalThis.innerWidth,
+      ),
+    );
+    await page.screenshot({ path: resolve(root, `test-results/demo/azure-services-${width}.png`) });
     await page
       .getByRole('heading', { name: 'Provider-reported Azure billing', exact: true })
       .waitFor();
+    await page
+      .getByLabel(/^Billing dataset/)
+      .selectOption('Azure billing and enablement scenarios');
+    const securityEstimates = page.getByRole('region', {
+      name: 'Azure billing and enablement scenarios',
+      exact: true,
+    });
+    assert.equal(
+      await securityEstimates.getByRole('cell', { name: '$360.00', exact: true }).count(),
+      1,
+    );
+    assert.equal(
+      await securityEstimates.getByRole('cell', { name: '$152.00', exact: true }).count(),
+      1,
+    );
+    await page
+      .getByRole('region', { name: 'Azure billing and enablement scenarios', exact: true })
+      .scrollIntoViewIfNeeded();
+    await page.screenshot({
+      path: resolve(root, `test-results/demo/azure-estimates-${width}.png`),
+    });
     await page.getByLabel(/^Billing dataset/).selectOption('Azure billing diagnostic details');
     await page.getByLabel('Filter billing rows', { exact: true }).fill('unmatched@example.test');
     assert.equal(
@@ -182,7 +227,13 @@ try {
     );
     await page.getByLabel('Filter billing rows', { exact: true }).fill('');
     await page.getByLabel(/^Billing dataset/).selectOption('Azure billing reconciliation');
-    assert.equal(await page.getByRole('cell', { name: '2', exact: true }).count(), 2);
+    assert.equal(
+      await page
+        .getByRole('region', { name: 'Azure billing reconciliation', exact: true })
+        .getByRole('cell', { name: '2', exact: true })
+        .count(),
+      2,
+    );
     assert.ok(
       await page.evaluate(
         () => globalThis.document.documentElement.scrollWidth <= globalThis.innerWidth,
@@ -231,11 +282,82 @@ try {
       path: resolve(root, `test-results/demo/report-${width}.png`),
       fullPage: true,
     });
+    await page.goto(`${origin}${base}generated/synthetic-complete.html`);
+    assert.equal(
+      await page.getByRole('heading', { name: 'Solution pricing totals', exact: true }).count(),
+      1,
+    );
+    const azureEstimate = page
+      .locator('#area-azure-devops')
+      .getByRole('region', { name: 'Azure billing and enablement scenarios', exact: true });
+    assert.ok(await azureEstimate.isVisible());
+    assert.equal(
+      await azureEstimate.getByRole('cell', { name: '12 x $30.00/month', exact: true }).count(),
+      1,
+    );
+    assert.equal(
+      await page
+        .locator('#area-azure-devops')
+        .getByRole('heading', { name: 'Solution pricing totals', exact: true })
+        .count(),
+      0,
+    );
+    const usageSummary = page
+      .locator('#area-github')
+      .getByRole('region', { name: 'Reported usage subtotals', exact: true });
+    assert.equal(await usageSummary.getByRole('cell', { name: '$0.60', exact: true }).count(), 1);
+    assert.equal(
+      await page
+        .locator('#area-github')
+        .getByRole('region', { name: 'GitHub provider usage charges', exact: true })
+        .isVisible(),
+      false,
+    );
+    await page
+      .locator('#area-github summary')
+      .filter({ hasText: 'GitHub provider usage charges' })
+      .click();
+    assert.equal(
+      await page
+        .locator('#area-github')
+        .getByRole('region', { name: 'GitHub provider usage charges', exact: true })
+        .getByRole('row')
+        .count(),
+      4,
+    );
+    assert.ok(
+      await page.evaluate(
+        () => globalThis.document.documentElement.scrollWidth <= globalThis.innerWidth,
+      ),
+    );
+    await usageSummary.scrollIntoViewIfNeeded();
+    await page.screenshot({
+      path: resolve(root, `test-results/demo/consolidated-html-${width}.png`),
+    });
     for (const report of [partial, empty]) {
       await page.goto(`${origin}${base}reports/${report.reportId}/`);
       await page.getByRole('heading', { name: 'Results dashboard' }).waitFor();
       assert.ok(await page.getByText(report.subject, { exact: false }).count());
       if (report === partial) {
+        await page.getByRole('tab', { name: 'Azure DevOps', exact: true }).click();
+        await page
+          .getByLabel(/^Billing dataset/)
+          .selectOption('Azure billing and enablement scenarios');
+        assert.equal(
+          await securityEstimates.getByRole('cell', { name: '$152.00', exact: true }).count(),
+          1,
+        );
+        assert.equal(
+          await securityEstimates.getByRole('cell', { name: '$360.00', exact: true }).count(),
+          0,
+        );
+        await page.getByLabel(/^Billing dataset/).selectOption('Azure billing enablement evidence');
+        assert.equal(
+          await page
+            .getByRole('cell', { name: /Product disabled and zero billable committers/ })
+            .count(),
+          1,
+        );
         await page.getByRole('tab', { name: 'GitHub Enterprise', exact: true }).click();
         await page
           .getByLabel('Filter billing rows', { exact: true })

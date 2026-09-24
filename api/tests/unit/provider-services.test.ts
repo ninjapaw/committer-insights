@@ -1,3 +1,4 @@
+import { preflightAzureDevOps } from '../../src/services/azure-devops.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   connectAzureDevOps,
@@ -16,7 +17,11 @@ import {
 import type { AzureDevOpsCommitter, GitHubCommitter, SourceStatus } from '@ninjapaw/contracts';
 import { reportStore } from '../../src/reports/report-store.js';
 import { buildAzureDevOpsCostEstimates } from '../../src/reports/billing-estimates.js';
-import { acquireAzureDevOpsToken, signInWithBrowser } from '../../src/auth/local-credential.js';
+import {
+  acquireAzureDevOpsToken,
+  signInWithBrowser,
+  startAzureCliSignIn,
+} from '../../src/auth/local-credential.js';
 import {
   acquireGitHubToken,
   selectGitHubAccount,
@@ -35,6 +40,7 @@ import { collectGitHubBilling } from '../../src/adapters/github/insights-client.
 vi.mock('../../src/auth/local-credential.js', () => ({
   acquireAzureDevOpsToken: vi.fn(),
   signInWithBrowser: vi.fn(),
+  startAzureCliSignIn: vi.fn(),
 }));
 vi.mock('../../src/adapters/azure-devops/insights-client.js', () => ({
   collectAzureRepositoryInsights: vi.fn(),
@@ -50,7 +56,8 @@ vi.mock('../../src/auth/github-cli.js', () => ({
   selectGitHubAccount: vi.fn(),
   disconnectGitHubAccount: vi.fn(),
 }));
-vi.mock('../../src/adapters/azure-devops/estimate-client.js', () => ({
+vi.mock('../../src/adapters/azure-devops/estimate-client.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/adapters/azure-devops/estimate-client.js')>()),
   fetchAzureDevOpsEstimate: vi.fn(),
 }));
 vi.mock('../../src/adapters/azure-devops/organizations-client.js', () => ({
@@ -75,6 +82,46 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe('Azure DevOps report service', () => {
+  it.each(['codeSecurity', 'secretProtection'] as const)(
+    'collects only the selected %s estimate without requiring billing access',
+    async (plan) => {
+      vi.mocked(fetchAzureDevOpsEstimate).mockImplementation(
+        async ({ organization, onEstimate }) => {
+          onEstimate?.({
+            organization,
+            plan,
+            providerCount: 5,
+            returnedIdentities: 0,
+            status: 'partial',
+            collectedAt: '2026-09-24T12:00:00Z',
+            apiVersion: 'test',
+            sourceUrl: 'https://example.invalid',
+            warnings: ['Names unavailable'],
+          });
+          return [];
+        },
+      );
+      const report = await createAzureReport({
+        provider: 'azure-devops',
+        organization: 'example',
+        plans: [plan],
+        includeAzureBilling: false,
+        serviceScenario: { basicUsers: 12, basicFreeUsers: 5, artifactGiB: 100 },
+      });
+      expect(report.insights?.azureServiceEstimates).toEqual([
+        {
+          organization: 'example',
+          inputs: { basicUsers: 12, basicFreeUsers: 5, artifactGiB: 100 },
+        },
+      ]);
+      expect(fetchAzureDevOpsEstimate).toHaveBeenCalledTimes(1);
+      expect(fetchAzureDevOpsEstimate).toHaveBeenCalledWith(expect.objectContaining({ plan }));
+      expect(report.insights?.azureBilling).toBeUndefined();
+      expect(report.insights?.azureEstimates).toEqual([
+        expect.objectContaining({ plan, providerCount: 5 }),
+      ]);
+    },
+  );
   it('retains GitHub billing when repository inventory is denied without inventing zero-cost estimates', async () => {
     vi.mocked(listGitHubRepositoriesForTarget).mockRejectedValue(new Error('Denied'));
     vi.mocked(collectGitHubBilling).mockImplementation(async (source, _token, insights) => {
@@ -129,8 +176,10 @@ describe('Azure DevOps report service', () => {
       status: 'authenticated' as const,
       account: { username: 'selected@example.test', tenantId: 'test-tenant' },
     };
-    vi.mocked(signInWithBrowser).mockResolvedValue(selection);
+    vi.mocked(startAzureCliSignIn).mockReturnValue(selection);
     expect(await connectAzureDevOps()).toEqual(selection);
+    expect(startAzureCliSignIn).toHaveBeenCalledOnce();
+    expect(signInWithBrowser).not.toHaveBeenCalled();
     expect(await discoverAzureDevOpsSources()).toEqual(organizations);
     expect(discoverAzureDevOpsOrganizations).toHaveBeenCalledWith('azure-token');
     expect(acquireGitHubToken).not.toHaveBeenCalled();
@@ -149,6 +198,7 @@ describe('Azure DevOps report service', () => {
         plan,
         resultType: 'estimated',
         accessToken: 'azure-token',
+        onEstimate: expect.any(Function),
       });
     }
     expect(acquireGitHubToken).not.toHaveBeenCalled();
@@ -169,6 +219,39 @@ describe('Azure DevOps report service', () => {
     });
     expect(report.providerSummaries?.[0]).not.toHaveProperty('totalCommits');
   });
+});
+
+it('keeps a count-only Azure enablement estimate when the other product is denied', async () => {
+  vi.mocked(fetchAzureDevOpsEstimate).mockImplementation(
+    async ({ organization, plan, onEstimate }) => {
+      if (plan === 'secretProtection') throw new Error('Denied');
+      onEstimate?.({
+        organization,
+        plan: 'codeSecurity',
+        providerCount: 12,
+        returnedIdentities: 0,
+        status: 'partial',
+        collectedAt: '2026-09-24T12:00:00Z',
+        apiVersion: 'test',
+        sourceUrl: 'https://example.invalid/estimate',
+        warnings: ['Names missing'],
+      });
+      return [];
+    },
+  );
+  const source = {
+    provider: 'azure-devops' as const,
+    organization: 'example',
+    plans: ['all' as const],
+  };
+  await expect(preflightAzureDevOps(source)).resolves.toBeUndefined();
+  const report = await createAzureReport(source);
+  expect(report.insights?.azureEstimates).toEqual([
+    expect.objectContaining({ plan: 'codeSecurity', providerCount: 12, status: 'partial' }),
+    expect.objectContaining({ plan: 'secretProtection', status: 'unavailable' }),
+  ]);
+  expect(report.insights?.azureEstimates?.[1]?.providerCount).toBeUndefined();
+  expect(report.costEstimates).toEqual([]);
 });
 
 describe('GitHub report service', () => {

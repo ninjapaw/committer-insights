@@ -26,13 +26,16 @@ export type DeviceSignInState = {
 export * from './azure-devops.js';
 export * from './azure-devops-display.js';
 export * from './azure-billing.js';
+export * from './azure-service-pricing.js';
 export * from './github.js';
 export * from './github-billing.js';
 export * from './insights.js';
 export * from './provider-report.js';
+export * from './report-overview.js';
 export * from './cio-brief.js';
 export * from './date-display.js';
 import type { ReportInsights } from './insights.js';
+import { azureServiceScenarioSchema } from './azure-service-pricing.js';
 import {
   azureDevOpsOrganizationSchema,
   azureDevOpsPlanSchema,
@@ -48,6 +51,7 @@ export const multiSourceSchema = z.discriminatedUnion('provider', [
     sinceDays: z.number().int().min(1).max(365).optional(),
     includeAzureBilling: z.boolean().optional(),
     includeAzureBillingDetails: z.boolean().optional(),
+    serviceScenario: azureServiceScenarioSchema.optional(),
     billingDate: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/)

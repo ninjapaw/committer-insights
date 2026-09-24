@@ -81,6 +81,17 @@ export function azureBillingUrl(
   return url;
 }
 
+class BillingReadError extends Error {}
+
+function billingFailure(error: unknown): string {
+  if (error instanceof BillingReadError) return error.message;
+  if (error instanceof z.ZodError || error instanceof SyntaxError)
+    return 'Unsupported provider response format. The preview API schema may differ; billing could not be interpreted.';
+  if (error instanceof Error && ['AbortError', 'TimeoutError'].includes(error.name))
+    return 'Billing request timed out. Retry collection; no billing count was inferred.';
+  return 'Network or authentication failure prevented billing collection. Retry sign-in and verify connectivity.';
+}
+
 async function read(
   url: URL,
   accessToken: () => Promise<string>,
@@ -92,11 +103,29 @@ async function read(
     signal: AbortSignal.timeout(20000),
     headers: { Authorization: `Bearer ${await accessToken()}`, Accept: 'application/json' },
   });
-  if (!response.ok || response.headers.get('x-ms-continuationtoken')) {
+  if (!response.ok) {
     await response.body?.cancel();
-    throw new Error('Billing response unavailable or truncated.');
+    const reasons: Record<number, string> = {
+      401: 'Authentication rejected (HTTP 401). Sign in again with the intended account.',
+      403: 'Billing access denied (HTTP 403). Confirm existing billing permissions with the organization owner.',
+      404: 'Billing snapshot or endpoint not found (HTTP 404). This can reflect access or product/snapshot availability, not zero charges.',
+      429: 'Provider rate limit reached (HTTP 429). Retry later.',
+    };
+    throw new BillingReadError(
+      reasons[response.status] ??
+        `Billing provider returned HTTP ${response.status}. No billing count was inferred.`,
+    );
   }
-  if (!response.body) throw new Error('Empty billing response.');
+  if (response.headers.get('x-ms-continuationtoken')) {
+    await response.body?.cancel();
+    throw new BillingReadError(
+      'Provider returned a truncated billing response. Incomplete counts were not accepted.',
+    );
+  }
+  if (!response.body)
+    throw new BillingReadError(
+      'Provider returned no billing response body. This is not a confirmed zero count.',
+    );
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
   let size = 0;
@@ -105,7 +134,10 @@ async function read(
       const result = await reader.read();
       if (result.done) break;
       size += result.value.byteLength;
-      if (size > 16 * 1024 * 1024) throw new Error('Billing response exceeds size limit.');
+      if (size > 16 * 1024 * 1024)
+        throw new BillingReadError(
+          'Billing response exceeds the supported size limit. Incomplete counts were not accepted.',
+        );
       chunks.push(result.value);
     }
   } finally {
@@ -215,16 +247,16 @@ export async function collectAzureBilling(
               'Diagnostic evidence is incomplete; a missing detail row does not negate a provider billing identity.',
             );
           }
-        } catch {
+        } catch (error) {
           snapshot.detailsStatus = 'unavailable';
           snapshot.warnings.push(
-            'Diagnostic details unavailable, truncated or unsupported. The billing snapshot remains separate. No permissions were changed.',
+            `Diagnostic details unavailable: ${billingFailure(error)} The billing snapshot remains separate. No permissions were changed.`,
           );
         }
       }
-    } catch {
+    } catch (error) {
       snapshot.warnings.push(
-        'Provider billing snapshot unavailable, truncated or unsupported. Confirm existing billing read access and product experience with your administrator. No estimate was substituted.',
+        `Provider billing snapshot unavailable: ${billingFailure(error)} No estimate was substituted.`,
       );
     }
     insights.checks.push({
@@ -242,8 +274,9 @@ export async function collectAzureBilling(
         source: organization,
         dataset: `Billing diagnostic details: ${plan}`,
         status: snapshot.detailsStatus,
-        detail:
-          'Details requested for the snapshot billing date. Pusher and committer identities remain separate; unmatched evidence is never added to billing totals.',
+        detail: snapshot.detailsUrl
+          ? 'Details requested for the snapshot billing date. Pusher and committer identities remain separate; unmatched evidence is never added to billing totals.'
+          : 'Diagnostic request not attempted because no valid matching billing snapshot date was available. Resolve the snapshot failure first.',
       });
   }
 }

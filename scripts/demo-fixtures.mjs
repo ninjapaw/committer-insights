@@ -168,6 +168,35 @@ export function createDemoReports() {
       ...buildGitHubCostEstimates(gitHubCommitters, providerSummaries[1]),
     ],
     insights: {
+      azureServiceEstimates: [
+        {
+          organization: azureSource,
+          inputs: {
+            basicUsers: 12,
+            basicFreeUsers: 5,
+            testPlanUsers: 3,
+            hostedPaidJobs: 1,
+            selfHostedPaidJobs: 2,
+            artifactGiB: 100,
+            macStandardMinutes: 100,
+            macXlMinutes: 100,
+            aiCredits: 500,
+          },
+        },
+      ],
+      azureEstimates: ['codeSecurity', 'secretProtection'].map((plan) => ({
+        organization: azureSource,
+        plan,
+        providerCount: plan === 'codeSecurity' ? 12 : 8,
+        returnedIdentities: 0,
+        status: 'partial',
+        collectedAt: demoDate,
+        apiVersion: 'synthetic-fixture-v4',
+        sourceUrl: `https://example.invalid/synthetic-estimates/${plan}`,
+        warnings: [
+          'SYNTHETIC DEMO: provider count available, identity names incomplete. Not actual charges.',
+        ],
+      })),
       githubBilling: [
         ...['code-security', 'secret-protection'].map((dataset) => ({
           source: githubSource,
@@ -327,6 +356,13 @@ export function createDemoReports() {
     delete snapshot.purchasedCommitters;
   }
   partial.insights.azureBilling[0].status = 'partial';
+  partial.insights.azureBilling[1].isPlanEnabled = false;
+  partial.insights.azureBilling[1].providerCount = 0;
+  partial.insights.azureBilling[1].identities = [];
+  partial.insights.azureBilling[1].details = [];
+  partial.insights.azureBilling[1].detailsStatus = 'not-requested';
+  partial.insights.azureEstimates[0].status = 'unavailable';
+  delete partial.insights.azureEstimates[0].providerCount;
   partial.insights.azureBilling[0].identities = partial.insights.azureBilling[0].identities.slice(
     0,
     1,

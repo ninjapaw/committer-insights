@@ -3,6 +3,8 @@ import {
   emptyInsights,
   azureBillingGroups,
   azureBillingTables,
+  azureAdoptionTables,
+  type AzureAdoptionEstimate,
   multiSourceSchema,
   providerReport,
   type Report,
@@ -37,6 +39,186 @@ const raw = {
 const token = async () => 'synthetic-token';
 
 describe('Azure provider billing collection', () => {
+  it('produces a product-specific estimate with no billing snapshot when visible repositories are off', () => {
+    const estimate: AzureAdoptionEstimate = {
+      organization: 'example',
+      plan: 'secretProtection',
+      status: 'complete',
+      providerCount: 5,
+      returnedIdentities: 5,
+      collectedAt: '2026-09-24T12:00:00Z',
+      apiVersion: 'test',
+      sourceUrl: 'https://example.invalid/estimate',
+      warnings: [],
+    };
+    const tables = azureAdoptionTables(
+      [estimate],
+      [],
+      [
+        {
+          provider: 'azure-devops',
+          source: 'example',
+          id: 'repo',
+          name: 'repo',
+          visibility: 'private',
+          state: 'active',
+          observedAt: estimate.collectedAt,
+          features: [{ name: 'Secret Protection', state: 'disabled' }],
+          activity: {
+            from: estimate.collectedAt,
+            to: estimate.collectedAt,
+            status: 'complete',
+            daily: [{ date: '2026-09-24', commits: 9000 }],
+          },
+        },
+      ],
+    );
+    const summary = Object.fromEntries(
+      tables[0]!.columns.map((column, index) => [column, tables[0]!.rows[0]![index]]),
+    );
+    const evidence = Object.fromEntries(
+      tables[1]!.columns.map((column, index) => [column, tables[1]!.rows[0]![index]]),
+    );
+    expect(summary).toMatchObject({
+      'Provider enablement estimate count': 5,
+      'Monthly calculation': '5 x $19.00/month',
+      'Enablement scenario monthly USD': '$95.00',
+      'Enablement scenario annualized USD': '$1140.00',
+      'Estimate basis': 'Provider count; identity detail reconciled',
+    });
+    expect(evidence).toMatchObject({
+      'Product state (observed scope)': 'Off in visible repositories',
+      'Snapshot billable count': 'Unavailable',
+      'Actual invoiced charges': 'Not collected; reconcile with the billing owner',
+    });
+    expect(evidence.Assessment).toContain('remains usable without billing history');
+    expect(evidence.Assessment).toContain('does not prove organization-wide coverage');
+    expect(summary['Provider enablement estimate count']).not.toBe(9000);
+  });
+  it.each([401, 403, 404, 429, 503])(
+    'reports safe HTTP %i diagnostics without leaking provider bodies',
+    async (status) => {
+      const insights = emptyInsights();
+      await collectAzureBilling(
+        { ...source, includeAzureBillingDetails: true },
+        insights,
+        token,
+        vi.fn().mockResolvedValue(new Response('private-provider-response', { status })),
+      );
+      expect(insights.azureBilling?.[0]?.warnings.join(' ')).toContain(`HTTP ${status}`);
+      expect(JSON.stringify(insights)).not.toContain('private-provider-response');
+      expect(insights.checks[1]?.detail).toContain('not attempted');
+    },
+  );
+  it('distinguishes an unsupported response schema from a permission failure', async () => {
+    const insights = emptyInsights();
+    await collectAzureBilling(
+      source,
+      insights,
+      token,
+      vi.fn().mockResolvedValue(Response.json({ billedUsers: 'unsupported-private-shape' })),
+    );
+    expect(insights.azureBilling?.[0]?.warnings.join(' ')).toContain(
+      'Unsupported provider response format',
+    );
+    expect(JSON.stringify(insights)).not.toContain('unsupported-private-shape');
+  });
+  it('prices provider enablement counts even when the product is disabled and no identities are returned', async () => {
+    const insights = emptyInsights();
+    await collectAzureBilling(
+      source,
+      insights,
+      token,
+      vi.fn().mockResolvedValue(
+        Response.json({
+          ...raw,
+          isPlanEnabled: false,
+          billedUsers: { uniqueCommitterCount: 0, billedUsers: [] },
+        }),
+      ),
+    );
+    const estimate: AzureAdoptionEstimate = {
+      organization: 'example',
+      plan: 'codeSecurity',
+      status: 'partial',
+      providerCount: 12,
+      returnedIdentities: 0,
+      collectedAt: '2026-09-24T12:00:00Z',
+      apiVersion: 'test',
+      sourceUrl: 'https://example.invalid/estimate',
+      warnings: ['Names unavailable'],
+    };
+    insights.azureEstimates = [
+      estimate,
+      { ...estimate, plan: 'secretProtection', providerCount: 8 },
+    ];
+    const tables = azureAdoptionTables(insights.azureEstimates, insights.azureBilling);
+    const code = Object.fromEntries(
+      tables[0]!.columns.map((column, index) => [column, tables[0]!.rows[0]![index]]),
+    );
+    expect(code).toMatchObject({
+      'Provider enablement estimate count': 12,
+      'Monthly calculation': '12 x $30.00/month',
+      'Estimate basis': 'Provider count; identity detail incomplete',
+      'Enablement scenario monthly USD': '$360.00',
+      'Enablement scenario annualized USD': '$4320.00',
+    });
+    expect(tables[1]!.rows[0]!.at(-1)).toContain('Product disabled');
+    expect(tables[0]!.rows[1]).toContain('$152.00');
+    const report: Report = {
+      reportId: 'adoption',
+      provider: 'combined',
+      subject: 'Synthetic adoption',
+      organization: 'example',
+      plans: ['all'],
+      generatedAt: estimate.collectedAt,
+      sourceApiVersion: 'test',
+      azureDevOpsCommitters: [],
+      gitHubCommitters: [],
+      warnings: [],
+      insights,
+    };
+    expect(providerReport(report, 'github').insights?.azureEstimates).toBeUndefined();
+    expect(providerReport(report, 'azure-devops').insights?.azureEstimates).toHaveLength(2);
+    for (const output of [generateCsv(report), generateStandaloneHtml(report)]) {
+      expect(output).toContain('$360.00');
+      expect(output).toContain('$152.00');
+      expect(output).toContain('Names unavailable');
+      expect(output).toContain('not actual charges');
+    }
+    const draw = vi.spyOn(PDFPage.prototype, 'drawText');
+    try {
+      await generateExecutivePdf(report);
+      const lines = draw.mock.calls.map(([line]) => line);
+      expect(
+        lines.filter((line) => line === 'Azure billing and enablement scenarios'),
+      ).toHaveLength(1);
+      expect(lines.join(' ')).toContain('$360.00');
+    } finally {
+      draw.mockRestore();
+    }
+  });
+  it('distinguishes an unavailable adoption estimate from a genuine zero and does not merge organization totals', () => {
+    const estimate: AzureAdoptionEstimate = {
+      organization: 'example',
+      plan: 'codeSecurity',
+      status: 'complete',
+      providerCount: 0,
+      returnedIdentities: 0,
+      collectedAt: '2026-09-24T12:00:00Z',
+      apiVersion: 'test',
+      sourceUrl: 'https://example.invalid/estimate',
+      warnings: [],
+    };
+    const tables = azureAdoptionTables([
+      estimate,
+      { ...estimate, organization: 'other', status: 'unavailable', providerCount: undefined },
+    ]);
+    expect(tables[0]!.rows).toHaveLength(2);
+    expect(tables[0]!.rows[0]).toContain('$0.00');
+    expect(tables[0]!.rows[1]).not.toContain('$0.00');
+    expect(tables[1]!.rows[0]!.at(-1)).toContain('no zero-charge conclusion');
+  });
   it('exports billing evidence separately and never leaks it into the GitHub provider section', async () => {
     const insights = emptyInsights();
     const unsafe = '<img src=x onerror=alert(1)>';

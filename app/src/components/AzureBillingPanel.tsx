@@ -3,6 +3,11 @@ import {
   azureBillingTables,
   azureBillingNote,
   type AzureBillingSnapshot,
+  azureAdoptionTables,
+  azureAdoptionNote,
+  azureEstimateSummaryNote,
+  type AzureAdoptionEstimate,
+  type RepositoryInsight,
   githubBillingTables,
   githubBillingNote,
   type GitHubBillingSnapshot,
@@ -14,15 +19,23 @@ import { ReportTable } from './ReportTable';
 export function AzureBillingPanel({
   snapshots,
   timeZone,
+  estimates = [],
+  repositories = [],
 }: {
   snapshots: AzureBillingSnapshot[];
   timeZone?: string;
+  estimates?: AzureAdoptionEstimate[];
+  repositories?: RepositoryInsight[];
 }): JSX.Element {
   return (
     <BillingEvidencePanel
       title="Provider-reported Azure billing"
-      note={azureBillingNote}
-      tables={azureBillingTables(snapshots, { readableDates: true, timeZone })}
+      note={estimates.length ? azureEstimateSummaryNote : azureBillingNote}
+      methodology={estimates.length ? `${azureAdoptionNote} ${azureBillingNote}` : undefined}
+      tables={[
+        ...azureAdoptionTables(estimates, snapshots, repositories),
+        ...azureBillingTables(snapshots, { readableDates: true, timeZone }),
+      ]}
     />
   );
 }
@@ -45,10 +58,12 @@ function BillingEvidencePanel({
   title,
   note,
   tables,
+  methodology,
 }: {
   title: string;
   note: string;
   tables: InsightTable[];
+  methodology?: string;
 }): JSX.Element {
   const [view, setView] = useState(tables[0]?.title ?? '');
   const [filter, setFilter] = useState('');
@@ -63,6 +78,12 @@ function BillingEvidencePanel({
     <>
       <h2>{title}</h2>
       <p>{note}</p>
+      {methodology && (
+        <details>
+          <summary>Pricing assumptions and billing comparison limits</summary>
+          <p>{methodology}</p>
+        </details>
+      )}
       {!table ? (
         <p>Billing evidence was not requested or is unavailable in this report.</p>
       ) : (

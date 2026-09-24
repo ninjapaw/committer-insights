@@ -16,6 +16,47 @@ const ESTIMATE_URL =
   'https://advsec.dev.azure.com/contoso/_apis/management/meterUsageEstimate/default';
 
 describe('fetchAzureDevOpsEstimate integration', () => {
+  it('reads only the requested product from a wrapped provider estimate', async () => {
+    server.use(
+      http.get(ESTIMATE_URL, () =>
+        HttpResponse.json({
+          codeSecurityMeterUsageEstimate: { uniqueCommitterCount: 12 },
+          secretProtectionMeterUsageEstimate: { uniqueCommitterCount: 90 },
+        }),
+      ),
+    );
+    const estimates: unknown[] = [];
+    await fetchAzureDevOpsEstimate({
+      organization: 'contoso',
+      plan: 'codeSecurity',
+      resultType: 'estimated',
+      accessToken: 'token',
+      onEstimate: (estimate) => estimates.push(estimate),
+    });
+    expect(estimates).toEqual([
+      expect.objectContaining({ plan: 'codeSecurity', providerCount: 12 }),
+    ]);
+  });
+  it('retains a provider adoption count separately when identity details are incomplete', async () => {
+    server.use(http.get(ESTIMATE_URL, () => HttpResponse.json({ uniqueCommitterCount: 12 })));
+    const estimates: unknown[] = [];
+    const rows = await fetchAzureDevOpsEstimate({
+      organization: 'contoso',
+      plan: 'codeSecurity',
+      resultType: 'estimated',
+      accessToken: 'token',
+      onEstimate: (estimate) => estimates.push(estimate),
+    });
+    expect(rows).toEqual([]);
+    expect(estimates).toEqual([
+      expect.objectContaining({
+        providerCount: 12,
+        returnedIdentities: 0,
+        status: 'partial',
+        plan: 'codeSecurity',
+      }),
+    ]);
+  });
   it('normalizes a successful response', async () => {
     server.use(
       http.get(ESTIMATE_URL, () =>

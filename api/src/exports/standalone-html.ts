@@ -13,7 +13,11 @@ import {
   cioBriefTables,
   cioMethodology,
   azureBillingNote,
+  azureAdoptionNote,
   githubBillingNote,
+  type InsightTable,
+  reportOverviewTables,
+  reportOverviewNote,
 } from '@ninjapaw/contracts';
 import { uniqueAzureDevOpsCommitters } from '@ninjapaw/contracts';
 
@@ -71,14 +75,15 @@ function reportNavigation(
 ): string {
   const links = [
     ...(report.executiveSummary ? [['#executive-summary', 'Executive summary']] : []),
-    ['#cio-brief', 'CIO recommendations'],
-    ...(report.insights ? [['#usage-evidence', 'Usage and security evidence']] : []),
-    ...(report.providerSummaries?.length ? [['#provider-summary', 'Provider summary']] : []),
-    ...(report.sourceStatuses ? [['#source-status', 'Source status']] : []),
-    ['#estimated-billing', 'Estimated billing'],
+    ...(report.insights ? [['#billing-evidence', 'Billing evidence']] : []),
+    ...(!report.insights?.azureEstimates?.length
+      ? [['#estimated-billing', 'Estimated billing']]
+      : []),
+    ...(report.insights ? [['#usage-evidence', 'Repositories and activity']] : []),
+    ...(report.sourceStatuses ? [['#source-status', 'Collection coverage']] : []),
     ...(azureRows ? [['#azure-devops-committers', 'Azure DevOps committers']] : []),
     ...(githubRows ? [['#github-committers', 'GitHub committers']] : []),
-    ['#recommendations', 'Recommended next steps'],
+    ['#cio-brief', 'Recommendations'],
   ];
   return `<nav class="report-nav" aria-label="Report sections">${links
     .map(([href, label]) => `<a href="#${prefix}${href!.slice(1)}">${label}</a>`)
@@ -133,18 +138,40 @@ ${provider.totalCommits === undefined ? '' : `<dt>Commits</dt><dd>${provider.tot
     })
     .join('');
   const nav = reportNavigation(report, azureRows, githubRows, prefix);
+  const renderTable = (table: InsightTable) =>
+    `<details class="evidence-dataset"${['Collection at a glance', 'Reported usage subtotals', 'Azure billing and enablement scenarios'].includes(table.title) ? ' open' : ''}><summary>${escapeHtml(table.title)} (${table.rows.length} rows)</summary>${table.rows.length ? `<div class="table-wrap" tabindex="0" role="region" aria-label="${escapeHtml(table.title)}"><table style="min-width:${Math.max(760, table.columns.length * 140)}px"><thead><tr>${table.columns.map((column) => `<th scope="col">${escapeHtml(column)}</th>`).join('')}</tr></thead><tbody>${table.rows.map((row, rowIndex) => `<tr>${row.map((cell, columnIndex) => `<td>${table.columns[columnIndex] === 'Repository' ? repositoryLink(cell, table.repositoryUrls?.[rowIndex]) : escapeHtml(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : '<p>No rows collected. Check collection coverage; this does not establish zero usage.</p>'}</details>`;
+  const overview = reportOverviewTables(report);
+  const amountColumns = ['Source', 'Period UTC', 'Product', 'Net USD', 'Basis'];
+  const compactAmounts = {
+    ...overview[1]!,
+    columns: amountColumns,
+    rows: overview[1]!.rows.map((row) =>
+      amountColumns.map((column) => row[overview[1]!.columns.indexOf(column)]!),
+    ),
+  };
+  const tables = report.insights
+    ? insightTables(report.insights, { readableDates: true, timeZone })
+    : [];
+  const billingTable = (table: InsightTable) =>
+    /billing|billed identities|usage charges/i.test(table.title);
+  const serviceTable = (table: InsightTable) => table.title.startsWith('Azure DevOps ');
+  const serviceHtml = tables.some(serviceTable)
+    ? `<section id="${prefix}service-estimates"><h2>Other Azure DevOps services</h2><p>User-entered what-if quantities, separate from provider billing. Blank quantities remain unavailable.</p>${tables.filter(serviceTable).map(renderTable).join('')}</section>`
+    : '';
+  const billingHtml = report.insights
+    ? `<section id="${prefix}billing-evidence"><h2>Provider-reported billing and enablement evidence</h2><p>Billing snapshots, enablement estimates and usage charges are separate datasets. Do not add overlapping scopes or summaries to detail.</p>${tables.filter(billingTable).map(renderTable).join('')}${report.insights.azureEstimates?.length ? `<p>${escapeHtml(azureAdoptionNote)}</p>` : ''}${report.insights.azureBilling?.length ? `<p>${escapeHtml(azureBillingNote)}</p>` : ''}${report.insights.githubBilling?.length ? `<p>${escapeHtml(githubBillingNote)}</p>` : ''}</section>`
+    : '';
   const insightsHtml = report.insights
     ? `<section id="${prefix}usage-evidence"><h2>Usage and security evidence</h2><p>Settings are current snapshots, not proof of recent scanning or payment. Reported billing usage is not an invoice; missing rows do not mean zero cost. ${report.provider === 'azure-devops' ? 'Activity uses committer dates, including automation.' : 'Activity uses authored dates, excluding two automation accounts.'} Date windows are UTC; the final day may be incomplete.</p>${insightTables(
         report.insights,
         { readableDates: true, timeZone },
       )
-        .map(
+        .filter(
           (table) =>
-            `<section><h3>${escapeHtml(table.title)}</h3>${table.rows.length ? `<div class="table-wrap" tabindex="0" role="region" aria-label="${escapeHtml(table.title)}"><table><thead><tr>${table.columns.map((column) => `<th scope="col">${escapeHtml(column)}</th>`).join('')}</tr></thead><tbody>${table.rows.map((row, rowIndex) => `<tr>${row.map((cell, columnIndex) => `<td>${table.columns[columnIndex] === 'Repository' ? repositoryLink(cell, table.repositoryUrls?.[rowIndex]) : escapeHtml(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : '<p>No rows collected. See collection evidence for availability.</p>'}</section>`,
+            !billingTable(table) && !serviceTable(table) && table.title !== 'Collection evidence',
         )
-        .join(
-          '',
-        )}${report.insights.azureBilling?.length ? `<p>${escapeHtml(azureBillingNote)}</p>` : ''}${report.insights.githubBilling?.length ? `<p>${escapeHtml(githubBillingNote)}</p>` : ''}</section>`
+        .map(renderTable)
+        .join('')}</section>`
     : '';
   const start = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
@@ -163,17 +190,24 @@ ${
 <div class="metric"><strong>${summary.uniqueProviderIdentities}</strong><span>Unique provider identities</span></div>
 <div class="metric"><strong>${summary.includedSources}</strong><span>Sources included</span></div>
 <div class="metric"><strong>${summary.skippedSources}</strong><span>Sources skipped</span></div>
-<div class="metric"><strong>${summary.azureIdentityRecords + summary.gitHubIdentityRecords}</strong><span>Identity records</span></div></div>${solutionTotals(report)}</section>`
+<div class="metric"><strong>${summary.azureIdentityRecords + summary.gitHubIdentityRecords}</strong><span>Identity records</span></div></div></section>`
     : ''
 }
-${cio}
+${renderTable(overview[0]!)}
+${overview[1]!.rows.length ? `${renderTable(compactAmounts)}<p>${escapeHtml(reportOverviewNote)}</p>${renderTable({ ...overview[1]!, title: 'Usage subtotal scope, units and adjustments' })}` : report.provider === 'azure-devops' ? '' : '<p>No readable usage amounts were collected. Estimates are separate from actual charges.</p>'}
+${billingHtml}
+${serviceHtml}
 ${insightsHtml}
-${providerSections ? `<section id="${prefix}provider-summary"><div class="section-heading"><h2>Provider summary</h2></div>${providerSections}</section>` : ''}
+${providerSections ? `<details id="${prefix}provider-summary"><summary>Provider methodology and source counts</summary>${providerSections}</details>` : ''}
+${tables
+  .filter((table) => table.title === 'Collection evidence')
+  .map(renderTable)
+  .join('')}
 ${report.sourceStatuses ? `<section class="card" id="${prefix}source-status"><div class="section-heading"><h2>Source status</h2></div><div class="table-wrap" tabindex="0" role="region" aria-label="Source status table"><table><thead><tr><th>Provider</th><th>Source</th><th>Status</th><th>Returned identity rows</th><th>Reason</th><th>How to fix</th><th>Scope</th></tr></thead><tbody>${sourceRows(report)}</tbody></table></div></section>` : ''}
-<section class="card" id="${prefix}estimated-billing"><div class="section-heading"><h2>Estimated billing</h2><span>Public price assumptions</span></div>${solutionTotals(report)}${report.costEstimates?.length ? `<h3>Unit prices and estimation basis</h3><div class="table-wrap"><table><thead><tr><th>Provider</th><th>Estimate</th><th>Count</th><th>Unit price</th><th>Estimated monthly cost</th><th>Basis</th></tr></thead><tbody>${costRows(report)}</tbody></table></div>` : ''}</section>
+${!report.insights?.azureEstimates?.length ? `<section class="card" id="${prefix}estimated-billing"><div class="section-heading"><h2>Estimated billing</h2><span>Public price assumptions</span></div>${solutionTotals(report)}${report.costEstimates?.length ? `<h3>Unit prices and estimation basis</h3><div class="table-wrap"><table><thead><tr><th>Provider</th><th>Estimate</th><th>Count</th><th>Unit price</th><th>Estimated monthly cost</th><th>Basis</th></tr></thead><tbody>${costRows(report)}</tbody></table></div>` : ''}</section>` : ''}
 ${azureRows ? `<section class="card" id="${prefix}azure-devops-committers"><div class="section-heading"><h2>Azure DevOps committers</h2></div><p>One row per identity and organization, with estimated products combined. Settings evidence, when available, is reported separately. Non-estimated organization users were not collected.</p><div class="table-wrap" tabindex="0" role="region" aria-label="Azure DevOps committer table"><table><thead><tr><th>Display name</th><th>Organization</th><th>Effective plans</th><th>Billing status</th></tr></thead><tbody>${azureRows}</tbody></table></div></section>` : ''}
 ${githubRows ? `<section class="card" id="${prefix}github-committers"><div class="section-heading"><h2>GitHub committers</h2></div><p>Summary followed by each repository contribution. Dependabot and GitHub Actions bots are excluded. Name-based matches require human review and do not prove billing identity.</p><div class="table-wrap" tabindex="0" role="region" aria-label="GitHub committer table"><table><thead><tr><th>Login</th><th>Display name</th><th>Repository count</th><th>Billing status</th><th>Total commits</th><th>Last authored commit (${escapeHtml(timeZone)})</th></tr></thead><tbody>${githubRows}</tbody></table></div></section>` : ''}
-<section class="card recommendations" id="${prefix}recommendations"><div class="section-heading"><h2>Recommended next steps</h2></div><ol><li>Review source coverage and resolve skipped sources before using estimates for purchasing.</li><li>${report.provider === 'azure-devops' ? 'Reconcile Code Security and Secret Protection estimates separately with official billing. Collect Basic/Test Plans entitlements before estimating base-license costs.' : 'Validate Enterprise membership, repository visibility, per-product enablement and official active-committer usage. Observed activity does not establish licensed seats.'}</li><li>Validate dated public prices and contract terms. Tax, discounts, proration, compute, storage and other add-ons are not included.</li></ol></section>
+<details class="evidence-dataset"><summary>Evidence-based recommendations</summary>${cio}</details>
 ${report.warnings.length ? `<section class="card"><h2>Collection warnings</h2><ul>${report.warnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join('')}</ul></section>` : ''}
 <p class="notice">Cross-provider identities are not automatically merged. Skipped sources are excluded from totals and listed with remediation above.</p>
 `;
@@ -190,6 +224,8 @@ section{min-width:0;scroll-margin-top:24px}main>section{margin-top:32px}
 [id$="source-status"] td:nth-child(3),[id$="source-status"] td:nth-child(4){white-space:nowrap}
 .provider-area{margin-block:2rem 4rem}.provider-area>h2{font-size:1.5rem;margin-bottom:1rem}.provider-area>section{margin-top:2rem}
 .report-nav{position:static}.report-nav a{border:0;border-bottom:2px solid var(--border2);border-radius:0}
+.evidence-dataset{margin:16px 0;border-block:1px solid var(--border);padding:12px 0}.evidence-dataset>summary,details>summary{cursor:pointer;font-weight:650;color:var(--soft)}details[open]>summary{margin-bottom:12px}
+.evidence-dataset th,.evidence-dataset td{min-width:110px;overflow-wrap:break-word;word-break:normal}.evidence-dataset td{max-width:420px}.evidence-dataset th{white-space:nowrap}
 .header-inner,.section-heading{flex-wrap:wrap}.brand{min-width:0}.logo{flex:none}
 h1,h2,.generated,.section-heading span,dt,dd,td,th{overflow-wrap:anywhere;letter-spacing:0}
 .stat-list{grid-template-columns:minmax(0,1fr) minmax(0,auto)}

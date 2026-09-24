@@ -8,13 +8,16 @@ import {
   cioBriefTables,
   uniqueAzureDevOpsCommitters,
   azureBillingNote,
+  azureAdoptionNote,
   githubBillingNote,
   type Report,
+  reportOverviewTables,
 } from '@ninjapaw/contracts';
 import { toCsv } from './sanitize.js';
 
 export function generateCsv(report: Report): string {
   const tables = [
+    ...reportOverviewTables(report),
     ...(report.insights ? insightTables(report.insights) : []),
     ...(['azure-devops', 'github'] as const).flatMap((provider) =>
       cioBriefTables(buildCioBrief(report, provider)),
@@ -111,6 +114,15 @@ export function generateCsv(report: Report): string {
         basis: solutionPricingNote,
       })),
       ...report.warnings.map((warning) => ({ rowType: 'warning', reason: warning })),
+      ...(report.insights?.azureEstimates?.length
+        ? [
+            {
+              rowType: 'azure-enablement-methodology',
+              provider: 'azure-devops',
+              basis: azureAdoptionNote,
+            },
+          ]
+        : []),
       ...(report.insights?.azureBilling?.length
         ? [
             {

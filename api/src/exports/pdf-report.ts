@@ -14,8 +14,12 @@ import {
   uniqueAzureDevOpsCommitters,
   azureBillingNote,
   azureBillingTables,
+  azureAdoptionTables,
+  azureAdoptionNote,
   githubBillingTables,
   githubBillingNote,
+  reportOverviewTables,
+  reportOverviewNote,
 } from '@ninjapaw/contracts';
 
 function wrap(
@@ -337,10 +341,10 @@ async function generateProviderPdf(report: StoredReport): Promise<PDFDocument> {
     );
     y -= 10;
   }
-  addLine('CIO decision brief', { bold: true, size: 15 });
-  for (const table of cioBriefTables(buildCioBrief(report, report.provider))) {
-    addTable(table.title, table.columns, table.rows, table.title === 'CIO evidence');
+  for (const table of reportOverviewTables(report)) {
+    if (table.rows.length) addTable(table.title, table.columns, table.rows);
   }
+  addLine(reportOverviewNote, { size: 9 });
   for (const summary of report.providerSummaries ?? []) {
     addLine(summary.displayName, { bold: true, size: 15 });
     addLine(`Measurement: ${summary.measurement}`);
@@ -357,7 +361,7 @@ async function generateProviderPdf(report: StoredReport): Promise<PDFDocument> {
     addLine(summary.methodology, { size: 9 });
     y -= 10;
   }
-  if (report.costEstimates?.length) {
+  if (report.costEstimates?.length && !report.insights?.azureEstimates?.length) {
     ensureSpace(250);
     addLine('Estimated billing', { bold: true, size: 15 });
     addLine(solutionPricingNote, { size: 9 });
@@ -382,10 +386,19 @@ async function generateProviderPdf(report: StoredReport): Promise<PDFDocument> {
     }
     y -= 10;
   }
-  if (report.insights?.azureBilling?.length) {
+  if (report.insights?.azureBilling?.length || report.insights?.azureEstimates?.length) {
     addLine('Provider-reported Azure billing', { bold: true, size: 15 });
+    if (report.insights.azureEstimates?.length) {
+      addLine(azureAdoptionNote, { size: 9 });
+      for (const table of azureAdoptionTables(
+        report.insights.azureEstimates,
+        report.insights.azureBilling,
+        report.insights.repositories,
+      ))
+        addTable(table.title, table.columns, table.rows);
+    }
     addLine(azureBillingNote, { size: 9 });
-    for (const table of azureBillingTables(report.insights.azureBilling, {
+    for (const table of azureBillingTables(report.insights.azureBilling ?? [], {
       readableDates: true,
       timeZone: report.timeZone,
     })) {
@@ -479,6 +492,10 @@ async function generateProviderPdf(report: StoredReport): Promise<PDFDocument> {
     }
   }
   addLine('Recommended next steps', { bold: true, size: 15 });
+  addLine('CIO decision brief', { bold: true, size: 15 });
+  for (const table of cioBriefTables(buildCioBrief(report, report.provider))) {
+    addTable(table.title, table.columns, table.rows, table.title === 'CIO evidence');
+  }
   addLine(
     'Resolve skipped sources, review identity matches, and verify official membership, product enablement and billable usage before making purchasing decisions. Costs are scenarios; overlapping counts are not an invoice total.',
     { size: 9 },

@@ -5,11 +5,15 @@ import {
   type AzureDevOpsCommitter,
   type MultiSource,
   type SourceStatus,
+  type AzureBillingPlan,
 } from '@ninjapaw/contracts';
-import { fetchAzureDevOpsEstimate } from '../adapters/azure-devops/estimate-client.js';
+import {
+  fetchAzureDevOpsEstimate,
+  buildMeterUsageEstimateUrl,
+} from '../adapters/azure-devops/estimate-client.js';
 import { collectAzureBilling } from '../adapters/azure-devops/billing-client.js';
 import { discoverAzureDevOpsOrganizations } from '../adapters/azure-devops/organizations-client.js';
-import { acquireAzureDevOpsToken, signInWithBrowser } from '../auth/local-credential.js';
+import { acquireAzureDevOpsToken, startAzureCliSignIn } from '../auth/local-credential.js';
 import { saveReport } from '../reports/report-store.js';
 import { config } from '../shared/config.js';
 import { buildProviderSummary } from '../reports/provider-summary.js';
@@ -28,7 +32,7 @@ export function azureSourceScope(source: AzureSource): string {
 }
 
 export async function connectAzureDevOps() {
-  return signInWithBrowser();
+  return startAzureCliSignIn();
 }
 
 export async function discoverAzureDevOpsSources() {
@@ -83,6 +87,13 @@ export async function collectAzureDevOps(
   source: AzureSource,
   insights?: ReportInsights,
 ): Promise<AzureDevOpsCommitter[]> {
+  if (insights) {
+    insights.azureServiceEstimates ??= [];
+    insights.azureServiceEstimates.push({
+      organization: source.organization,
+      inputs: source.serviceScenario ?? { basicFreeUsers: 5 },
+    });
+  }
   const accessToken = await acquireAzureDevOpsToken();
   if (insights) await collectAzureBilling(source, insights, acquireAzureDevOpsToken);
   if (insights)
@@ -92,38 +103,59 @@ export async function collectAzureDevOps(
       accessToken,
       insights,
     );
-  try {
-    const rows = (
-      await Promise.all(
-        source.plans.map((plan) =>
-          fetchAzureDevOpsEstimate({
-            organization: source.organization,
-            plan,
-            resultType: 'estimated',
-            accessToken,
-          }),
-        ),
-      )
-    ).flat();
-    insights?.checks.push({
-      provider: 'azure-devops',
-      source: source.organization,
-      dataset: 'Security estimates',
-      status: 'complete',
-      detail:
-        'Current preview estimate for selected plans. The activity window does not alter the provider billing window.',
-    });
-    return rows;
-  } catch (error) {
-    if (!insights) throw error;
+  if (insights) {
+    const plans: AzureBillingPlan[] = source.plans.includes('all')
+      ? ['codeSecurity', 'secretProtection']
+      : ([...new Set(source.plans)] as AzureBillingPlan[]);
+    const committers: AzureDevOpsCommitter[] = [];
+    let readableEstimate = false;
+    let failure: unknown;
+    insights.azureEstimates ??= [];
+    for (const plan of plans) {
+      try {
+        const rows = await fetchAzureDevOpsEstimate({
+          organization: source.organization,
+          plan,
+          resultType: 'estimated',
+          accessToken,
+          onEstimate: (estimate) => {
+            insights.azureEstimates!.push(estimate);
+          },
+        });
+        committers.push(...rows);
+        readableEstimate = true;
+      } catch (error) {
+        failure = error;
+        insights.azureEstimates.push({
+          organization: source.organization,
+          plan,
+          collectedAt: new Date().toISOString(),
+          sourceUrl: buildMeterUsageEstimateUrl(source.organization, plan).href,
+          apiVersion: config.azureDevOps.apiVersion(),
+          status: 'unavailable',
+          returnedIdentities: 0,
+          warnings: [
+            'Provider enablement estimate unavailable. No Git activity count or zero-cost value was substituted.',
+          ],
+        });
+      }
+    }
+    const estimates = insights.azureEstimates.filter(
+      (estimate) => estimate.organization === source.organization,
+    );
+    const complete =
+      estimates.length === plans.length &&
+      estimates.every((estimate) => estimate.status === 'complete');
     insights.checks.push({
       provider: 'azure-devops',
       source: source.organization,
       dataset: 'Security estimates',
-      status: 'unavailable',
-      detail: 'Preview estimate could not be read; costs are unknown, not zero.',
+      status: complete ? 'complete' : readableEstimate ? 'partial' : 'unavailable',
+      detail:
+        'Organization/product enablement estimates are independent of billing access and current enablement. Provider counts and missing names are reported separately. The activity window does not change the provider billing window.',
     });
     if (
+      !readableEstimate &&
       !insights.repositories.some(
         (row) => row.provider === 'azure-devops' && row.source === source.organization,
       ) &&
@@ -132,14 +164,42 @@ export async function collectAzureDevOps(
           snapshot.organization === source.organization && snapshot.status !== 'unavailable',
       )
     )
-      throw error;
-    return [];
+      throw failure;
+    return committers;
   }
+  return (
+    await Promise.all(
+      source.plans.map((plan) =>
+        fetchAzureDevOpsEstimate({
+          organization: source.organization,
+          plan,
+          resultType: 'estimated',
+          accessToken,
+        }),
+      ),
+    )
+  ).flat();
 }
 
 export async function preflightAzureDevOps(source: AzureSource): Promise<void> {
   try {
-    await collectAzureDevOps(source);
+    const accessToken = await acquireAzureDevOpsToken();
+    const plans = source.plans.includes('all')
+      ? (['codeSecurity', 'secretProtection'] as const)
+      : source.plans;
+    const results = await Promise.allSettled(
+      plans.map((plan) =>
+        fetchAzureDevOpsEstimate({
+          organization: source.organization,
+          plan,
+          resultType: 'estimated',
+          accessToken,
+          onEstimate: () => undefined,
+        }),
+      ),
+    );
+    if (results.some((result) => result.status === 'fulfilled')) return;
+    throw new Error('No selected product estimate could be read.');
   } catch {
     try {
       await preflightAzureRepositoryAccess(source.organization, await acquireAzureDevOpsToken());

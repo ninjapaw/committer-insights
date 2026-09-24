@@ -1,3 +1,4 @@
+import { azureSecurityPrices } from '@ninjapaw/contracts';
 import type {
   AzureDevOpsCommitter,
   CostEstimateLineItem,
@@ -5,8 +6,8 @@ import type {
   ProviderSummary,
 } from '@ninjapaw/contracts';
 export const PUBLIC_PRICE_ASSUMPTIONS = {
-  codeSecurityPerCommitterUsd: 30,
-  secretProtectionPerCommitterUsd: 19,
+  codeSecurityPerCommitterUsd: azureSecurityPrices.codeSecurity,
+  secretProtectionPerCommitterUsd: azureSecurityPrices.secretProtection,
   githubEnterprisePerUserUsd: 21,
 } as const;
 

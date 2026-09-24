@@ -1,5 +1,11 @@
 import type { DailyActivity } from './github.js';
-import { azureBillingTables, type AzureBillingSnapshot } from './azure-billing.js';
+import { azureServicePricingTables, type AzureServiceEstimate } from './azure-service-pricing.js';
+import {
+  azureBillingTables,
+  azureAdoptionTables,
+  type AzureAdoptionEstimate,
+  type AzureBillingSnapshot,
+} from './azure-billing.js';
 import { githubBillingTables, type GitHubBillingSnapshot } from './github-billing.js';
 import { formatReportDateTime, resolveReportTimeZone } from './date-display.js';
 
@@ -49,6 +55,8 @@ export interface BillingUsage {
   netUsd: number;
 }
 export interface ReportInsights {
+  azureServiceEstimates?: AzureServiceEstimate[];
+  azureEstimates?: AzureAdoptionEstimate[];
   githubBilling?: GitHubBillingSnapshot[];
   azureBilling?: AzureBillingSnapshot[];
   repositories: RepositoryInsight[];
@@ -174,7 +182,13 @@ export function insightTables(
     ? (value: string) => formatReportDateTime(value, timeZone)
     : (value: string) => value;
   return [
+    ...azureAdoptionTables(
+      insights.azureEstimates ?? [],
+      insights.azureBilling,
+      insights.repositories,
+    ),
     ...azureBillingTables(insights.azureBilling ?? [], options),
+    ...azureServicePricingTables(insights.azureServiceEstimates ?? []),
     ...githubBillingTables(insights.githubBilling ?? []),
     {
       title: 'Repository inventory',

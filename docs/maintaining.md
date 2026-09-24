@@ -16,7 +16,7 @@ The app is a React UI served by a loopback Node host. Shared report schemas and 
 
 ## Microsoft Authentication
 
-Default Microsoft login uses Azure Identity's browser and device-code credentials. The publisher supplies a multitenant Entra public-client registration. Customers do not supply app registrations or secrets. The checked-in [publisher manifest](../infra/publisher/public-client.json) contains only generic public configuration. A separately selected bundled Azure CLI flow is available in Windows packages; it never replaces failed SDK authentication automatically.
+Default Microsoft login (`connectAzureDevOps`, including `/api/auth/sign-in`) starts bundled Azure CLI with the Windows account broker enabled. The main Microsoft button and account-change action share this path; there is no duplicate CLI button. Source/non-Windows runs report that the Windows package is required instead of silently switching methods. The explicitly selected device-code action still uses Azure Identity and the publisher's multitenant Entra public-client registration. Customers do not supply registrations or secrets. The checked-in [publisher manifest](../infra/publisher/public-client.json) contains generic public configuration. No SDK fallback is attempted after CLI failure.
 
 Publisher registration requirements:
 
@@ -41,7 +41,7 @@ npm run build:exe
 .\release\committer-insights.exe --skip-update-check
 ```
 
-Local unconfigured test builds are allowed, but cannot use SDK Microsoft sign-in. The explicit Azure CLI option does not require that publisher client ID. A successful build does not prove user consent, cross-tenant permissions, or token renewal; validate those separately before production claims.
+Local unconfigured Windows test builds can use the default CLI sign-in, but cannot use SDK device-code sign-in. The default CLI path does not require a publisher client ID. Release CI still requires publisher configuration for the explicit SDK option. A successful build does not prove user consent, cross-tenant permissions, or token renewal; validate those separately before production claims.
 
 ## Bundled GitHub CLI
 
@@ -55,11 +55,13 @@ CLI updates are a publisher responsibility: review upstream changes, verify the 
 
 ## Bundled Azure CLI
 
+CLI login enables Windows Web Account Manager through `AZURE_CORE_ENABLE_BROKER_ON_WINDOWS=true`, with no `--use-device-code`, username or password arguments. Azure CLI 2.90.0's interactive flow requests `prompt=select_account`, opening Microsoft's account picker. User credentials remain in Microsoft's UI. `AZURE_CORE_LOGIN_EXPERIENCE_V2=off` disables only the terminal subscription selector, not modern authentication. Any browser/device fallback belongs to the CLI; the existing challenge parser still handles supported device messages. Sign-in retains the ten-minute deadline and cancellation; the SDK's explicit device-code option remains unchanged. See [Microsoft's interactive login guidance](https://learn.microsoft.com/cli/azure/authenticate-azure-cli-interactively).
+
 [config/azure-cli.json](../config/azure-cli.json) pins the official Windows x64 ZIP, version 2.90.0, and the SHA-256 measured from its Microsoft-hosted HTTPS download. The portable ZIP is documented by Microsoft as preview. Preserve the entire distribution, including Python and all dependency licenses. The build verifies the pin, bounds archive entries and expanded size, rejects unsafe/duplicate/link paths, inventories every runtime file, and checks the CLI version. No global installation or PATH change is performed.
 
 Runtime extraction uses Windows PowerShell's built-in ZIP support, a staging directory, and atomic publication. Each CLI process launch verifies every extracted runtime file and rejects extra files or links. Corruption fails closed; close the app and remove only its affected versioned Azure CLI tool-cache directory to force verified re-extraction. Python runs by exact path in isolated mode with bytecode writes disabled. Source/non-Windows runs explicitly report that this option requires a Windows package.
 
-CLI authentication uses a fresh temporary `AZURE_CONFIG_DIR`, not a developer's existing cache. CLI telemetry, dynamic extension installation, and broker authentication are disabled. Cancellation terminates the owned process; normal cleanup removes the temporary credentials. Forced termination may leave a sensitive temporary directory, as described in the README. Tokens stay server-side, are requested only for Azure DevOps, and are renewed using the selected tenant and the CLI's returned expiry. Multi-tenant operators can set `COMMITTER_INSIGHTS_TENANT_ID` to a tenant GUID before launching. No administrator approval bypass is provided.
+CLI authentication uses a fresh temporary `AZURE_CONFIG_DIR`, not a developer's existing CLI configuration. CLI telemetry and dynamic extension installation are disabled. WAM manages credentials outside that directory; app cleanup does not erase broker state or remove Windows accounts. Cancellation terminates the owned process; normal cleanup removes only the app-owned temporary credentials. Forced termination may leave a sensitive temporary directory, as described in the README. Tokens stay server-side; Azure DevOps token requests and renewal use the selected tenant and CLI expiry. The initial CLI login also performs its normal Azure account discovery. Multi-tenant operators can set `COMMITTER_INSIGHTS_TENANT_ID` to a tenant GUID before launching. No administrator approval bypass is provided.
 
 Publish `azure-cli.spdx.json` alongside the application and GitHub CLI inventories and `THIRD-PARTY-NOTICES.txt`. This companion inventory identifies the distribution and hash; it is not a complete dependency-license determination. Keep executable size below the existing updater's 256 MiB limit. Packaged smoke checks verify a protected, read-only `/api/auth/azure-cli/info` version request with an empty PATH and fresh configuration, without initiating authentication.
 
@@ -97,6 +99,24 @@ npm run demo:dev -- --port 4359
 The release workflow checks out the published tag, builds/tests the demo, attaches synthetic samples, and deploys only `demo/dist`. The `github-pages` environment must allow versioned release tags; existing `v*.*.*` tag authorization supports this. Do not bypass other deployment protections. Actions remain pinned to commit SHAs.
 
 ## Security Boundaries
+
+### Service Pricing Scenarios
+
+`azure-service-pricing.ts` in the shared contracts package owns the validated inputs, dated USD rates and calculations for other Azure DevOps services. `serviceScenario` is per organization in the report request; `azureServiceEstimates` preserves the inputs in report insights. The setup preview, results and CSV/HTML/PDF exports use the same tables. Keep these scenarios separate from provider observations and exclude them from GitHub provider views.
+
+Missing quantities stay unavailable; explicit zero is valid. Basic has a separately allocated free-seat allowance, Test Plans already includes Basic, pipeline inputs represent paid parallel jobs, and Artifacts applies progressive GiB bands after the free 2 GiB. Do not infer seats, paid capacity, storage or AI credits from Git activity. Do not introduce cross-organization totals without verified license and allowance scope. Price changes require updating the source date, assumptions and tier-boundary tests together.
+
+### Acceptance Notes (2026-09-24)
+
+- Run `npm run ci` for formatting, lint, typechecks, all 264 current automated tests, executable packaging and isolated bundled-CLI smoke checks.
+- Run `npm run demo:test` for deterministic synthetic CSV/HTML/PDF generation, desktop/mobile results, downloads, partial/empty reports and network isolation. Fixture version 5 includes other-service what-if calculations.
+- Account selection is configured through the pinned CLI's WAM flow; automated tests do not approve a real account or establish customer Conditional Access compatibility. App cache cleanup does not remove Windows broker credentials.
+- Billing tests use synthetic responses. No invoice reconciliation, tenant-wide entitlement inventory or future-charge guarantee is implied. The additional service quantities are manual planning inputs, not collected usage.
+- Build artifacts stay ignored. A source commit/push is not a release: preserve the published beta.9 notes until the explicit release procedure above is completed for a new tag.
+
+### Provider Evidence
+
+Azure enablement scenarios retain `uniqueCommitterCount` independently of returned names through the estimate adapter's optional structured callback. Legacy identity-only callers remain strict; incomplete names do not become a complete zero-count result. Report collection queries each selected product independently, preserving partial successes. Preflight permits any readable selected-product estimate, including count-only responses. The comparison remains available when billing collection is disabled or denied, but never interprets that as zero charges. Standalone-product list prices are shared in contracts; scenario amounts are per organization/product and must not be merged with billed usage or across subscriptions. `azureEstimates` and its provenance are included only in the Azure provider section and all exports. Dates, incomplete coverage, mismatches and legacy-bundle uncertainty must remain visible.
 
 GitHub billing uses read-only REST API version `2026-03-10` independently of the existing activity API version. Organization security snapshots paginate `/orgs/{org}/settings/billing/advanced-security`, separately for bundle, Code Security and Secret Protection. Counts are retained when detail is incomplete; repository counts and distinct logins are checked without summing overlapping scopes/products. No documented enterprise security endpoint is assumed. Usage detail, all-cost-center usage summaries, premium requests and AI credits are separate monthly datasets; only daily rows are clipped to the activity window. The full month for an aggregate is intentional and must stay visible in exports. Tokens and API error bodies must not be exported. Billing-only access does not imply readable repository activity or zero estimated cost. The tests use synthetic responses; live customer billing reconciliation is a separate acceptance check.
 

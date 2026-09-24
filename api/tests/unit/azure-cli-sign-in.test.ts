@@ -13,7 +13,7 @@ afterEach(() => {
   vi.resetAllMocks();
   vi.unstubAllEnvs();
 });
-function setup(outputs: Array<string | Error>) {
+function setup(outputs: Array<string | Error>, browserPrompt = false) {
   mocks.resolve.mockResolvedValue('C:/private-tools/python.exe');
   mocks.execute.mockImplementation((_path, _args, _options, callback) => {
     const child = new EventEmitter() as EventEmitter & {
@@ -26,7 +26,9 @@ function setup(outputs: Array<string | Error>) {
       child.stderr.emit(
         'data',
         Buffer.from(
-          'To sign in, use a web browser to open https://microsoft.com/devicelogin and enter the code TEST12345 to authenticate.',
+          browserPrompt
+            ? 'A web browser has been opened to sign in.'
+            : 'To sign in, use a web browser to open https://microsoft.com/devicelogin and enter the code TEST12345 to authenticate.',
         ),
       );
       const result = outputs.shift();
@@ -39,6 +41,28 @@ function setup(outputs: Array<string | Error>) {
   return session;
 }
 describe('isolated Azure CLI authentication', () => {
+  it('uses modern Windows account selection without forcing a device challenge', async () => {
+    const session = setup(
+      [
+        JSON.stringify([{ tenantId: tenant, user: { type: 'user', name: 'person@example.test' } }]),
+        JSON.stringify({
+          accessToken: 'browser-token',
+          tenant,
+          expires_on: Math.floor(Date.now() / 1000) + 3600,
+        }),
+      ],
+      true,
+    );
+    const challenge = vi.fn();
+    expect(await session.authenticate(challenge)).toEqual({
+      username: 'person@example.test',
+      tenantId: tenant,
+    });
+    expect(challenge).not.toHaveBeenCalled();
+    expect(mocks.execute.mock.calls[0]![2].env.AZURE_CORE_ENABLE_BROKER_ON_WINDOWS).toBe('true');
+    expect(mocks.execute.mock.calls[0]![2].env.AZURE_CORE_LOGIN_EXPERIENCE_V2).toBe('off');
+    expect(mocks.execute.mock.calls[0]![1]).not.toContain('--use-device-code');
+  });
   it('parses only trusted challenge locations', () => {
     expect(
       parseAzureCliChallenge(
@@ -82,12 +106,15 @@ describe('isolated Azure CLI authentication', () => {
       '-m',
       'azure.cli',
       'login',
-      '--use-device-code',
       '--allow-no-subscriptions',
       '--output',
       'json',
     ]);
     expect(call[2].env.AZURE_CONFIG_DIR).not.toBe('do-not-use');
+    expect(call[1]).not.toContain('--username');
+    expect(call[1]).not.toContain('--password');
+    expect(call[1]).not.toContain('--use-device-code');
+    expect(call[2].timeout).toBe(600000);
     expect(call[2].env.AZURE_CLIENT_SECRET).toBeUndefined();
     expect(call[2].env.AZURE_EXTENSION_USE_DYNAMIC_INSTALL).toBe('no');
     expect(await session.credential.getToken('ignored')).toMatchObject({ token: 'renewed-token' });

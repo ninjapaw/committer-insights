@@ -70,6 +70,12 @@ export function providerReport(report: Report, provider: MultiSource['provider']
     costEstimates: report.costEstimates?.filter((item) => item.provider === provider),
     insights: report.insights
       ? {
+          ...(provider === 'azure-devops' && report.insights.azureServiceEstimates
+            ? { azureServiceEstimates: report.insights.azureServiceEstimates }
+            : {}),
+          ...(provider === 'azure-devops' && report.insights.azureEstimates
+            ? { azureEstimates: report.insights.azureEstimates }
+            : {}),
           ...(provider === 'github' && report.insights.githubBilling
             ? { githubBilling: report.insights.githubBilling }
             : {}),

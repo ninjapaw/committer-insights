@@ -6,6 +6,7 @@ import type { Report } from '@ninjapaw/contracts';
 import { ResultsDashboardPage } from '../../src/pages/ResultsDashboardPage';
 import { ReportInsightsPanel } from '../../src/components/ReportInsightsPanel';
 import { CioBriefPanel } from '../../src/components/CioBriefPanel';
+import { AzureBillingPanel } from '../../src/components/AzureBillingPanel';
 
 vi.mock('../../src/auth/get-token', () => ({
   getPortalApiToken: vi.fn().mockResolvedValue('test-capability'),
@@ -16,6 +17,50 @@ afterEach(() => {
 });
 
 describe('Results dashboard', () => {
+  it('leads with usable Azure enablement estimates when no billing snapshot exists', () => {
+    render(
+      <AzureBillingPanel
+        snapshots={[]}
+        estimates={[
+          {
+            organization: 'example',
+            plan: 'codeSecurity',
+            providerCount: 12,
+            returnedIdentities: 12,
+            status: 'complete',
+            collectedAt: '2026-09-24T12:00:00Z',
+            apiVersion: 'test',
+            sourceUrl: 'https://example.invalid',
+            warnings: [],
+          },
+          {
+            organization: 'example',
+            plan: 'secretProtection',
+            providerCount: 8,
+            returnedIdentities: 0,
+            status: 'partial',
+            collectedAt: '2026-09-24T12:00:00Z',
+            apiVersion: 'test',
+            sourceUrl: 'https://example.invalid',
+            warnings: ['Names unavailable'],
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText(/Billing history is not required/)).toBeVisible();
+    const table = screen.getByRole('region', { name: 'Azure billing and enablement scenarios' });
+    expect(within(table).getByText('12 x $30.00/month')).toBeVisible();
+    expect(within(table).getByText('$360.00')).toBeVisible();
+    expect(within(table).getByText('8 x $19.00/month')).toBeVisible();
+    expect(within(table).getByText('$152.00')).toBeVisible();
+    expect(within(table).getByText('Provider count; identity detail incomplete')).toBeVisible();
+    expect(
+      screen.queryByText('Billing evidence was not requested or is unavailable in this report.'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText('Pricing assumptions and billing comparison limits').closest('details'),
+    ).not.toHaveAttribute('open');
+  });
   it('renders a supplied static report without calling the local API or authentication', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
@@ -336,6 +381,7 @@ describe('Results dashboard', () => {
       expect(
         screen.getByRole('navigation', { name: 'GitHub Enterprise report sections' }),
       ).toBeInTheDocument();
+      fireEvent.click(screen.getByText('Evidence-based recommendations and collection plan'));
       expect(screen.getByRole('region', { name: 'Recommendations', exact: true })).toContainElement(
         screen.getByRole('region', { name: 'CIO decision brief' }),
       );
@@ -348,7 +394,13 @@ describe('Results dashboard', () => {
       expect(screen.queryByText('azure-organization-only')).not.toBeInTheDocument();
       expect(screen.getByText('GitHub activity only')).toBeInTheDocument();
       expect(screen.getByText(/All providers are included in every download/)).toBeInTheDocument();
-      for (const sectionName of ['Executive summary', 'Estimated billing']) {
+      expect(
+        within(screen.getByRole('region', { name: 'Executive summary' })).queryByText(
+          'GHAS subtotal: Code Security + Secret Protection',
+        ),
+      ).not.toBeInTheDocument();
+      expect(screen.getByRole('region', { name: 'Collection at a glance' })).toBeInTheDocument();
+      for (const sectionName of ['Estimated billing']) {
         const section = screen.getByRole('region', { name: sectionName });
         expect(
           within(section).getByText('GHAS subtotal: Code Security + Secret Protection'),

@@ -26,9 +26,11 @@ Beta.9 Windows builds include Node.js, GitHub CLI, and Azure CLI. No separate ru
 
 ## Sign In
 
-**Microsoft:** choose **Sign in with Microsoft** or **Sign in with a device code**. Authentication uses Azure Identity directly, not Azure CLI. Customers do not create app registrations or provide client secrets or PATs. Organizational Microsoft accounts are supported; personal Microsoft accounts are not. Tenant consent and Conditional Access may require administrator approval or block device codes.
+This section describes the current development build. Published beta.9 still exposes Azure CLI as a separate option; the changes below require a newer published release or a local build run with `--skip-update-check`.
 
-**Azure CLI (Windows package):** the explicit **Sign in with Azure CLI** option uses bundled Azure CLI 2.90.0 and displays a Microsoft verification link and device code. Use it only where your organization permits CLI authentication. It does not bypass consent, MFA, Conditional Access, or provider permissions, and is never selected automatically after SDK sign-in fails. No publisher application ID is required for this option. First use extracts and verifies the full runtime; allow additional startup time and about 275 MB of tool-cache space.
+**Microsoft (Windows package):** **Sign in with Microsoft** and **Change account** use bundled Azure CLI 2.90.0 with Windows Web Account Manager (WAM) enabled. Microsoft's modern account picker lets you choose a Windows account or sign in with another account; the application never requests your password. The CLI requests account selection rather than supplying a username. Device-code authentication is not forced; any browser or device fallback is controlled by the CLI, not an automatic SDK retry. There is no separate Azure CLI button and no publisher application ID is required for this default path. First use extracts and verifies the runtime; allow additional startup time and about 275 MB of tool-cache space. This change is local and not in published beta.9.
+
+**Sign in with a device code** remains a separate, explicit Azure Identity option that requires publisher configuration. It is not used automatically if CLI sign-in fails. Customers do not create app registrations or provide client secrets or PATs. The CLI default requires the Windows x64 package; source/non-Windows runs do not fall back to a system CLI or the SDK. Tenant consent, MFA, Conditional Access, and provider permissions remain authoritative for both methods.
 
 **GitHub:** choose **Sign in with GitHub** to open the verification page automatically and display the device code and link. Enter only the code shown by your running app. This flow uses the bundled GitHub CLI and supports cancellation. Existing CLI accounts are available under **Saved accounts**.
 
@@ -46,7 +48,15 @@ The application makes read-only reporting requests, but GitHub CLI's OAuth scope
 
 PDF reports use a print-friendly version of the application's blue-and-neutral theme, with headline metrics, structured evidence, repeating table headers, clickable repository links, and continuous page numbering across provider sections.
 
+Local builds now put **Collection at a glance** and **Reported usage subtotals** before detailed evidence. Prices appear once per provider; HTML raw datasets are expandable and retain all rows. Usage subtotals prefer complete monthly summaries to overlapping daily detail, keeping accounts, periods, products and units separate. Azure billing failures distinguish HTTP status, unsupported response format, truncation and timeout without exposing raw provider messages. Older exports cannot reveal which of those failures occurred; regenerate the report with the updated build. These consolidation changes are not yet in published beta.9.
+
 **Azure DevOps provider-reported billing:** opt in to per-product billing snapshots and identities, with an optional UTC billing date and separately selected diagnostic details. Reports retain provider counts, subscription scope, collection status, and available project/repository/push evidence. Unmatched diagnostic identities are not added to totals. Reconciled counts cover only the selected organizations with complete same-date identity lists, not an entire subscription or invoice. Diagnostic data can include personal identities and email addresses.
+
+**Azure DevOps enablement scenarios (unreleased):** selected security plans always request Microsoft's organization-level enablement estimate, even when billing is unavailable or the product is disabled. In the Azure billing section, **Azure billing and enablement scenarios** compares the dated billable count with the provider estimate and modeled monthly/annualized cost. Provider counts remain usable when names are incomplete; each product reports its own success or failure. The evidence and provenance views retain completeness warnings, visible repository settings, billing date, collection timestamp, source URL, and price assumptions.
+
+Code Security uses USD 30 and Secret Protection USD 19 per estimated committer/month, checked against [Azure DevOps pricing](https://azure.microsoft.com/en-us/pricing/details/devops/azure-devops-services/) on 2026-09-24. For example, an estimate of 12 Code Security committers models $360/month even if the dated billing snapshot says disabled with zero billed committers. This is not a charge, quote, or guaranteed number of additional seats. Do not add estimates to billed counts or sum organizations sharing a subscription. The snapshot-count monthly equivalent is also only a model, not an invoice. No product is enabled or billing setting changed.
+
+For a product that is off, the primary result is its provider-estimated committer count multiplied by its monthly rate; a billing snapshot is optional, not a prerequisite. Code Security and Secret Protection are calculated independently. The primary table shows the arithmetic and whether identity detail reconciles, while observed on/off state and dated billing counts remain in the evidence view. New reports show this provider-count estimate once instead of repeating an identity-row estimate. No percentage accuracy is claimed: Microsoft supplies an estimate, and actual billing depends on daily eligible identities, subscription-wide deduplication, enabled scope, contract rates and adjustments. When the estimate API is unavailable, the report does not invent a count from Git history or silently enter zero.
 
 **GitHub provider-reported billing:** opt in to billing snapshots when selecting sources. The GitHub billing section contains current organization security committer counts, repository breakdowns, user logins, last-push dates/emails, and organization or enterprise usage charges. Usage summary, premium-request, and AI-credit reports retain units, rates, gross amounts, discounts, and net amounts separately. Your account/token needs the corresponding billing access; this option does not grant permissions or change authentication scopes.
 
@@ -74,15 +84,41 @@ Startup stops if the newest release cannot be confirmed or verified. For deliber
 
 Use `--help` to view options without contacting GitHub. Updates trust this repository's release publishers; checksums do not replace code signing. Beta.6 and earlier need a one-time manual upgrade to obtain the updater.
 
+## Other Azure DevOps Service Estimates (Unreleased)
+
+Report setup now includes per-organization what-if quantities for Basic, Basic + Test Plans, Pipelines, Artifacts and GitHub AI credits for Azure DevOps. The preview, results dashboard and CSV/HTML/PDF exports use the same calculations. These quantities are user-entered, not collected license or usage inventories; an empty quantity stays unavailable instead of becoming zero. Security committer estimates are never reused as user-license counts.
+
+| Service                    | Monthly USD list-price calculation                                                  |
+| -------------------------- | ----------------------------------------------------------------------------------- |
+| Basic                      | `max(0, eligible Basic users - allocated free seats) x $6`; at most five free seats |
+| Basic + Test Plans         | Paid users x $52; Basic is included, not added again                                |
+| Microsoft-hosted Pipelines | Paid parallel jobs x $40                                                            |
+| Self-hosted Pipelines      | Paid parallel jobs x $15                                                            |
+| GitHub-hosted macOS agents | Standard minutes x $0.062; XL minutes x $0.102                                      |
+| Artifacts                  | First 2 GiB free; next 8 x $2, next 90 x $1, next 900 x $0.50, remainder x $0.25    |
+| GitHub AI credits          | Billable credits x $0.01                                                            |
+
+Prices checked 2026-09-24 against [Microsoft's rate card](https://azure.microsoft.com/en-us/pricing/details/devops/azure-devops-services/). Exclude qualifying Visual Studio/GitHub Enterprise included licenses before entering user counts and allocate free Basic seats according to your billing scope. A first paid Microsoft-hosted job replaces the free job, not adds to it; the free grant, when approved, has one job and 1,800 minutes/month. Enter paid capacity after applicable self-hosted benefits. Storage assumes a constant full-month GiB amount; actual usage and billing can change daily. AI credits cover billable credits after benefits, not a predicted credit cost per request. Annualized amounts are monthly x 12, not quotes. Taxes, negotiated discounts, proration and additional agent infrastructure are excluded. No cross-organization or security-plus-service grand total is inferred.
+
 ## Privacy and Security
 
 Committer Insights has no report-processing backend and sends no product telemetry. Authentication and collection contact Microsoft and GitHub directly; update checks contact GitHub Releases. Provider access tokens are not returned to the browser. SDK Microsoft tokens and reports remain in application memory; GitHub CLI manages its own credential storage.
 
-The optional Azure CLI flow uses a fresh temporary credential directory for each sign-in, separate from your existing CLI accounts. It disables CLI telemetry, dynamic extension installation, and the Windows authentication broker. The directory is removed on cancellation, account change, sign-out, or normal process exit; a crash or forced termination may leave sensitive files under your temporary directory (`committer-azure-sign-in-*`). Remove those leftovers only when the application is closed. Deleting a local cache does not revoke issued tokens. The verified tool runtime remains under `%LOCALAPPDATA%\CommitterInsights\tools\azure-cli`.
+The default Azure CLI flow uses a fresh temporary CLI directory for each sign-in, separate from your existing CLI configuration. CLI telemetry and dynamic extension installation are disabled. Windows Web Account Manager manages broker credentials outside this directory and may reuse Windows accounts or retain sign-in state. App sign-out and cache removal do not sign you out of Windows or revoke issued tokens. The app-owned directory is removed on cancellation, account change, sign-out, or normal process exit; a crash or forced termination may leave sensitive files under your temporary directory (`committer-azure-sign-in-*`). Remove those leftovers only when the application is closed. The verified tool runtime remains under `%LOCALAPPDATA%\CommitterInsights\tools\azure-cli`.
 
 Reports can contain organization and repository identifiers, project metadata, contributor identities, activity, security settings, timestamps, and optional billing amounts. Source files, commit messages, patches, and GitHub author email addresses from activity collection are not retained. Opt-in GitHub security billing includes provider-reported last-push email addresses and logins. Exports may contain personal and commercially sensitive information: apply your organization's retention and sharing policies.
 
 The local server binds to loopback and requires a per-launch session credential. It is not designed to protect against a compromised computer, same-user malware, or privileged browser extensions. Do not share local session URLs or device codes. Report vulnerabilities privately through [SECURITY.md](SECURITY.md), not public issues.
+
+## Unreleased Changes
+
+- Default Microsoft sign-in and account changes use the bundled Azure CLI with the modern Windows account picker. Device codes are not forced; Windows broker credentials remain managed by Windows.
+- Azure security estimates retain provider counts even when identity detail is incomplete or billing history is unavailable. Each selected product has independent calculations and collection status.
+- Basic, Basic + Test Plans, Pipelines, Artifacts and AI-credit what-if inputs show monthly calculations and annualized costs in the dashboard and all exports, without substituting committer counts for usage.
+- Consolidated coverage summaries, nonoverlapping usage subtotals and expandable HTML evidence make missing data and pricing assumptions visible.
+- Synthetic fixtures cover service-pricing tiers, disabled products, denied billing, and partial estimates. These changes do not enable products or change provider billing settings.
+
+Local validation includes automated tests, Windows packaging and CLI smoke checks, plus desktop/mobile synthetic export checks. Live WAM sign-in, customer invoice reconciliation and clean-machine certification remain separate acceptance checks. A commit to `dev` does not publish a downloadable release or update the public demo.
 
 ## What's New in Beta.9
 
@@ -101,7 +137,7 @@ Billing behavior is validated with synthetic responses, not live customer invoic
 | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | Windows or organization policy blocks the executable | Ask your administrator to review this unsigned evaluation build. Do not disable endpoint protection.                                 |
 | Microsoft requests approval                          | Follow your tenant's consent process. Device codes do not bypass tenant policy.                                                      |
-| Microsoft sign-in is not configured                  | Obtain a configured release from the publisher; `az login` does not fix the packaged configuration.                                  |
+| Explicit device-code sign-in is not configured       | Obtain a publisher-configured build. The development build's default bundled CLI path does not require the publisher app ID.         |
 | GitHub login or bundled tool fails                   | Re-download the current release and check endpoint-policy restrictions. A global CLI installation does not replace the bundled tool. |
 | A source or dataset is unavailable                   | Check the report's coverage warnings and your existing access. Do not grant write/admin access merely to fill report gaps.           |
 | GitHub organization access is missing                | Complete any required organization OAuth or SAML authorization using an approved account.                                            |

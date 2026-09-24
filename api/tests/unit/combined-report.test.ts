@@ -33,7 +33,8 @@ vi.mock('../../src/adapters/github/insights-client.js', () => ({
   fetchGitHubRepositoryInsight: vi.fn(),
   collectGitHubBilling: vi.fn(),
 }));
-vi.mock('../../src/adapters/azure-devops/estimate-client.js', () => ({
+vi.mock('../../src/adapters/azure-devops/estimate-client.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/adapters/azure-devops/estimate-client.js')>()),
   fetchAzureDevOpsEstimate: vi.fn(),
 }));
 vi.mock('../../src/adapters/github/github-client.js', () => ({
@@ -77,7 +78,7 @@ const githubRecord: GitHubCommitter = {
 };
 
 describe('combined reports', () => {
-  it('checks every selected Azure plan and skips a failed plan', async () => {
+  it('checks every selected Azure plan and retains access when one succeeds', async () => {
     vi.mocked(fetchAzureDevOpsEstimate).mockImplementation(async ({ plan }) => {
       if (plan === 'secretProtection') throw new Error('Permission denied');
       return [];
@@ -90,7 +91,7 @@ describe('combined reports', () => {
       },
     ]);
     expect(fetchAzureDevOpsEstimate).toHaveBeenCalledTimes(2);
-    expect(statuses[0]?.status).toBe('skipped');
+    expect(statuses[0]?.status).toBe('included');
   });
 
   it('does not save a report when every source fails', async () => {
@@ -126,9 +127,8 @@ describe('combined reports', () => {
   });
 
   it('deduplicates within each provider without merging cross-provider ID collisions', async () => {
-    vi.mocked(fetchAzureDevOpsEstimate).mockResolvedValue([
-      azureRecord,
-      { ...azureRecord, plan: 'secretProtection' },
+    vi.mocked(fetchAzureDevOpsEstimate).mockImplementation(async ({ plan }) => [
+      { ...azureRecord, plan },
     ]);
     vi.mocked(fetchGitHubCommitters).mockResolvedValue([
       githubRecord,
@@ -150,9 +150,9 @@ describe('combined reports', () => {
 
   it('keeps successful sources before and after a collection failure', async () => {
     const visits: string[] = [];
-    vi.mocked(fetchAzureDevOpsEstimate).mockImplementation(async ({ organization }) => {
+    vi.mocked(fetchAzureDevOpsEstimate).mockImplementation(async ({ organization, plan }) => {
       visits.push(organization);
-      return [azureRecord];
+      return plan === 'codeSecurity' ? [azureRecord] : [];
     });
     vi.mocked(fetchGitHubCommitters).mockImplementation(async ({ repository }) => {
       visits.push(repository);
@@ -167,7 +167,7 @@ describe('combined reports', () => {
       { provider: 'github', targetType: 'organization', target: 'private-org', sinceDays: 90 },
       { provider: 'github', targetType: 'organization', target: 'octocat', sinceDays: 90 },
     ]);
-    expect(visits).toEqual(['contoso', 'octocat/private', 'octocat/example']);
+    expect(visits).toEqual(['contoso', 'contoso', 'octocat/private', 'octocat/example']);
     expect(report.sourceStatuses?.map(({ status }) => status)).toEqual([
       'included',
       'skipped',
@@ -203,7 +203,7 @@ describe('combined reports', () => {
     expect(reportStore.get(report.reportId)).toBe(report);
   });
 
-  it('does not keep partial Azure plan results when another plan fails', async () => {
+  it('keeps successful Azure plan results when another plan fails', async () => {
     vi.mocked(fetchAzureDevOpsEstimate).mockImplementation(async ({ plan }) => {
       if (plan === 'secretProtection') throw new Error('403 permission denied');
       return [azureRecord];
@@ -217,12 +217,15 @@ describe('combined reports', () => {
       },
       { provider: 'github', targetType: 'organization', target: 'octocat', sinceDays: 90 },
     ]);
-    expect(result.azureDevOpsCommitters).toEqual([]);
+    expect(result.azureDevOpsCommitters).toEqual([azureRecord]);
+    expect(result.insights.azureEstimates).toContainEqual(
+      expect.objectContaining({ plan: 'secretProtection', status: 'unavailable' }),
+    );
     expect(result.summary).toMatchObject({
-      includedSources: 1,
-      skippedSources: 1,
-      azureIdentityRecords: 0,
-      uniqueProviderIdentities: 1,
+      includedSources: 2,
+      skippedSources: 0,
+      azureIdentityRecords: 1,
+      uniqueProviderIdentities: 2,
     });
   });
 

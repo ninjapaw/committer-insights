@@ -75,6 +75,79 @@ async function selectGitHubSource() {
 }
 
 describe('CombinedReportPage', () => {
+  it('previews service scenarios and sends validated quantities without enabling billing collection', async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      if (String(input) === '/api/reports/combined/preflight')
+        return Response.json({
+          statuses: [{ ...ready, provider: 'azure-devops', subject: 'example' }],
+        });
+      if (String(input) === '/api/reports/combined')
+        return Response.json({ reportId: 'scenario-report' });
+      throw new Error(`Unexpected request: ${String(input)}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    client.setQueryData(['report-draft'], {
+      azureSelected: ['example'],
+      githubSelected: [],
+      githubTargetTypes: {},
+      plans: ['all'],
+      sinceDays: 90,
+      includeBilling: false,
+      includeAzureBilling: false,
+      includeAzureBillingDetails: false,
+      billingDate: '',
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <CombinedReportPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Review report' }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Generate report' })).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByText('Other Azure DevOps services: what-if quantities'));
+    fireEvent.change(screen.getByLabelText('Basic users without included licenses'), {
+      target: { value: '12' },
+    });
+    expect(await screen.findByRole('cell', { name: '$42.00', exact: true })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Generate report' })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Paid Basic + Test Plans users'), {
+      target: { value: '-1' },
+    });
+    expect(await screen.findByRole('alert')).toHaveTextContent('nonnegative');
+    expect(screen.getByRole('button', { name: 'Check access' })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Paid Basic + Test Plans users'), {
+      target: { value: '3' },
+    });
+    expect(await screen.findByRole('cell', { name: '$156.00', exact: true })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Free Basic seats allocated (0-5)'), {
+      target: { value: '' },
+    });
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Free Basic seats allocated (0-5)'), {
+      target: { value: '5' },
+    });
+    await screen.findByRole('cell', { name: '$42.00', exact: true });
+    fireEvent.click(screen.getByRole('button', { name: 'Check access' }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Generate report' })).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Generate report' }));
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some(([path]) => path === '/api/reports/combined')).toBe(true),
+    );
+    const requests = fetchMock.mock.calls as unknown as Array<[string, RequestInit]>;
+    const request = requests.find(([path]) => path === '/api/reports/combined');
+    const source = JSON.parse(String(request?.[1].body)).sources[0];
+    expect(source.serviceScenario).toEqual({ basicUsers: 12, basicFreeUsers: 5, testPlanUsers: 3 });
+    expect(source.includeAzureBilling).toBeUndefined();
+  });
   it.each(['browser'] as const)(
     'prompts for GitHub %s login and connects after approval',
     async (mode) => {

@@ -35,7 +35,9 @@ export function createAzureCliSignIn(signal: AbortSignal) {
   Object.assign(environment, {
     AZURE_CONFIG_DIR: directory,
     AZURE_CORE_COLLECT_TELEMETRY: 'no',
-    AZURE_CORE_ENABLE_BROKER_ON_WINDOWS: 'false',
+    // WAM owns its credential state outside this temporary CLI directory.
+    AZURE_CORE_ENABLE_BROKER_ON_WINDOWS: 'true',
+    // Disable the terminal subscription prompt, not the graphical account picker.
     AZURE_CORE_LOGIN_EXPERIENCE_V2: 'off',
     AZURE_EXTENSION_USE_DYNAMIC_INSTALL: 'no',
     AZURE_CORE_CHECK_VERSION: 'false',
@@ -158,7 +160,6 @@ export function createAzureCliSignIn(signal: AbortSignal) {
         await run(
           [
             'login',
-            '--use-device-code',
             '--allow-no-subscriptions',
             '--output',
             'json',

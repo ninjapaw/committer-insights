@@ -1,7 +1,18 @@
-import type { InsightTable } from './insights.js';
+import type { InsightTable, RepositoryInsight } from './insights.js';
 import { formatReportDateTime } from './date-display.js';
 
 export type AzureBillingPlan = 'codeSecurity' | 'secretProtection';
+export interface AzureAdoptionEstimate {
+  organization: string;
+  plan: AzureBillingPlan;
+  collectedAt: string;
+  sourceUrl: string;
+  apiVersion: string;
+  status: 'complete' | 'partial' | 'unavailable';
+  providerCount?: number;
+  returnedIdentities: number;
+  warnings: string[];
+}
 export interface AzureBillingIdentity {
   cuid?: string;
   identityId?: string;
@@ -45,6 +56,186 @@ export interface AzureBillingSnapshot {
 
 export const azureBillingNote =
   'Provider-reported daily billing snapshots, not invoices or Git activity estimates. Counts cover only the selected organizations. Subscription totals require complete same-date identity lists and verified subscription scope. Pusher identity and committer email are different evidence; unmatched details are not automatically counted. Current security settings do not establish historical enablement.';
+
+export const azureSecurityPrices = { codeSecurity: 30, secretProtection: 19 } as const;
+export const azureEstimateSummaryNote =
+  "Estimated cost if enabled = Microsoft's product-specific estimated committer count x the monthly unit price. Billing history is not required. Code Security: USD 30; Secret Protection: USD 19. These are list-price scenarios, not invoices, guarantees or additional-seat counts. Missing billing never means free; missing estimates are not replaced with Git commit totals.";
+export const azureAdoptionNote =
+  'Enablement scenarios use the provider estimate count, including when names are incomplete, at USD 30 for Code Security and USD 19 for Secret Protection per committer/month (list prices checked 2026-09-24). They are not actual charges or guaranteed incremental seats. Do not add an estimate to a billing snapshot or sum organizations sharing a subscription. Annualized means 12 unchanged months, not a forecast. No taxes, discounts, proration, legacy-bundle pricing or other Azure DevOps services are included. Unknown or disabled enablement does not establish invoice/payment status.';
+
+export function azureAdoptionTables(
+  estimates: AzureAdoptionEstimate[],
+  snapshots: AzureBillingSnapshot[] = [],
+  repositories: RepositoryInsight[] = [],
+): InsightTable[] {
+  if (!estimates.length) return [];
+  const priceSource =
+    'https://azure.microsoft.com/en-us/pricing/details/devops/azure-devops-services/';
+  const money = (count: number | undefined, price: number) =>
+    count === undefined ? 'Unavailable' : `$${(count * price).toFixed(2)}`;
+  const tables: InsightTable[] = [
+    {
+      title: 'Azure billing and enablement scenarios',
+      columns: [
+        'Provider',
+        'Organization',
+        'Product',
+        'Product state (observed scope)',
+        'Monthly calculation',
+        'Estimate basis',
+        'Visible repository enablement',
+        'Billing snapshot date UTC',
+        'Snapshot plan enabled',
+        'Snapshot billable count',
+        'Provider enablement estimate count',
+        'Unit price USD per month',
+        'Enablement scenario monthly USD',
+        'Enablement scenario annualized USD',
+        'Estimate detail status',
+        'Snapshot count monthly equivalent USD (not invoice)',
+        'Actual invoiced charges',
+        'Assessment',
+      ],
+      rows: estimates.map((estimate) => {
+        const product = estimate.plan === 'codeSecurity' ? 'Code Security' : 'Secret Protection';
+        const matches = snapshots.filter(
+          (snapshot) =>
+            snapshot.organization.toLowerCase() === estimate.organization.toLowerCase() &&
+            snapshot.plan === estimate.plan,
+        );
+        const snapshot = matches.length === 1 ? matches[0] : undefined;
+        const scoped = repositories.filter(
+          (repository) =>
+            repository.provider === 'azure-devops' &&
+            repository.source.toLowerCase() === estimate.organization.toLowerCase(),
+        );
+        const states = scoped.map(
+          (repository) =>
+            repository.features.find((feature) => feature.name === product)?.state ?? 'unknown',
+        );
+        const enabled = states.filter((state) => state === 'enabled').length;
+        const disabled = states.filter((state) => state === 'disabled').length;
+        const unknown = states.length - enabled - disabled;
+        const count = estimate.status === 'unavailable' ? undefined : estimate.providerCount;
+        const stateLabel =
+          !states.length || unknown === states.length
+            ? 'Unknown'
+            : unknown > 0
+              ? 'Incomplete settings coverage'
+              : disabled === states.length
+                ? 'Off in visible repositories'
+                : enabled === states.length
+                  ? 'On in visible repositories'
+                  : 'Mixed in visible repositories';
+        const basis =
+          count === undefined
+            ? 'Estimate unavailable'
+            : estimate.status === 'complete'
+              ? 'Provider count; identity detail reconciled'
+              : 'Provider count; identity detail incomplete';
+        const billed = snapshot?.status === 'unavailable' ? undefined : snapshot?.providerCount;
+        const status = snapshot?.status === 'unavailable' ? undefined : snapshot?.isPlanEnabled;
+        let assessment =
+          count === undefined
+            ? 'Enablement estimate unavailable; no cost inferred from Git activity.'
+            : 'Provider enablement estimate priced as a standalone product scenario; not an invoice.';
+        if (count !== undefined && states.length > 0 && disabled === states.length)
+          assessment +=
+            ' Product off in all observed repositories; the provider enablement estimate remains usable without billing history. Visibility does not prove organization-wide coverage.';
+        if (status === false && billed === 0)
+          assessment +=
+            ' Product disabled and zero billable committers in the dated snapshot; estimate shows potential enablement usage.';
+        else if (status === true)
+          assessment +=
+            ' Product enabled in the dated snapshot; estimate is not added to existing billed usage.';
+        else
+          assessment +=
+            ' Billing/enablement is unknown or inconsistent; no zero-charge conclusion.';
+        if (!matches.length)
+          assessment += ' Select billing snapshots to compare provider-reported usage.';
+        if (snapshot?.requestedDate)
+          assessment += ' Historical billing date selected; not evidence of current charges.';
+        if (snapshot?.status === 'partial')
+          assessment += ' Billing snapshot is partial; inspect its warnings.';
+        return [
+          'azure-devops',
+          estimate.organization,
+          product,
+          stateLabel,
+          count === undefined
+            ? 'Unavailable'
+            : `${count} x $${azureSecurityPrices[estimate.plan].toFixed(2)}/month`,
+          basis,
+          states.length
+            ? `${enabled} enabled; ${disabled} disabled; ${unknown} unknown (visible repositories only)`
+            : 'Unknown: no repository settings collected',
+          snapshot?.billingDate?.slice(0, 10) ?? 'Unavailable',
+          status === undefined ? 'Unknown' : status ? 'Yes' : 'No',
+          billed ?? 'Unavailable',
+          count ?? 'Unavailable',
+          azureSecurityPrices[estimate.plan],
+          money(count, azureSecurityPrices[estimate.plan]),
+          money(count, azureSecurityPrices[estimate.plan] * 12),
+          estimate.status,
+          money(billed, azureSecurityPrices[estimate.plan]),
+          'Not collected; reconcile with the billing owner',
+          assessment,
+        ];
+      }),
+    },
+    {
+      title: 'Azure billing estimate provenance',
+      columns: [
+        'Provider',
+        'Organization',
+        'Product',
+        'Provider estimate count',
+        'Returned identity rows',
+        'Status',
+        'Collected at UTC',
+        'API version',
+        'Estimate source URL',
+        'Price source URL',
+        'Warnings',
+      ],
+      rows: estimates.map((estimate) => [
+        'azure-devops',
+        estimate.organization,
+        estimate.plan,
+        estimate.providerCount ?? 'Unavailable',
+        estimate.returnedIdentities,
+        estimate.status,
+        estimate.collectedAt,
+        estimate.apiVersion,
+        estimate.sourceUrl,
+        priceSource,
+        estimate.warnings.join('; '),
+      ]),
+    },
+  ];
+  const scenario = tables[0]!;
+  const columns = [
+    'Provider',
+    'Organization',
+    'Product',
+    'Provider enablement estimate count',
+    'Monthly calculation',
+    'Enablement scenario monthly USD',
+    'Enablement scenario annualized USD',
+    'Estimate basis',
+  ];
+  return [
+    {
+      ...scenario,
+      columns,
+      rows: scenario.rows.map((row) =>
+        columns.map((column) => row[scenario.columns.indexOf(column)]!),
+      ),
+    },
+    { ...scenario, title: 'Azure billing enablement evidence' },
+    tables[1]!,
+  ];
+}
 
 export function azureBillingGroups(snapshots: AzureBillingSnapshot[]) {
   const groups = new Map<string, AzureBillingSnapshot[]>();

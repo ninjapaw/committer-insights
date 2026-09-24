@@ -7,7 +7,6 @@ import {
   connectAzure,
   getDeviceSignIn,
   startDeviceSignIn,
-  startAzureCliSignIn,
 } from '../providers/azure-devops';
 
 export function MicrosoftSignIn({
@@ -60,9 +59,6 @@ export function MicrosoftSignIn({
   const device = useMutation({
     mutationFn: () => receiveAttempt(startDeviceSignIn),
   });
-  const cli = useMutation({
-    mutationFn: () => receiveAttempt(startAzureCliSignIn),
-  });
   const status = useQuery({
     queryKey: ['microsoft-device-sign-in', attempt?.id],
     queryFn: () => getDeviceSignIn(attempt!.id),
@@ -94,20 +90,11 @@ export function MicrosoftSignIn({
     onError: (error) => setCancelError(error.message),
   });
   const pending = current?.status === 'pending' && attempt?.status === 'pending';
-  const busy =
-    disabled ||
-    browser.isPending ||
-    device.isPending ||
-    cli.isPending ||
-    pending ||
-    cancel.isPending;
+  const busy = disabled || browser.isPending || device.isPending || pending || cancel.isPending;
   const challenge = pending ? current?.challenge : undefined;
+  const cliFlow = browser.isSuccess || browser.isPending;
   const error =
-    cancelError ||
-    browser.error?.message ||
-    device.error?.message ||
-    cli.error?.message ||
-    status.error?.message;
+    cancelError || browser.error?.message || device.error?.message || status.error?.message;
 
   return (
     <div className="microsoft-sign-in">
@@ -123,7 +110,6 @@ export function MicrosoftSignIn({
           onClick={() => {
             setAttempt(undefined);
             device.reset();
-            cli.reset();
             setCancelError('');
             browser.mutate();
           }}
@@ -143,27 +129,10 @@ export function MicrosoftSignIn({
               setAttempt(undefined);
               setCancelError('');
               browser.reset();
-              cli.reset();
               device.mutate();
             }}
           >
             Sign in with a device code
-          </button>
-        )}
-        {!connected && (
-          <button
-            type="button"
-            className="secondary-button"
-            disabled={busy}
-            onClick={() => {
-              setAttempt(undefined);
-              setCancelError('');
-              browser.reset();
-              device.reset();
-              cli.mutate();
-            }}
-          >
-            Sign in with Azure CLI
           </button>
         )}
       </div>
@@ -181,7 +150,9 @@ export function MicrosoftSignIn({
               <span>Waiting for Microsoft sign-in...</span>
             </>
           ) : (
-            <span>Requesting device code...</span>
+            <span>
+              {cliFlow ? 'Waiting for Microsoft account selection...' : 'Requesting device code...'}
+            </span>
           )}
           <button
             type="button"
@@ -189,15 +160,21 @@ export function MicrosoftSignIn({
             disabled={cancel.isPending}
             onClick={() => cancel.mutate()}
           >
-            Cancel device sign-in
+            {cliFlow ? 'Cancel Microsoft sign-in' : 'Cancel device sign-in'}
           </button>
         </div>
       )}
       {current?.status === 'expired' && (
-        <p role="alert">Device code expired. Start device sign-in again.</p>
+        <p role="alert">
+          {cliFlow
+            ? 'Microsoft sign-in timed out. Start sign-in again.'
+            : 'Device code expired. Start device sign-in again.'}
+        </p>
       )}
       {current?.status === 'failed' && <p role="alert">{current.message}</p>}
-      {attempt?.status === 'canceled' && <p role="status">Device sign-in canceled.</p>}
+      {attempt?.status === 'canceled' && (
+        <p role="status">{cliFlow ? 'Microsoft sign-in canceled.' : 'Device sign-in canceled.'}</p>
+      )}
       {error && <p role="alert">{error}</p>}
     </div>
   );

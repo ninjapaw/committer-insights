@@ -49,10 +49,22 @@ export function buildCioBrief(input: Report, provider: ReportingProvider): CioBr
   ).length;
   const estimates = report.costEstimates ?? [];
   const billingRows = report.insights?.billing.length ?? 0;
+  const snapshots =
+    provider === 'azure-devops'
+      ? (report.insights?.azureBilling ?? [])
+      : (report.insights?.githubBilling ?? []);
+  const readableSnapshots = snapshots.filter(
+    (snapshot) => snapshot.status !== 'unavailable',
+  ).length;
+  const adoptionEstimates =
+    report.insights?.azureEstimates?.filter((estimate) => estimate.providerCount !== undefined)
+      .length ?? 0;
   const hasEvidence =
     summary.includedSources > 0 ||
     repositories.length > 0 ||
     billingRows > 0 ||
+    readableSnapshots > 0 ||
+    adoptionEstimates > 0 ||
     estimates.length > 0 ||
     summary.uniqueProviderIdentities > 0;
   const readiness = !hasEvidence
@@ -83,7 +95,7 @@ export function buildCioBrief(input: Report, provider: ReportingProvider): CioBr
     },
     {
       id: 'F5',
-      text: `Financial evidence: ${estimates.length} modeled pricing rows and ${billingRows} provider-reported billing rows. Modeled costs are not actual charges; billing usage is not an invoice or proof of payment.`,
+      text: `Financial evidence: ${estimates.length} modeled pricing rows, ${adoptionEstimates} provider-count enablement estimates, ${readableSnapshots} readable billing datasets of ${snapshots.length} requested, and ${billingRows} daily usage rows. Datasets and detail overlap; row counts are not seats. Modeled costs are not actual charges; billing usage is not an invoice or proof of payment.`,
     },
     {
       id: 'F6',
@@ -158,7 +170,7 @@ export function buildCioBrief(input: Report, provider: ReportingProvider): CioBr
           : 'Basic/Test Plans entitlements, included benefits and official billable committers',
       decision: 'Establish actual purchase quantities and potential duplicate entitlements.',
       access:
-        'Existing authorized licensing or organization-admin read access, or an owner-supplied export. Not collected by this feature.',
+        'Review the collected billing snapshots and their coverage first. Seat entitlements and unresolved billing populations require an authorized owner export; this report does not establish complete license coverage.',
     },
     {
       dataset: 'Invoices, billing scope, contract prices and discounts',

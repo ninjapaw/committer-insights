@@ -72,20 +72,24 @@ function renderPage(initialEntry: string) {
 }
 
 describe('SignInPage', () => {
-  it('starts Azure CLI only from its explicit button and preserves device cancellation', async () => {
-    vi.mocked(startAzureCliSignIn).mockResolvedValue(pending);
-    vi.mocked(getDeviceSignIn).mockResolvedValue(pending);
+  it('uses the default Microsoft action for CLI account selection and preserves cancellation', async () => {
+    vi.mocked(connectAzure).mockResolvedValue({ id: pending.id, status: 'pending' });
+    vi.mocked(getDeviceSignIn).mockResolvedValue({ id: pending.id, status: 'pending' });
     vi.mocked(cancelDeviceSignIn).mockResolvedValue({ id: pending.id, status: 'canceled' });
     renderPage('/sign-in');
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in with Azure CLI' }));
-    await screen.findByLabelText('Device sign-in code');
-    expect(startAzureCliSignIn).toHaveBeenCalledOnce();
-    expect(connectAzure).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole('button', { name: 'Sign in with Azure CLI' }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in with Microsoft' }));
+    await screen.findByText('Waiting for Microsoft account selection...');
+    expect(screen.queryByLabelText('Device sign-in code')).not.toBeInTheDocument();
+    expect(connectAzure).toHaveBeenCalledOnce();
+    expect(startAzureCliSignIn).not.toHaveBeenCalled();
     expect(startDeviceSignIn).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: 'Sign in with Azure CLI' })).toBeDisabled();
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel device sign-in' }));
-    await screen.findByText('Device sign-in canceled.');
-    expect(screen.getByRole('button', { name: 'Sign in with Azure CLI' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Sign in with Microsoft' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel Microsoft sign-in' }));
+    await screen.findByText('Microsoft sign-in canceled.');
+    expect(screen.getByRole('button', { name: 'Sign in with Microsoft' })).toBeEnabled();
   });
   it('shows restart guidance when the local session is invalid', () => {
     renderPage('/sign-in?reason=session');
@@ -105,7 +109,9 @@ describe('SignInPage', () => {
     expect(screen.getByRole('button', { name: 'Sign in with Microsoft' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sign in with a device code' })).toBeVisible();
     expect(screen.queryByText('Other sign-in options')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Sign in with Azure CLI' })).toBeVisible();
+    expect(
+      screen.queryByRole('button', { name: 'Sign in with Azure CLI' }),
+    ).not.toBeInTheDocument();
   });
 
   it('keeps browser sign-in independent from device-code requests', async () => {

@@ -19,6 +19,8 @@ import { RepositoryLink } from '../components/RepositoryLink';
 import { ReportInsightsPanel } from '../components/ReportInsightsPanel';
 import { CioBriefPanel } from '../components/CioBriefPanel';
 import { AzureBillingPanel, GitHubBillingPanel } from '../components/AzureBillingPanel';
+import { ReportOverview } from '../components/ReportOverview';
+import { AzureServicePricing } from '../components/AzureServicePricing';
 import { azureColumns } from '../providers/azure-devops';
 import { githubColumnsForTimeZone } from '../providers/github';
 import { localRequest, requestJson } from '../services/local-api';
@@ -120,6 +122,7 @@ export function ResultsDashboardPage({
     query.data.providerSummaries?.some((item) => item.provider === 'azure-devops') ||
     query.data.insights?.repositories.some((item) => item.provider === 'azure-devops') ||
     Boolean(query.data.insights?.azureBilling?.length) ||
+    Boolean(query.data.insights?.azureEstimates?.length) ||
     query.data.costEstimates?.some((item) => item.provider === 'azure-devops');
   const provider = selectedProvider ?? (hasAzure ? 'azure-devops' : 'github');
   return (
@@ -211,6 +214,8 @@ function ProviderResults({
   const [globalFilter, setGlobalFilter] = useState('');
   const [downloadError, setDownloadError] = useState('');
   const query = { data: selectReport(report) };
+  const hasAzureEstimate =
+    report.provider === 'azure-devops' && Boolean(report.insights?.azureEstimates?.length);
   const githubRows = useMemo(
     () =>
       query.data?.gitHubCommitters.filter((item) =>
@@ -231,6 +236,7 @@ function ProviderResults({
         !report.gitHubCommitters.length &&
         !report.insights?.repositories.length &&
         !report.insights?.azureBilling?.length &&
+        !report.insights?.azureEstimates?.length &&
         !report.insights?.githubBilling?.length &&
         !report.insights?.billing.length && (
           <p>No sources or usage collected for this provider. Pricing is unavailable, not zero.</p>
@@ -247,7 +253,10 @@ function ProviderResults({
           <a href="#report-recommendations">Recommendations</a>
           <a href="#report-usage">Usage and security</a>
           <a href="#report-evidence">Collection evidence</a>
-          <a href="#report-pricing">Estimated billing</a>
+          {!hasAzureEstimate && <a href="#report-pricing">Estimated billing</a>}
+          {report.insights?.azureServiceEstimates?.length ? (
+            <a href="#report-service-pricing">Other service estimates</a>
+          ) : null}
           {report.provider === 'azure-devops' && (
             <a href="#report-azure-billing">Provider-reported billing</a>
           )}
@@ -287,9 +296,9 @@ function ProviderResults({
                   <span>Identity records</span>
                 </div>
               </div>
-              <SolutionPricing report={query.data} />
             </section>
           )}
+          <ReportOverview report={report} />
           {report.provider === 'azure-devops' && (
             <section
               id="report-azure-billing"
@@ -298,6 +307,8 @@ function ProviderResults({
             >
               <AzureBillingPanel
                 snapshots={report.insights?.azureBilling ?? []}
+                estimates={report.insights?.azureEstimates ?? []}
+                repositories={report.insights?.repositories ?? []}
                 timeZone={report.timeZone}
               />
             </section>
@@ -317,7 +328,10 @@ function ProviderResults({
             aria-labelledby="report-recommendations-title"
           >
             <h2 id="report-recommendations-title">Recommendations</h2>
-            <CioBriefPanel report={report} />
+            <details>
+              <summary>Evidence-based recommendations and collection plan</summary>
+              <CioBriefPanel report={report} />
+            </details>
           </section>
           <section id="report-usage" tabIndex={-1} aria-label="Usage and security">
             {query.data?.insights ? (
@@ -329,6 +343,15 @@ function ProviderResults({
               </>
             )}
           </section>
+          {report.insights?.azureServiceEstimates?.length ? (
+            <section
+              id="report-service-pricing"
+              tabIndex={-1}
+              aria-label="Other Azure DevOps service estimates"
+            >
+              <AzureServicePricing estimates={report.insights.azureServiceEstimates} />
+            </section>
+          ) : null}
           <section id="report-evidence" tabIndex={-1} aria-labelledby="report-evidence-title">
             <h2 id="report-evidence-title">Collection evidence</h2>
             {!query.data.providerSummaries?.length && !query.data.sourceStatuses?.length && (
@@ -412,49 +435,51 @@ function ProviderResults({
               </section>
             )}
           </section>
-          <section id="report-pricing" tabIndex={-1} aria-labelledby="cost-estimates-title">
-            <h2 id="cost-estimates-title">Estimated billing</h2>
-            <SolutionPricing report={query.data} />
-            {query.data.costEstimates && query.data.costEstimates.length > 0 && (
-              <>
-                <h3>Unit prices and estimation basis</h3>
-                <p>
-                  Monthly USD scenarios, not actual charges. Counts may overlap across products and
-                  sources; do not sum scenarios as an invoice total.
-                </p>
-                <div className="table-scroll">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Provider</th>
-                        <th>Estimate</th>
-                        <th>Count</th>
-                        <th>Unit price</th>
-                        <th>Estimated monthly cost</th>
-                        <th>Basis</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {query.data.costEstimates.map((item) => (
-                        <tr key={`${item.provider}:${item.label}`}>
-                          <td>{item.provider}</td>
-                          <td>{item.label}</td>
-                          <td>{item.count}</td>
-                          <td>${item.unitPriceUsd.toFixed(2)}</td>
-                          <td>${item.estimatedMonthlyCostUsd.toFixed(2)}</td>
-                          <td>
-                            {item.basis}
-                            <br />
-                            <span>{item.source}</span>
-                          </td>
+          {!hasAzureEstimate && (
+            <section id="report-pricing" tabIndex={-1} aria-labelledby="cost-estimates-title">
+              <h2 id="cost-estimates-title">Estimated billing</h2>
+              <SolutionPricing report={query.data} />
+              {query.data.costEstimates && query.data.costEstimates.length > 0 && (
+                <>
+                  <h3>Unit prices and estimation basis</h3>
+                  <p>
+                    Monthly USD scenarios, not actual charges. Counts may overlap across products
+                    and sources; do not sum scenarios as an invoice total.
+                  </p>
+                  <div className="table-scroll">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Provider</th>
+                          <th>Estimate</th>
+                          <th>Count</th>
+                          <th>Unit price</th>
+                          <th>Estimated monthly cost</th>
+                          <th>Basis</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            )}
-          </section>
+                      </thead>
+                      <tbody>
+                        {query.data.costEstimates.map((item) => (
+                          <tr key={`${item.provider}:${item.label}`}>
+                            <td>{item.provider}</td>
+                            <td>{item.label}</td>
+                            <td>{item.count}</td>
+                            <td>${item.unitPriceUsd.toFixed(2)}</td>
+                            <td>${item.estimatedMonthlyCostUsd.toFixed(2)}</td>
+                            <td>
+                              {item.basis}
+                              <br />
+                              <span>{item.source}</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </section>
+          )}
           {query.data && query.data.warnings.length > 0 && (
             <ul role="status">
               {query.data.warnings.map((warning) => (

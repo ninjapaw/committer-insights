@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import {
   azureDevOpsAllMeterUsageEstimateResponseSchema,
   azureDevOpsCommitterSchema,
@@ -8,6 +9,8 @@ import {
   type AzureDevOpsResultType,
   HTTP_STATUS_TO_ERROR_CODE,
   type ProviderError,
+  azureDevOpsMeterUsageBilledUserSchema,
+  type AzureAdoptionEstimate,
 } from '@ninjapaw/contracts';
 import { config } from '../../shared/config.js';
 import { newCorrelationId } from '../../shared/ids.js';
@@ -88,7 +91,13 @@ interface FetchEstimateOptions {
   accessToken: string;
   fetchImpl?: typeof fetch;
   maxRetries?: number;
+  onEstimate?: (estimate: AzureAdoptionEstimate) => void;
 }
+
+const countEstimateSchema = z.object({
+  uniqueCommitterCount: z.number().int().nonnegative(),
+  billedUsers: z.array(azureDevOpsMeterUsageBilledUserSchema).max(100000).optional(),
+});
 
 /**
  * Calls the Azure DevOps Advanced Security meter-usage-estimate endpoint for
@@ -109,6 +118,9 @@ export async function fetchAzureDevOpsEstimate(
   for (;;) {
     attempt += 1;
     const response = await fetchImpl(url, {
+      method: 'GET',
+      redirect: 'error',
+      signal: AbortSignal.timeout(20000),
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Accept: 'application/json',
@@ -117,12 +129,21 @@ export async function fetchAzureDevOpsEstimate(
     });
 
     if (response.ok) {
+      if (response.headers.get('x-ms-continuationtoken'))
+        throw new AzureDevOpsAdapterError(toProviderError(502, correlationId));
       const body: unknown = await response.json();
       // plan=all wraps one estimate per product; single-plan calls return the estimate directly.
       const estimates =
         plan === 'all'
           ? (() => {
-              const parsed = azureDevOpsAllMeterUsageEstimateResponseSchema.safeParse(body);
+              const parsed = (
+                options.onEstimate
+                  ? z.object({
+                      codeSecurityMeterUsageEstimate: countEstimateSchema,
+                      secretProtectionMeterUsageEstimate: countEstimateSchema,
+                    })
+                  : azureDevOpsAllMeterUsageEstimateResponseSchema
+              ).safeParse(body);
               if (!parsed.success) return undefined;
               return [
                 {
@@ -136,15 +157,56 @@ export async function fetchAzureDevOpsEstimate(
               ];
             })()
           : (() => {
-              const parsed = azureDevOpsMeterUsageEstimateResponseSchema.safeParse(body);
+              const schema = options.onEstimate
+                ? countEstimateSchema
+                : azureDevOpsMeterUsageEstimateResponseSchema;
+              const key =
+                plan === 'codeSecurity'
+                  ? 'codeSecurityMeterUsageEstimate'
+                  : 'secretProtectionMeterUsageEstimate';
+              const wrapped = z.object({ [key]: z.unknown() }).safeParse(body);
+              const parsed = schema.safeParse(
+                wrapped.success && wrapped.data[key] !== undefined ? wrapped.data[key] : body,
+              );
               if (!parsed.success) return undefined;
               return [{ plan, estimate: parsed.data }];
             })();
       if (!estimates) throw new AzureDevOpsAdapterError(toProviderError(502, correlationId));
 
       const collectedAt = new Date().toISOString();
+      for (const { plan: effectivePlan, estimate } of estimates) {
+        const users = estimate.billedUsers ?? [];
+        const keys = users.map(
+          (user) =>
+            user.cuid ||
+            user.userIdentity?.id ||
+            user.userId ||
+            user.userIdentity?.descriptor ||
+            user.descriptor,
+        );
+        const complete =
+          estimate.billedUsers !== undefined &&
+          estimate.uniqueCommitterCount === users.length &&
+          keys.every(Boolean) &&
+          new Set(keys.map((key) => key?.toLowerCase())).size === users.length;
+        options.onEstimate?.({
+          organization,
+          plan: effectivePlan,
+          collectedAt,
+          sourceUrl: url.href,
+          apiVersion: config.azureDevOps.apiVersion(),
+          providerCount: estimate.uniqueCommitterCount,
+          returnedIdentities: users.length,
+          status: complete ? 'complete' : 'partial',
+          warnings: complete
+            ? []
+            : [
+                'Provider estimate count retained; identity details are missing, inconsistent or ambiguous. Do not deduplicate across organizations from this list.',
+              ],
+        });
+      }
       const committers = estimates.flatMap(({ plan: effectivePlan, estimate }) =>
-        estimate.billedUsers.map((user) => {
+        (estimate.billedUsers ?? []).map((user) => {
           const committer: AzureDevOpsCommitter = {
             provider: 'azure-devops',
             organization,

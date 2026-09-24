@@ -42,7 +42,7 @@ export function saveReport(input: Omit<Report, 'reportId' | 'generatedAt'>): Rep
       ...input.warnings,
       ...[...incompleteProviders].map(
         (provider) =>
-          `${provider}: cost scenarios omitted because usage or estimate collection is incomplete. Missing data is not zero usage.`,
+          `${provider}: aggregate identity-based cost scenarios omitted because usage or estimate collection is incomplete. Missing data is not zero usage.${provider === 'azure-devops' && input.insights?.azureEstimates?.length ? ' Available provider-count enablement scenarios remain in the Azure billing section, with their completeness warnings.' : ''}`,
       ),
     ],
   };

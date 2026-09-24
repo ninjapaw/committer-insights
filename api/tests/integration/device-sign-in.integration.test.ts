@@ -30,6 +30,7 @@ import {
   getMicrosoftAccount,
   getDeviceSignIn,
   signInWithBrowser,
+  startAzureCliSignIn,
   startDeviceSignIn,
 } from '../../src/auth/local-credential.js';
 
@@ -41,6 +42,7 @@ vi.mock('../../src/auth/local-credential.js', () => ({
   getMicrosoftAccount: vi.fn(),
   acquireAzureDevOpsToken: vi.fn(),
   signInWithBrowser: vi.fn(),
+  startAzureCliSignIn: vi.fn(),
 }));
 
 let server: Server;
@@ -258,13 +260,23 @@ describe('device sign-in local API boundary', () => {
     ).toBe(404);
   });
 
-  it('connects directly after Microsoft authentication and clears the session on account change', async () => {
+  it('starts default Microsoft login through CLI, polls completion and clears the session on account change', async () => {
     const selection = {
       id,
       status: 'authenticated' as const,
       account: { username: 'selected@example.test', tenantId: 'test-tenant' },
     };
-    vi.mocked(signInWithBrowser).mockResolvedValue(selection);
+    vi.mocked(startAzureCliSignIn).mockReturnValue({ id, status: 'pending' });
+    expect((await fetch(`${origin}/api/auth/sign-in`, { method: 'POST' })).status).toBe(401);
+    expect(
+      (
+        await fetch(`${origin}/api/auth/sign-in`, {
+          method: 'POST',
+          headers: { authorization, origin: 'https://example.com' },
+        })
+      ).status,
+    ).toBe(401);
+    expect(startAzureCliSignIn).not.toHaveBeenCalled();
     expect(
       await (
         await fetch(`${origin}/api/auth/sign-in`, {
@@ -272,7 +284,9 @@ describe('device sign-in local API boundary', () => {
           headers: { authorization, origin },
         })
       ).json(),
-    ).toEqual(selection);
+    ).toEqual({ id, status: 'pending' });
+    expect(startAzureCliSignIn).toHaveBeenCalledOnce();
+    expect(signInWithBrowser).not.toHaveBeenCalled();
     vi.mocked(getDeviceSignIn).mockReturnValue(selection);
     expect(
       (await fetch(`${origin}/api/auth/device-code/${id}`, { headers: { authorization } })).status,

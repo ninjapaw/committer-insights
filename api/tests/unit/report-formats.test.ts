@@ -49,6 +49,63 @@ const report: StoredReport = {
 };
 
 describe('standalone report formats', () => {
+  it('exports service scenario inputs and calculations without treating them as provider billing', async () => {
+    const input: StoredReport = {
+      ...report,
+      insights: {
+        repositories: [],
+        billing: [],
+        checks: [],
+        azureServiceEstimates: [
+          {
+            organization: 'example',
+            inputs: { basicUsers: 12, basicFreeUsers: 5, testPlanUsers: 3, artifactGiB: 100 },
+          },
+        ],
+      },
+    };
+    expect(providerReport(input, 'github').insights?.azureServiceEstimates).toBeUndefined();
+    expect(providerReport(input, 'azure-devops').insights?.azureServiceEstimates).toEqual(
+      input.insights?.azureServiceEstimates,
+    );
+    for (const text of [generateCsv(input), generateStandaloneHtml(input)]) {
+      for (const expected of [
+        'Basic + Test Plans',
+        '$42.00',
+        '$156.00',
+        '$106.00',
+        'User-entered what-if',
+        'Quantity required',
+      ])
+        expect(text).toContain(expected);
+    }
+    const draw = vi.spyOn(PDFPage.prototype, 'drawText');
+    try {
+      await generateExecutivePdf(input);
+      const text = draw.mock.calls.map(([value]) => value).join(' ');
+      for (const expected of [
+        'Basic + Test Plans',
+        '$42.00',
+        '$156.00',
+        '$106.00',
+        'User-entered what-if',
+      ])
+        expect(text).toContain(expected);
+    } finally {
+      draw.mockRestore();
+    }
+  });
+  it('presents pricing once per provider and retains detailed evidence in expandable sections', () => {
+    const html = generateStandaloneHtml({
+      ...report,
+      insights: { repositories: [], billing: [], checks: [] },
+    });
+    expect(html.match(/<h3>Solution pricing totals<\/h3>/g)).toHaveLength(2);
+    expect(html).toContain('id="azure-devops-billing-evidence"');
+    expect(html).toContain('<summary>Reported billing usage (0 rows)</summary>');
+    expect(html).toContain('<summary>Collection evidence (0 rows)</summary>');
+    expect(html).toContain('Evidence-based recommendations');
+  });
   it('preserves GitHub billing snapshots and charges separately in every export and provider view', async () => {
     const input: StoredReport = {
       ...report,
