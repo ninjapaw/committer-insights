@@ -73,6 +73,55 @@ async function selectGitHubSource() {
 }
 
 describe('CombinedReportPage', () => {
+  it('shows the signed-in account and clears only Azure selections when changing it', async () => {
+    let signIns = 0;
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const path = String(input);
+      if (path === '/api/auth/sign-in') {
+        signIns++;
+        return Response.json({
+          id: `attempt-${signIns}`,
+          status: 'authenticated',
+          account: { username: `account-${signIns}@example.test`, tenantId: 'test-tenant' },
+        });
+      }
+      if (path === '/api/auth/sign-out') return Response.json({ authenticated: false });
+      if (path === '/api/connections/azure-devops/organizations')
+        return Response.json({ organizations: [{ id: `org-${signIns}`, name: `org-${signIns}` }] });
+      throw new Error(`Unexpected request: ${path}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(['report-draft'], {
+      azureSelected: [],
+      githubSelected: ['kept-github'],
+      githubTargetTypes: { 'kept-github': 'organization' },
+      plans: ['all'],
+      sinceDays: 90,
+      includeBilling: false,
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <CombinedReportPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in with Microsoft' }));
+    await screen.findByText('account-1@example.test');
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'org-1' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Change account' }));
+    await screen.findByText('account-2@example.test');
+    await screen.findByRole('checkbox', { name: 'org-2' });
+    expect(screen.queryByRole('checkbox', { name: 'org-1' })).not.toBeInTheDocument();
+    expect(client.getQueryData(['report-draft'])).toMatchObject({
+      azureSelected: [],
+      githubSelected: ['kept-github'],
+    });
+    expect(fetchMock.mock.calls.some(([path]) => path === '/api/auth/sign-out')).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Use this account' })).not.toBeInTheDocument();
+  });
+
   it('accepts a normalized manual source when discovery is unavailable', async () => {
     const fetchMock = vi.fn(async (input: string | URL | Request) => {
       switch (String(input)) {
@@ -302,7 +351,14 @@ describe('CombinedReportPage', () => {
       'fetch',
       vi.fn(async (input: string | URL | Request) => {
         const path = String(input);
-        if (path === '/api/auth/sign-in' || path === '/api/auth/github/sign-in') {
+        if (path === '/api/auth/sign-in' || path === '/api/auth/device-code/test-attempt') {
+          return Response.json({
+            id: 'test-attempt',
+            status: 'authenticated',
+            account: { username: 'selected@example.test', tenantId: 'test-tenant' },
+          });
+        }
+        if (path === '/api/auth/github/sign-in') {
           return Response.json({ authenticated: true });
         }
         if (path === '/api/connections/azure-devops/organizations') {
@@ -347,7 +403,7 @@ describe('CombinedReportPage', () => {
     );
 
     expect(screen.getByRole('button', { name: 'Review report' })).toBeDisabled();
-    fireEvent.click(screen.getByRole('button', { name: 'Connect Azure CLI' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in with Microsoft' }));
     fireEvent.click(screen.getByRole('button', { name: 'Connect GitHub CLI' }));
     fireEvent.click(await screen.findByRole('checkbox', { name: 'contoso' }));
     await waitFor(() => expect(screen.getByRole('checkbox', { name: 'contoso' })).toBeChecked());

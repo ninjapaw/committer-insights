@@ -11,6 +11,7 @@ import {
 } from '@ninjapaw/contracts';
 import { AzurePlanPicker } from '../components/AzurePlanPicker';
 import { SourcePicker } from '../components/SourcePicker';
+import { MicrosoftSignIn } from '../components/MicrosoftSignIn';
 import { connectAzure, discoverOrganizations } from '../providers/azure-devops';
 import { commitWindows, connectGitHub, discoverGitHubTargets } from '../providers/github';
 import { postJson } from '../services/local-api';
@@ -120,8 +121,17 @@ export function CombinedReportPage(): JSX.Element {
         <SourcePicker
           title="Azure DevOps"
           legend="Organizations"
-          connectLabel="Connect Azure CLI"
+          connectLabel="Sign in with Microsoft"
           connect={connectAzure}
+          renderConnection={(onConnected, onChanging, connected) => (
+            <MicrosoftSignIn
+              disabled={busy}
+              connected={connected}
+              onChanging={onChanging}
+              onConnected={onConnected}
+            />
+          )}
+          onDisconnect={() => updateDraft({ azureSelected: [] })}
           discover={discoverOrganizations}
           parseSource={(value) => azureDevOpsOrganizationSchema.parse(value)}
           manualLabel="Organization name or URL"

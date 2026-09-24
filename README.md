@@ -9,18 +9,32 @@ Explore Azure DevOps and GitHub repository usage, security enablement, and purch
 > implications, and generated reports against official sources before using them
 > for business decisions. See [DISCLAIMER.md](DISCLAIMER.md).
 
+## Contents
+
+- [Get started](#get-started)
+- [Privacy and security](#privacy-and-security)
+- [Threat model](#threat-model)
+- [Microsoft Entra setup](#microsoft-entra-setup)
+- [Build from source](#build-from-source)
+- [Development](#development)
+- [Validation](#validation)
+- [Release boundary](#release-boundary)
+- [Release notes](#release-notes)
+- [Troubleshooting](#troubleshooting)
+- [License](#license)
+
 ## Why local
 
 - Azure and GitHub tokens and report data stay on the user's computer.
 - No hosted API, database, Azure subscription, PAT, or customer secret is required.
-- Existing Azure CLI sign-in avoids a Committer Insights app registration and app-specific consent.
+- Microsoft sign-in uses the system browser with a publisher-configured public-client identity; no Azure CLI login is required.
 - Closing the executable clears its in-memory session and reports.
 
 ## Get started
 
 1. Download the Windows executable and `SHA256SUMS.txt` from the release.
 2. Verify the checksum and review its signing status. Unsigned beta artifacts are for evaluation only; a checksum does not verify the publisher. Production distribution requires a verified publisher signature.
-3. For Azure DevOps, install Azure CLI once and run `az login`.
+3. For Azure DevOps, select **Sign in with Microsoft** and choose your account on Microsoft's page. The app connects directly and shows the signed-in username with **Change account**. Device-code sign-in is available under **Other sign-in options**. Both methods use the publisher application; your tenant may require administrator consent or block device-code authentication.
 4. For GitHub, install GitHub CLI once and run `gh auth login`.
 5. Run the executable without Node.js, administrator rights, or installation.
 6. Choose Azure DevOps organizations and/or GitHub organizations or enterprises, security plans, and a 7/30/90/180/365-day activity window. Optionally include GitHub organization billing usage using existing account access.
@@ -98,7 +112,7 @@ This is repository usage and security reporting, not a complete invoice or organ
 
 Endpoint references: [Azure repository API](https://learn.microsoft.com/en-us/rest/api/azure/devops/git/repositories/list?view=azure-devops-rest-7.1), [Azure commits](https://learn.microsoft.com/en-us/rest/api/azure/devops/git/commits/get-commits?view=azure-devops-rest-7.1), [Azure enablement](https://learn.microsoft.com/en-us/rest/api/azure/devops/advancedsecurity/org-enablement/get?view=azure-devops-rest-7.2), [GitHub repository settings](https://docs.github.com/en/rest/repos/repos#get-a-repository), and [GitHub billing usage](https://docs.github.com/en/rest/billing/usage#get-billing-usage-report-for-an-organization).
 
-The application never asks for an Azure DevOps PAT, customer app registration, client secret, or tenant identifier. Azure CLI authentication is limited by the signed-in user's existing Azure DevOps permissions. If the optional publisher fallback is enabled, tenant policy may require administrator approval.
+The application never asks for an Azure DevOps PAT, customer app registration, client secret, or tenant identifier. Microsoft browser authentication uses the publisher's public-client registration and the signed-in user's Azure DevOps permissions. Tenant policy may require administrator approval.
 
 GitHub access reuses the active GitHub CLI account. Committer Insights never returns the GitHub token to the browser, but the CLI token may have broader scopes than this report needs. Use a dedicated least-privilege GitHub CLI account when organizational policy requires tighter isolation.
 
@@ -123,7 +137,103 @@ Reports remain in memory until the process closes; only explicit downloads persi
 
 Loopback is not authorization by itself. These controls do not protect against a compromised endpoint, same-user memory inspection or a broadly privileged browser extension. The app makes read-only provider calls but cannot narrow the permissions of an existing CLI credential.
 
-See the [threat model](docs/THREAT_MODEL.md) for risks and mitigations. Report vulnerabilities privately through [SECURITY.md](SECURITY.md), not a public issue.
+Report vulnerabilities privately through [SECURITY.md](SECURITY.md), not a public issue.
+
+### Threat model
+
+Microsoft's account picker selects the identity; successful authentication connects directly and displays the SDK-provided username, with tenant ID available in its tooltip. **Change account** clears the previous credential, Azure source selections and discovery cache before starting fresh browser sign-in, while preserving GitHub selections. Account changes are capability- and Origin-protected. Canceled, expired or superseded attempts cannot replace the active identity. Only display identity fields leave the authentication module, never access tokens or the full SDK record. Account selection does not grant tenant authorization.
+
+Device-code sign-in is user-initiated and uses the publisher's public-client ID, never a borrowed first-party identity. The local session capability protects challenge start, read, and cancel endpoints; mutation endpoints also require the exact Origin. The UI receives only a verification code, Microsoft URL, local deadline and status. Tokens and SDK polling remain in process memory. Challenges are cleared on terminal states, and attempts are aborted on cancel or a ten-minute timeout. A code can authorize the requesting app, so users must not enter codes supplied by third parties. Tenant policy may disable this flow; browser sign-in remains an explicit alternative, not a policy bypass.
+
+| Threat                         | Mitigation                                                                                               | Residual risk                                                                 |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| LAN exposure                   | Server binds only to `127.0.0.1` on an OS-assigned port                                                  | Compromised local OS is out of scope                                          |
+| DNS rebinding                  | Exact Host validation plus per-launch capability                                                         | Same-user local malware may inspect process/browser memory                    |
+| CSRF                           | Header capability and exact Origin validation for mutations                                              | Browser extensions with broad privileges remain a user-controlled risk        |
+| Capability disclosure          | URL fragment is removed immediately, is not sent in referrers, and is omitted from normal console output | Explicit no-browser test mode prints the launch URL                           |
+| Embedded credential extraction | Microsoft browser sign-in uses a public client and contains no secret                                    | Publisher public client ID is intentionally discoverable                      |
+| Token theft                    | Azure tokens stay in process memory and never enter the React app                                        | Memory inspection by a compromised endpoint can recover tokens                |
+| Excess Azure DevOps access     | User token remains limited by the signed-in account's Azure DevOps permissions                           | Publisher app grants and consent are governed by tenant policy                |
+| Excess GitHub access           | Fixed read-only API calls; environment tokens suppressed; token remains local                            | Existing GitHub CLI credential may have broader scopes                        |
+| Hostile GitHub pagination      | Follow only HTTPS pagination URLs whose origin is exactly `api.github.com`                               | GitHub API compromise remains outside the local trust boundary                |
+| GitHub API exhaustion          | Bounded pages, bounded date window, and rate-limit floor                                                 | Large repositories may produce partial reports at configured caps             |
+| SSRF                           | Organization input is normalized only from trusted Azure DevOps hosts and validated against an allowlist | None material within the validated pattern                                    |
+| Spreadsheet injection          | CSV cells beginning with formula characters are neutralized                                              | Users may deliberately edit exports afterward                                 |
+| Report persistence             | Reports remain in memory; only explicit downloads write files                                            | Downloaded files are governed by customer endpoint controls                   |
+| Malicious dependency           | Lockfile, dependency review, CodeQL, SBOM, and signed releases                                           | Dependency zero-days remain possible                                          |
+| Binary tampering               | Authenticode signature, timestamp, checksums, and provenance                                             | Unsigned development builds provide no publisher assurance                    |
+| Stale process                  | Closing the process destroys credentials and reports; signals close the listener                         | Forced termination may skip graceful cleanup, but no report file is persisted |
+
+## Microsoft Entra setup
+
+The **Sign in with Microsoft** button uses the system browser through `InteractiveBrowserCredential`. It does not invoke Azure CLI or require `az login`.
+
+**Sign in with a device code** is an explicit alternative using `DeviceCodeCredential`. The local UI shows a Microsoft verification link and a short code, then polls the protected local API for completion. Browser sign-in remains the default; failures do not silently switch authentication methods. Device codes avoid the local redirect callback but still require the publisher app registration and consent.
+
+The publisher must register a Microsoft Entra public-client application and embed its public application ID in the executable. Customers do not create app registrations or provide tenant IDs, client secrets, certificates, or PATs. Tenant consent and Conditional Access still apply. Organization discovery depends on the granted permissions; if unavailable, users can enter the organization name or URL manually.
+
+### Account selection
+
+Every explicit browser sign-in uses a fresh credential and calls `authenticate` without a login hint, so the SDK requests Microsoft's account picker (`prompt=select_account`). Background token retrieval cannot silently start a different interactive sign-in.
+
+Both methods connect directly after Microsoft authentication, without a second confirmation screen. The Sources page displays the username returned by the SDK authentication record. **Change account** disconnects the local Microsoft credential and opens a fresh Microsoft account picker; it does not sign you out of Microsoft in other applications. No access token is decoded or sent to the UI to identify the account.
+
+For device codes, expand **Other sign-in options** and choose the intended account on Microsoft's verification page. The device-code protocol does not offer the browser flow's `prompt=select_account` parameter. If Microsoft's page uses the wrong signed-in account, use its different-account option or a private browser window. You can also use **Change account** after connection. Neither method bypasses tenant access policies or grants additional permissions.
+
+Pending attempts expire after ten minutes. Leaving the screen cancels an available pending attempt; stale or canceled completions are ignored.
+
+### Publisher setup
+
+The declarative publisher manifest is [infra/publisher/public-client.json](infra/publisher/public-client.json). Shared reconciliation lives in Pawprint's [publisher provisioner](https://github.com/ninjapaw/pawprint/blob/186a5a544b9e3972e4b63e216b8d86f350f81138/scripts/publisher-public-client.mjs), with a strict public-client schema. Use Pawprint revision `186a5a544b9e3972e4b63e216b8d86f350f81138` in a checkout beside this repository and install its dependencies. No cloud-hosted application, resource group, subscription deployment or duplicate identity framework is needed.
+
+```powershell
+# From this repository; publisher operations only.
+node ../pawprint/scripts/publisher-public-client.mjs validate --config infra/publisher/public-client.json
+node ../pawprint/scripts/publisher-public-client.mjs plan --config infra/publisher/public-client.json --tenant <publisher-tenant-id>
+node ../pawprint/scripts/publisher-public-client.mjs apply --config infra/publisher/public-client.json --tenant <publisher-tenant-id> --yes
+```
+
+Offline validation writes nothing; plan reads the explicit tenant only. Apply creates or reconciles one tagged public-client app and verifies it by reading it back. Run plan and apply again to confirm `found`. It refuses unmanaged name collisions, duplicate ownership tags, unexpected grants and client credentials. Scope IDs are resolved from live Azure DevOps metadata for `vso.code`, `vso.project`, `vso.profile` and `vso.advsec`; missing scopes stop the operation rather than falling back to `user_impersonation`. No admin consent, client secret, certificate, Graph application permission or Azure RBAC is granted. Actual report access still needs live validation.
+
+The returned `clientId` is public. Set the repository Actions variable `COMMITTER_INSIGHTS_CLIENT_ID` to that verified value, or set the environment variable before a local release build. This is the only per-release identity configuration; end users configure nothing. Do not publish an unconfigured binary or treat a successful plan as proof of authentication. Keep publisher tenant IDs and app ownership decisions outside the shared manifest. Publisher registration has not been applied in this change pending tenant approval.
+
+Manual equivalent and remaining publisher duties:
+
+1. Create a multitenant app registration for accounts in any organizational directory.
+2. Configure it as a mobile and desktop public client.
+3. Add the loopback redirect URI `http://localhost:8400`.
+   In **Authentication > Advanced settings**, enable **Allow public client flows** for device-code authentication.
+4. Do not create a client secret or upload a certificate.
+5. Configure and obtain consent for the Azure DevOps delegated permissions required by the report APIs, following [Microsoft's Entra OAuth guidance](https://learn.microsoft.com/en-us/azure/devops/integrate/get-started/authentication/entra-oauth). Verify available scopes in the publisher tenant; do not assume legacy Azure DevOps OAuth scope names are available as Entra permissions. Broader grants require explicit security review.
+6. Do not add Microsoft Graph permissions unless a future feature has a documented requirement.
+7. Configure publisher verification, logo, publisher domain, privacy URL, and terms URL before public release.
+8. Test user and administrator consent in a separate tenant, including Conditional Access behavior.
+
+The application uses the `organizations` authority, so personal Microsoft accounts are not supported.
+
+### Device-code behavior
+
+- Start device-code authentication only from the explicit button. Enter only a code generated by the running application at the Microsoft verification page.
+- Attempts have a ten-minute local timeout. The SDK handles provider polling and errors; cancellation, timeout, or leaving the sign-in screen aborts the pending request. Closing a browser without cleanup leaves at most the bounded local timeout.
+- The verification code and URL are available only through the local session capability. Authentication tokens remain in process memory, never in React, reports, browser storage, or application logs. Terminal states discard the displayed challenge.
+- After Microsoft authentication, sign-in reuses the device credential for token acquisition. If interactive reauthentication is required later, choose a sign-in button again; background report collection never generates a hidden device code.
+- Conditional Access can block device-code flow even when browser sign-in works. Do not weaken tenant policy to enable this alternative.
+- Verify both sign-in methods, cancellation, consent, organization access, and token renewal with a configured publisher application before release. Mocked tests do not prove live tenant compatibility.
+
+### Authentication build configuration
+
+```powershell
+$env:COMMITTER_INSIGHTS_CLIENT_ID = '<application-client-id>'
+$env:COMMITTER_INSIGHTS_TENANT_ID = 'organizations'
+$env:COMMITTER_INSIGHTS_REDIRECT_URI = 'http://localhost:8400'
+npm run build:exe
+```
+
+The client ID is public configuration. `npm run build:exe` embeds it when the environment variable is set, so customers do not configure anything. Source runs may provide the same environment variable at runtime. Local validation builds may omit it, but Microsoft sign-in then reports a publisher-configuration error and cannot authenticate.
+
+For GitHub Actions, set the repository Actions variable `COMMITTER_INSIGHTS_CLIENT_ID` to the application ID. The Windows packaging job passes it to the builder and fails before packaging if the value is missing or malformed. Do not put a client secret in this variable.
+
+An existing beta executable is not changed by editing a repository variable: rebuild and publish a new version after configuration. Test real browser and device-code sign-in, consent, organization access and token renewal before calling a release authentication-ready. A successful build or mocked test cannot prove tenant permissions.
 
 ## Build from source
 
@@ -131,9 +241,9 @@ Prerequisites:
 
 - Node.js 24.19.0
 - npm 11.17.0
-- Azure CLI with an authenticated user (`az login`) for live report testing
+- Publisher-configured Microsoft Entra public-client identity for live Azure DevOps browser sign-in testing
 - GitHub CLI with an authenticated user (`gh auth login`) for live GitHub report testing
-- Optional multitenant public-client registration for the non-CLI fallback; see [docs/ENTRA_SETUP.md](docs/ENTRA_SETUP.md)
+- Multitenant public-client registration details: [Microsoft Entra setup](#microsoft-entra-setup)
 - Authenticode signing service or certificate for public releases
 
 ```powershell
@@ -142,7 +252,7 @@ npm run build:exe
 .\release\committer-insights.exe
 ```
 
-To include the optional fallback, set `COMMITTER_INSIGHTS_CLIENT_ID` before `npm run build:exe`. The client ID is public configuration, not a secret.
+Configure the publisher identity before packaging; see [Authentication build configuration](#authentication-build-configuration).
 
 ## Development
 
@@ -151,7 +261,7 @@ npm ci
 npm run dev
 ```
 
-`npm run dev` builds the React application and starts the same local host used by the executable. Run `az login` for Azure DevOps and `gh auth login` for GitHub access.
+`npm run dev` builds the React application and starts the same local host used by the executable. Configure the publisher client ID and use **Sign in with Microsoft** for Azure DevOps; run `gh auth login` for GitHub access.
 
 ### Architecture
 
@@ -159,7 +269,7 @@ npm run dev
 flowchart LR
 	User -->|launches| Host[Local Node executable]
 	Host -->|loopback session| Browser[React reporting UI]
-	Host -->|CLI credentials or optional public client| Auth[Provider authentication]
+	Host -->|Microsoft browser or GitHub CLI credentials| Auth[Provider authentication]
 	Host -->|read-only requests| Providers[Azure DevOps and GitHub APIs]
 	Host -->|in-memory results| Browser
 	Browser -->|explicit download| Exports[CSV, PDF or HTML]
@@ -173,7 +283,7 @@ Canonical schemas live in [packages/contracts/src](packages/contracts/src). `Rep
 | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | [packages/contracts/src](packages/contracts/src)               | Browser-safe schemas, normalization, source-option types, report formats, error codes, Azure plan labels and shared display grouping. |
 | [api/src/adapters](api/src/adapters)                           | Provider HTTP calls, response validation, pagination and retry policy. GitHub adapters share one HTTP client.                         |
-| [api/src/auth](api/src/auth)                                   | Local CLI credentials and the optional Azure browser fallback; never imported by the frontend.                                        |
+| [api/src/auth](api/src/auth)                                   | Microsoft browser sign-in and local GitHub CLI credentials; never imported by the frontend.                                           |
 | [api/src/services](api/src/services)                           | Provider collection, identity aggregation, scope descriptions and report summaries.                                                   |
 | [api/src/reports](api/src/reports)                             | Source-status construction, combined orchestration, price assumptions and in-memory storage.                                          |
 | [api/src/exports](api/src/exports)                             | CSV/PDF/HTML serialization, shared filename generation and CSV sanitization.                                                          |
@@ -218,20 +328,67 @@ For pull requests, testing conventions and development boundaries, see [CONTRIBU
 
 ## Release boundary
 
-See [release notes](docs/RELEASE_NOTES.md) for beta changes, compatibility notes and validation scope.
+See [release notes](#release-notes) for beta changes, compatibility notes and validation scope.
 
-Node SEA injection modifies the executable after copying Node, so the final binary must be Authenticode-signed and timestamped **after** `npm run build:exe`. CI artifacts are intentionally named `unsigned`; they are Azure CLI-only validation artifacts, not public releases. A public release must include:
+Node SEA injection modifies the executable after copying Node, so the final binary must be Authenticode-signed and timestamped **after** `npm run build:exe`. CI artifacts are intentionally named `unsigned`; they are evaluation artifacts, not production-ready signed releases. A public release must include:
 
 - Verified Authenticode signature and RFC 3161 timestamp
 - `SHA256SUMS.txt`
 - SBOM and build provenance
-- A production publisher client ID only when the optional fallback is offered
+- A production publisher client ID for Microsoft browser sign-in
+
+## Release notes
+
+### v0.1.0-beta.4 - Draft
+
+**Release status:** draft only. The publisher app and repository client-ID variable are not configured, so Windows CI packaging is blocked. Do not distribute an unconfigured local executable as a working Microsoft sign-in release. The published beta.3 remains unchanged.
+
+- Microsoft sign-in now connects directly after the Microsoft account picker, displays the signed-in username, and offers **Change account**. Device code is under **Other sign-in options**. Changing accounts clears stale Azure selections and discovery data, preserving GitHub selections.
+- Added a declarative publisher manifest and shared Pawprint provisioner with offline validation, read-only planning, tenant/ownership checks, live delegated-scope resolution, verified apply and idempotency tests. Publisher registration remains unapplied pending tenant approval.
+- Added explicit **Sign in with a device code** alongside default browser sign-in on both Azure DevOps connection screens. The protected local challenge supports polling, cancellation, retry, navigation cleanup and a ten-minute timeout; tokens stay in process memory. Both methods still require publisher configuration and live tenant validation.
+- Microsoft sign-in now uses the publisher-configured browser credential directly, without Azure CLI fallback. Azure DevOps authentication remediation no longer asks users to run `az login`.
+- Windows CI packaging requires the repository variable `COMMITTER_INSIGHTS_CLIENT_ID` and embeds it in the executable. Missing publisher configuration prevents release packaging; local unconfigured builds report a configuration error.
+- Browser authentication still requires a publisher-owned Entra public-client registration, tenant consent and live validation. These source changes do not change the already published beta.3 executable.
+
+#### Beta.4 validation and publication requirements
+
+- Local `npm run ci` passed: formatting, lint, type checks, 161 tests, executable packaging and three packaged startup smoke checks.
+- Synthetic Edge checks passed for browser and device-code flows at desktop/mobile widths, including direct connection, secondary sign-in options, account display/change and clearing stale Azure selections.
+- Pawprint's full suite passed, including public-client schema validation, ownership/tenant guardrails, read-back verification and synthetic two-run idempotency. A live read-only plan resolved the four delegated scopes and proposed one new app; no tenant changes were applied.
+- Before publication: approve the publisher tenant, apply and verify the managed app, set the public `COMMITTER_INSIGHTS_CLIENT_ID` repository variable, rerun Windows packaging, and validate real Microsoft sign-in and tenant consent. Upload only the matching CI executable, checksums and SBOM. Unsigned artifacts must remain labeled evaluation-only.
+
+### v0.1.0-beta.3 - 2026-09-24
+
+#### Highlights
+
+- Separate Azure DevOps and GitHub Enterprise report areas, with executive summaries, solution pricing totals and provider-scoped evidence. Each export still contains the complete report.
+- Repository inventory, UTC activity windows and charts, current security-setting snapshots, collection availability, and optional GitHub billing usage evidence.
+- Local rule-based CIO recommendations with supporting facts, owners and planning horizons. An aggregate AI review brief can be copied for manual review; the app does not send it to an AI service.
+- One-click GitHub and Azure DevOps repository links in the dashboard and HTML export, plus clickable PDF links.
+- Readable timestamps with configurable display timezone. Launch with `committer-insights.exe --timezone America/Toronto` or `--timezone=UTC`; use `--help` for options. Precedence is command line, then `COMMITTER_INSIGHTS_TIMEZONE`, then UTC. CSV timestamps, collection windows and date-only activity/billing periods remain unchanged.
+- Improved desktop/mobile report navigation, filtering, pagination, identity contribution detail and offline HTML printing.
+- Consolidated public architecture, privacy and setup documentation in the README.
+
+#### Compatibility and Limitations
+
+- Exports are CSV, PDF and standalone HTML. XLSX export has been removed.
+- This is an **unsigned Windows beta for evaluation**, not a production-ready signed release. The executable may trigger Windows trust warnings. `SHA256SUMS.txt` verifies download integrity, not publisher identity.
+- Azure DevOps sign-in still primarily uses an existing Azure CLI login; the optional browser fallback requires a configured publisher client ID and remains subject to tenant consent and Conditional Access. GitHub uses the GitHub CLI login. Standalone Microsoft browser authentication was not added in this beta.
+- Pricing is modeled public-list-price guidance, not an invoice, confirmed licensed-seat inventory or a purchasing recommendation. Missing evidence is not zero usage. Security settings do not prove successful scanning or compliance.
+- Reports are held in local process memory and are cleared when the app closes. Exported reports contain potentially sensitive organization, repository and identity information; share only with authorized recipients.
+- PDF standard-font limitations can replace unsupported characters with `?`; CSV and HTML retain Unicode text.
+
+#### Beta validation
+
+- Full local `npm run ci`: formatting, lint, type checks, 140 unit/integration tests, executable build and packaged smoke tests passed.
+- Packaged tests cover normal startup, timezone option syntaxes, help, invalid arguments and local session authorization.
+- Synthetic Edge checks passed at desktop/mobile widths, including report navigation, filters, downloads, repository links and HTML printing. UTC and America/Toronto display cases were checked; live customer collection and tenant permissions were not validated as part of release preparation.
 
 ## Troubleshooting
 
-- **Azure CLI sign-in fails:** run `az login`, select an account in the tenant connected to the Azure DevOps organization, and retry.
+- **Microsoft sign-in is not configured:** the publisher must configure the client ID and provide a rebuilt executable. Running `az login` does not fix this build configuration.
 - **Organization cannot be accessed:** verify the organization URL and that the signed-in user is a member with Advanced Security reporting access.
-- **Administrator approval appears:** Azure CLI was unavailable and the publisher fallback was used. Use `az login` to avoid Committer Insights-specific consent, or ask the tenant administrator to approve the fallback.
+- **Administrator approval appears:** ask the tenant administrator to review and approve the publisher application's delegated access. The app cannot bypass tenant consent or Conditional Access.
 - **GitHub sign-in fails:** run `gh auth login --hostname github.com`, confirm the intended active account with `gh auth status --active`, and retry.
 - **A GitHub repository is missing:** ensure the active GitHub CLI credential can access it and has completed any required organization SAML authorization.
 - **Browser did not open:** copy the loopback URL shown by the application only in explicit no-browser/test mode; normal releases open the default browser automatically.

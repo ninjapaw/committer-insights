@@ -1,9 +1,28 @@
 import type { ColumnDef } from '@tanstack/react-table';
-import type { AzureDevOpsDisplayCommitter } from '@ninjapaw/contracts';
+import type { AzureDevOpsDisplayCommitter, DeviceSignInState } from '@ninjapaw/contracts';
 import { postJson, requestJson } from '../services/local-api';
 
 export function connectAzure() {
-  return postJson<{ authenticated: boolean }>('/api/auth/sign-in');
+  return postJson<DeviceSignInState>('/api/auth/sign-in');
+}
+
+export function disconnectAzure() {
+  return postJson<{ authenticated: boolean }>('/api/auth/sign-out');
+}
+
+export function startDeviceSignIn() {
+  return postJson<DeviceSignInState>('/api/auth/device-code');
+}
+
+export function getDeviceSignIn(id: string) {
+  return requestJson<DeviceSignInState>(`/api/auth/device-code/${encodeURIComponent(id)}`);
+}
+
+export function cancelDeviceSignIn(id: string) {
+  return requestJson<DeviceSignInState>(`/api/auth/device-code/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    keepalive: true,
+  });
 }
 
 export async function discoverOrganizations() {

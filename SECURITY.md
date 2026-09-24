@@ -7,4 +7,4 @@ for the reporting process.
 
 See [Privacy and security](README.md#privacy-and-security) for this application's
 data handling and local security boundary, and the
-[threat model](docs/THREAT_MODEL.md) for risks and mitigations.
+[threat model](README.md#threat-model) for risks and mitigations.

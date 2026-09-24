@@ -1,44 +1,155 @@
+import { randomUUID } from 'node:crypto';
+import type { DeviceSignInState } from '@ninjapaw/contracts';
 import {
-  AzureCliCredential,
+  DeviceCodeCredential,
   InteractiveBrowserCredential,
-  type AccessToken,
+  type AuthenticationRecord,
   type TokenCredential,
 } from '@azure/identity';
 import { config } from '../shared/config.js';
 
-const azureCliCredential = new AzureCliCredential();
 let interactiveCredential: TokenCredential | undefined;
+let deviceAttempt:
+  | {
+      id: string;
+      controller: AbortController;
+      timer?: ReturnType<typeof setTimeout>;
+      state: DeviceSignInState;
+    }
+  | undefined;
 
-function createInteractiveCredential(): TokenCredential | undefined {
+function publisherClientId(): string {
   const clientId = config.entra.clientId();
-  if (!clientId) return undefined;
+  if (!clientId) {
+    throw new Error(
+      'Microsoft sign-in is not configured in this build. The publisher must configure COMMITTER_INSIGHTS_CLIENT_ID and rebuild the application. No Azure CLI login is required.',
+    );
+  }
+  return clientId;
+}
 
-  return new InteractiveBrowserCredential({
+export function getDeviceSignIn(id: string): DeviceSignInState | undefined {
+  return deviceAttempt?.id === id ? deviceAttempt.state : undefined;
+}
+
+export function cancelDeviceSignIn(id: string): DeviceSignInState | undefined {
+  if (deviceAttempt?.id !== id) return undefined;
+  if (deviceAttempt.state.status === 'pending') {
+    deviceAttempt.state = { id, status: 'canceled' };
+    clearTimeout(deviceAttempt.timer);
+    deviceAttempt.controller.abort();
+  }
+  return deviceAttempt.state;
+}
+
+function createSignInAttempt() {
+  if (deviceAttempt) cancelDeviceSignIn(deviceAttempt.id);
+  interactiveCredential = undefined;
+  const id = randomUUID();
+  const expiresOnTimestamp = Date.now() + 10 * 60 * 1000;
+  const attempt: NonNullable<typeof deviceAttempt> = {
+    id,
+    controller: new AbortController(),
+    state: { id, status: 'pending' },
+  };
+  deviceAttempt = attempt;
+  const expire = () => {
+    if (attempt.state.status !== 'pending') return;
+    attempt.state = { id, status: 'expired' };
+    attempt.controller.abort();
+  };
+  attempt.timer = setTimeout(expire, 10 * 60 * 1000);
+  attempt.timer.unref();
+  return { attempt, expiresOnTimestamp };
+}
+
+function completeSignIn(
+  attempt: NonNullable<typeof deviceAttempt>,
+  credential: TokenCredential,
+  record: AuthenticationRecord | undefined,
+): void {
+  // A canceled or superseded request must never replace the current account.
+  if (deviceAttempt !== attempt || attempt.state.status !== 'pending') return;
+  if (!record?.username || !record.tenantId)
+    throw new Error('Microsoft sign-in did not identify an account.');
+  interactiveCredential = credential;
+  attempt.state = {
+    id: attempt.id,
+    status: 'authenticated',
+    account: { username: record.username, tenantId: record.tenantId },
+  };
+  clearTimeout(attempt.timer);
+}
+
+export function getMicrosoftAccount(): DeviceSignInState['account'] {
+  return deviceAttempt?.state.status === 'authenticated' ? deviceAttempt.state.account : undefined;
+}
+
+export function disconnectMicrosoftAccount(): void {
+  if (deviceAttempt) cancelDeviceSignIn(deviceAttempt.id);
+  interactiveCredential = undefined;
+  deviceAttempt = undefined;
+}
+
+export function startDeviceSignIn(): DeviceSignInState {
+  const clientId = publisherClientId();
+  const { attempt, expiresOnTimestamp } = createSignInAttempt();
+  const { id } = attempt;
+  const credential = new DeviceCodeCredential({
+    clientId,
+    tenantId: config.entra.tenantId(),
+    disableAutomaticAuthentication: true,
+    userPromptCallback: ({ userCode, verificationUri }) => {
+      if (attempt.state.status !== 'pending') return;
+      attempt.state = {
+        id,
+        status: 'pending',
+        challenge: { userCode, verificationUri, expiresOnTimestamp },
+      };
+    },
+  });
+  void credential
+    .authenticate(`${config.azureDevOps.resourceUri}/.default`, {
+      abortSignal: attempt.controller.signal,
+    })
+    .then((record) => completeSignIn(attempt, credential, record))
+    .catch(() => {
+      if (attempt.state.status !== 'pending') return;
+      attempt.state = {
+        id,
+        status: 'failed',
+        message:
+          'Device sign-in failed. Try again, use browser sign-in, or contact your administrator if tenant policy blocks device codes.',
+      };
+    })
+    .finally(() => clearTimeout(attempt.timer));
+  return attempt.state;
+}
+
+export async function signInWithBrowser(): Promise<DeviceSignInState> {
+  const clientId = publisherClientId();
+  const { attempt } = createSignInAttempt();
+  // A fresh credential without loginHint keeps Microsoft's account picker available.
+  const credential = new InteractiveBrowserCredential({
     clientId,
     tenantId: config.entra.tenantId(),
     redirectUri: config.entra.redirectUri(),
+    disableAutomaticAuthentication: true,
   });
-}
-
-async function acquireFromAzureCli(): Promise<AccessToken | null> {
   try {
-    // Azure CLI requires the Azure DevOps application ID as the token resource.
-    return await azureCliCredential.getToken(`${config.azureDevOps.resourceAppId}/.default`);
-  } catch {
-    return null;
+    const record = await credential.authenticate(`${config.azureDevOps.resourceUri}/.default`, {
+      abortSignal: attempt.controller.signal,
+    });
+    completeSignIn(attempt, credential, record);
+    return attempt.state;
+  } catch (error) {
+    cancelDeviceSignIn(attempt.id);
+    throw error;
   }
 }
 
 export async function acquireAzureDevOpsToken(): Promise<string> {
-  const cliToken = await acquireFromAzureCli();
-  if (cliToken?.token) return cliToken.token;
-
-  interactiveCredential ??= createInteractiveCredential();
-  if (!interactiveCredential) {
-    throw new Error(
-      'Sign in with Azure CLI by running "az login", then try again. This avoids registering or approving Committer Insights as an application.',
-    );
-  }
+  if (!interactiveCredential) throw new Error('Sign in with Microsoft to continue.');
 
   const token = await interactiveCredential.getToken(`${config.azureDevOps.resourceUri}/.default`);
   if (!token?.token) throw new Error('Microsoft sign-in did not return an Azure DevOps token.');

@@ -21,6 +21,8 @@ export function SourcePicker({
   parseSource,
   manualLabel,
   discoveryErrorMessage,
+  renderConnection,
+  onDisconnect,
 }: {
   title: string;
   legend: string;
@@ -34,6 +36,12 @@ export function SourcePicker({
   parseSource?: (value: string) => string | { name: string; targetType?: string };
   manualLabel?: string;
   discoveryErrorMessage?: string;
+  renderConnection?: (
+    onConnected: () => void,
+    onChanging: () => Promise<void>,
+    connected: boolean,
+  ) => ReactNode;
+  onDisconnect?: () => void;
 }): JSX.Element {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
@@ -70,13 +78,31 @@ export function SourcePicker({
   return (
     <section className="source-panel" aria-label={title}>
       <h2>{title}</h2>
-      <button
-        type="button"
-        disabled={disabled || connection.isPending || connected}
-        onClick={() => connection.mutate()}
-      >
-        {connected ? `${title} connected` : connectLabel}
-      </button>
+      {renderConnection ? (
+        renderConnection(
+          () => {
+            queryClient.setQueryData(['provider-connection', title], true);
+          },
+          async () => {
+            queryClient.setQueryData(['provider-connection', title], false);
+            await queryClient.cancelQueries({ queryKey: ['source-picker', title] });
+            queryClient.removeQueries({ queryKey: ['source-picker', title] });
+            setSearch('');
+            setManual('');
+            setManualError('');
+            onDisconnect?.();
+          },
+          connected,
+        )
+      ) : (
+        <button
+          type="button"
+          disabled={disabled || connection.isPending || connected}
+          onClick={() => connection.mutate()}
+        >
+          {connected ? `${title} connected` : connectLabel}
+        </button>
+      )}
       {connection.isError && <div role="alert">{connection.error.message}</div>}
       {connected && discovery.isPending && (
         <p role="status">Discovering {legend.toLowerCase()}...</p>

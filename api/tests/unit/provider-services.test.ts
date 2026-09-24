@@ -15,7 +15,7 @@ import {
 import type { AzureDevOpsCommitter, GitHubCommitter, SourceStatus } from '@ninjapaw/contracts';
 import { reportStore } from '../../src/reports/report-store.js';
 import { buildAzureDevOpsCostEstimates } from '../../src/reports/billing-estimates.js';
-import { acquireAzureDevOpsToken } from '../../src/auth/local-credential.js';
+import { acquireAzureDevOpsToken, signInWithBrowser } from '../../src/auth/local-credential.js';
 import { acquireGitHubToken } from '../../src/auth/github-cli.js';
 import { fetchAzureDevOpsEstimate } from '../../src/adapters/azure-devops/estimate-client.js';
 import {
@@ -26,7 +26,10 @@ import {
 } from '../../src/adapters/github/github-client.js';
 import { discoverAzureDevOpsOrganizations } from '../../src/adapters/azure-devops/organizations-client.js';
 
-vi.mock('../../src/auth/local-credential.js', () => ({ acquireAzureDevOpsToken: vi.fn() }));
+vi.mock('../../src/auth/local-credential.js', () => ({
+  acquireAzureDevOpsToken: vi.fn(),
+  signInWithBrowser: vi.fn(),
+}));
 vi.mock('../../src/adapters/azure-devops/insights-client.js', () => ({
   collectAzureRepositoryInsights: vi.fn(),
   preflightAzureRepositoryAccess: vi.fn(),
@@ -65,7 +68,13 @@ describe('Azure DevOps report service', () => {
   it('connects and discovers organizations using only Azure credentials', async () => {
     const organizations = [{ id: 'org-1', name: 'contoso', url: 'https://dev.azure.com/contoso' }];
     vi.mocked(discoverAzureDevOpsOrganizations).mockResolvedValue(organizations);
-    expect(await connectAzureDevOps()).toEqual({ authenticated: true });
+    const selection = {
+      id: 'test-attempt',
+      status: 'authenticated' as const,
+      account: { username: 'selected@example.test', tenantId: 'test-tenant' },
+    };
+    vi.mocked(signInWithBrowser).mockResolvedValue(selection);
+    expect(await connectAzureDevOps()).toEqual(selection);
     expect(await discoverAzureDevOpsSources()).toEqual(organizations);
     expect(discoverAzureDevOpsOrganizations).toHaveBeenCalledWith('azure-token');
     expect(acquireGitHubToken).not.toHaveBeenCalled();

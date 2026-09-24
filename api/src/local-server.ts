@@ -13,6 +13,13 @@ import {
   type ExportFormat,
 } from '@ninjapaw/contracts';
 import { AzureDevOpsAdapterError } from './adapters/azure-devops/estimate-client.js';
+import {
+  cancelDeviceSignIn,
+  disconnectMicrosoftAccount,
+  getMicrosoftAccount,
+  getDeviceSignIn,
+  startDeviceSignIn,
+} from './auth/local-credential.js';
 import { generateReportExport } from './exports/report-export.js';
 import { createCombinedReport, preflightSources } from './reports/combined-report.js';
 import { reportStore, type StoredReport } from './reports/report-store.js';
@@ -27,7 +34,6 @@ const HOST = '127.0.0.1';
 const appRoot = resolve(process.cwd(), 'app/dist');
 // This unguessable capability is the authorization boundary for the one local browser session.
 const capability = randomBytes(32).toString('base64url');
-let signedIn = false;
 let githubSignedIn = false;
 
 const securityHeaders = {
@@ -174,15 +180,33 @@ async function handleApi(
 ): Promise<void> {
   if (!isAuthorized(request, origin))
     return sendJson(response, 401, { message: 'Invalid local session.' });
+  const account = getMicrosoftAccount();
+  const signedIn = Boolean(account);
   if (request.method === 'GET' && pathname === '/api/session') {
     return sendJson(response, 200, {
       authenticated: signedIn,
+      account,
     });
   }
   if (request.method === 'POST' && pathname === '/api/auth/sign-in') {
     const connection = await connectAzureDevOps();
-    signedIn = true;
     return sendJson(response, 200, connection);
+  }
+  if (request.method === 'POST' && pathname === '/api/auth/device-code') {
+    return sendJson(response, 202, startDeviceSignIn());
+  }
+  if (request.method === 'POST' && pathname === '/api/auth/sign-out') {
+    disconnectMicrosoftAccount();
+    return sendJson(response, 200, { authenticated: false });
+  }
+  const deviceMatch = pathname.match(/^\/api\/auth\/device-code\/([a-f0-9-]+)$/);
+  if (deviceMatch?.[1] && (request.method === 'GET' || request.method === 'DELETE')) {
+    const state =
+      request.method === 'DELETE'
+        ? cancelDeviceSignIn(deviceMatch[1])
+        : getDeviceSignIn(deviceMatch[1]);
+    if (!state) return sendJson(response, 404, { message: 'Device sign-in attempt not found.' });
+    return sendJson(response, 200, state);
   }
   if (request.method === 'POST' && pathname === '/api/auth/github/sign-in') {
     const connection = await connectGitHub();

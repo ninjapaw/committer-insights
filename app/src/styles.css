@@ -72,6 +72,50 @@
   --shadow-card-hover: 0 8px 24px rgb(0 0 0 / 11%);
 }
 
+.sign-in-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.microsoft-sign-in {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.other-sign-in-options {
+  margin-block: 0.75rem;
+}
+.other-sign-in-options summary {
+  cursor: pointer;
+  margin-bottom: 0.5rem;
+}
+.sign-in-actions button,
+.device-challenge button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  white-space: normal;
+}
+.microsoft-sign-in .secondary-button {
+  background: transparent;
+  color: var(--color-text);
+  border: 1px solid var(--color-border-strong);
+}
+.device-challenge {
+  display: grid;
+  gap: 0.75rem;
+  margin-block: 1rem;
+  padding-block: 1rem;
+  border-block: 1px solid var(--color-border);
+  overflow-wrap: anywhere;
+}
+.device-challenge output {
+  font-family: var(--font-mono);
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: 0;
+}
 .report-insights {
   margin-block: 2rem;
   border-block: 1px solid var(--color-border);

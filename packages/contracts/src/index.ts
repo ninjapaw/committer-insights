@@ -1,5 +1,13 @@
 import { z } from 'zod';
 
+export type DeviceSignInState = {
+  id: string;
+  status: 'pending' | 'authenticated' | 'canceled' | 'expired' | 'failed';
+  account?: { username: string; tenantId: string };
+  challenge?: { userCode: string; verificationUri: string; expiresOnTimestamp: number };
+  message?: string;
+};
+
 export * from './azure-devops.js';
 export * from './azure-devops-display.js';
 export * from './github.js';

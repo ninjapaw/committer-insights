@@ -8,7 +8,7 @@ import {
 } from '@ninjapaw/contracts';
 import { fetchAzureDevOpsEstimate } from '../adapters/azure-devops/estimate-client.js';
 import { discoverAzureDevOpsOrganizations } from '../adapters/azure-devops/organizations-client.js';
-import { acquireAzureDevOpsToken } from '../auth/local-credential.js';
+import { acquireAzureDevOpsToken, signInWithBrowser } from '../auth/local-credential.js';
 import { saveReport } from '../reports/report-store.js';
 import { config } from '../shared/config.js';
 import { buildProviderSummary } from '../reports/provider-summary.js';
@@ -27,8 +27,7 @@ export function azureSourceScope(source: AzureSource): string {
 }
 
 export async function connectAzureDevOps() {
-  await acquireAzureDevOpsToken();
-  return { authenticated: true };
+  return signInWithBrowser();
 }
 
 export async function discoverAzureDevOpsSources() {
@@ -149,6 +148,6 @@ export function azureIdentityKey(committer: AzureDevOpsCommitter): string {
 
 export function azureRemediation(authentication: boolean): string {
   return authentication
-    ? 'Run "az login" with an account in the organization, then reconnect.'
+    ? 'Use Sign in with Microsoft with an account in the organization, then reconnect.'
     : 'Ask an Azure DevOps administrator for organization membership and Advanced Security read access (vso.advsec equivalent).';
 }
