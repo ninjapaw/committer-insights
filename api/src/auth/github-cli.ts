@@ -47,7 +47,7 @@ export async function listGitHubAccounts(): Promise<GitHubCliAccount[]> {
   }
 }
 
-function githubCliEnvironment(): NodeJS.ProcessEnv {
+export function githubCliEnvironment(): NodeJS.ProcessEnv {
   const environment = { ...process.env };
   for (const name of [
     'GH_TOKEN',

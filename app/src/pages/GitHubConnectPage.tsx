@@ -27,12 +27,21 @@ export function GitHubConnectPage(): JSX.Element {
     <section aria-labelledby="github-connect-title">
       <h1 id="github-connect-title">Connect GitHub</h1>
       <p>
-        Committer Insights uses your selected GitHub CLI account. Install GitHub CLI and run{' '}
-        <code>gh auth login</code> once if you are not already signed in.
+        GitHub CLI is required on this computer.{' '}
+        <a href="https://cli.github.com/" target="_blank" rel="noopener noreferrer">
+          Install GitHub CLI
+        </a>
       </p>
       <h2>What the portal requests</h2>
       <ul>
-        <li>Read-only access through your selected GitHub CLI account</li>
+        <li>
+          GitHub CLI authorization with repo, read:org, and gist scopes, which can include write
+          access
+        </li>
+        <li>
+          Committer Insights makes read-only reporting requests; it does not narrow the CLI token's
+          permissions
+        </li>
         <li>Access is limited by your existing GitHub organization and enterprise permissions</li>
         <li>Organization and enterprise source discovery visible to your GitHub account</li>
         <li>Repository commit metadata for visible repositories in the selected source</li>
@@ -45,17 +54,24 @@ export function GitHubConnectPage(): JSX.Element {
         <li>Commits from visible repositories in the selected source and date window</li>
       </ul>
 
-      <h2>What the portal does not request</h2>
+      <h2>What the portal does not do</h2>
       <ul>
-        <li>No permission to modify repositories</li>
-        <li>No permission to change organization or enterprise settings</li>
-        <li>No permission to change workflows, packages, issues, or pull requests</li>
+        <li>Modify repositories</li>
+        <li>Change organization or enterprise settings</li>
+        <li>Change workflows, packages, issues, or pull requests</li>
         <li>No personal access token is requested from the browser</li>
       </ul>
 
       <h2>How data is handled</h2>
       <ul>
         <li>GitHub CLI tokens stay on this device and are never returned to the browser</li>
+        <li>
+          New logins are saved by GitHub CLI and can change its active account for other tools
+        </li>
+        <li>
+          GitHub CLI uses the system credential store, with a plaintext fallback if it is
+          unavailable
+        </li>
         <li>Reports remain in memory until you close the application</li>
         <li>Exports are generated only at your request</li>
         <li>No commit messages, patches, filenames, or commit SHAs</li>

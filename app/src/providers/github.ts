@@ -6,6 +6,7 @@ import {
   type GitHubCommitter,
   type GitHubSourceOption,
   type GitHubCliAccount,
+  type GitHubSignInState,
 } from '@ninjapaw/contracts';
 import { postJson, requestJson } from '../services/local-api';
 
@@ -23,6 +24,20 @@ export async function listGitHubAccounts() {
 
 export function disconnectGitHub() {
   return postJson<{ authenticated: boolean }>('/api/auth/github/sign-out');
+}
+
+export function startGitHubSignIn(mode: 'browser' | 'device-code' = 'browser') {
+  return postJson<GitHubSignInState>(`/api/auth/github/${mode}`);
+}
+
+export function getGitHubSignIn(id: string) {
+  return requestJson<GitHubSignInState>(`/api/auth/github/browser/${encodeURIComponent(id)}`);
+}
+
+export function cancelGitHubSignIn(id: string) {
+  return requestJson<GitHubSignInState>(`/api/auth/github/browser/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
 }
 
 export async function discoverGitHubTargets() {

@@ -8,6 +8,13 @@ export interface GitHubCliAccount {
   available: boolean;
 }
 
+export type GitHubSignInState = {
+  id: string;
+  status: 'pending' | 'authenticated' | 'canceled' | 'expired' | 'failed';
+  challenge?: { userCode: string; verificationUri: string };
+  message?: string;
+};
+
 export type DeviceSignInState = {
   id: string;
   status: 'pending' | 'authenticated' | 'canceled' | 'expired' | 'failed';

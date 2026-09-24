@@ -5,6 +5,7 @@ import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { SourceStatus } from '@ninjapaw/contracts';
 import { CombinedReportPage } from '../../src/pages/CombinedReportPage';
 import { App } from '../../src/App';
+import { GitHubSignIn } from '../../src/components/GitHubSignIn';
 
 vi.mock('../../src/auth/get-token', () => ({
   getPortalApiToken: vi.fn().mockResolvedValue('local-capability'),
@@ -65,6 +66,7 @@ function renderGitHubFlow(preflight: () => Promise<Response>) {
 }
 
 async function selectGitHubSource() {
+  fireEvent.click(screen.getByText('Saved accounts'));
   fireEvent.click(screen.getByRole('button', { name: 'Connect GitHub CLI' }));
   const checkbox = await screen.findByRole('checkbox', { name: 'octocat (organization)' });
   fireEvent.click(checkbox);
@@ -73,6 +75,111 @@ async function selectGitHubSource() {
 }
 
 describe('CombinedReportPage', () => {
+  it.each(['browser', 'device-code'] as const)(
+    'prompts for GitHub %s login and connects after approval',
+    async (mode) => {
+      const onConnected = vi.fn();
+      const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const path = String(input);
+        if (path === `/api/auth/github/${mode}`)
+          return Response.json({ id: 'browser-attempt', status: 'pending' });
+        if (path === '/api/auth/github/browser/browser-attempt' && init?.method !== 'DELETE')
+          return Response.json({ id: 'browser-attempt', status: 'authenticated' });
+        if (path === '/api/auth/github/sign-in')
+          return Response.json({ viewer: { login: 'new-account' } });
+        throw new Error(`Unexpected request: ${path}`);
+      });
+      vi.stubGlobal('fetch', fetchMock);
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+      render(
+        <QueryClientProvider client={client}>
+          <GitHubSignIn onConnected={onConnected} />
+        </QueryClientProvider>,
+      );
+      expect(
+        within(screen.getByRole('button', { name: 'Sign in with GitHub' }).parentElement!)
+          .getAllByRole('button')
+          .map((button) => button.textContent),
+      ).toEqual(['Sign in with GitHub', 'Sign in with a device code']);
+      expect(screen.getByText('Saved accounts').closest('details')).not.toHaveAttribute('open');
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: mode === 'browser' ? 'Sign in with GitHub' : 'Sign in with a device code',
+        }),
+      );
+      await waitFor(() => expect(onConnected).toHaveBeenCalledOnce());
+      expect(client.getQueryData(['github-account'])).toEqual({ login: 'new-account' });
+      expect(
+        fetchMock.mock.calls.some(([path]) => String(path) === '/api/auth/github/accounts'),
+      ).toBe(false);
+    },
+  );
+
+  it('starts a fresh browser login from Change account instead of opening the saved-account picker', async () => {
+    const onChanging = vi.fn();
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      if (String(input) === '/api/auth/github/sign-out')
+        return Response.json({ authenticated: false });
+      return Response.json({
+        id: 'change-attempt',
+        status: init?.method === 'DELETE' ? 'canceled' : 'pending',
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+    client.setQueryData(['github-account'], { login: 'previous-account' });
+    render(
+      <QueryClientProvider client={client}>
+        <GitHubSignIn connected onConnected={vi.fn()} onChanging={onChanging} />
+      </QueryClientProvider>,
+    );
+    expect(
+      screen.queryByRole('button', { name: 'Sign in with a device code' }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Change account' }));
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some(([path]) => path === '/api/auth/github/browser')).toBe(true),
+    );
+    expect(onChanging).toHaveBeenCalledOnce();
+    expect(client.getQueryData(['github-account'])).toBeNull();
+    expect(fetchMock.mock.calls[0]![0]).toBe('/api/auth/github/sign-out');
+    expect(fetchMock.mock.calls.some(([path]) => path === '/api/auth/github/accounts')).toBe(false);
+    expect(screen.queryByRole('combobox', { name: 'GitHub account' })).not.toBeInTheDocument();
+  });
+
+  it('shows a GitHub device code and cancels without connecting a saved account', async () => {
+    const onConnected = vi.fn();
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      if (init?.method === 'DELETE') return Response.json({ id: 'attempt', status: 'canceled' });
+      return Response.json({
+        id: 'attempt',
+        status: 'pending',
+        challenge: {
+          userCode: 'ABCD-1234',
+          verificationUri: 'https://github.com/login/device',
+        },
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+    render(
+      <QueryClientProvider client={client}>
+        <GitHubSignIn onConnected={onConnected} />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in with GitHub' }));
+    expect(await screen.findByLabelText('GitHub sign-in code')).toHaveTextContent('ABCD-1234');
+    expect(screen.getByRole('link', { name: 'GitHub device sign-in' })).toHaveAttribute(
+      'href',
+      'https://github.com/login/device',
+    );
+    expect(screen.getByRole('button', { name: 'Sign in with a device code' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel GitHub sign-in' }));
+    await screen.findByText('GitHub sign-in canceled.');
+    expect(onConnected).not.toHaveBeenCalled();
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(true);
+  });
+
   it('selects and changes GitHub accounts without retaining stale GitHub sources or clearing Azure sources', async () => {
     let account = '';
     const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
@@ -112,6 +219,7 @@ describe('CombinedReportPage', () => {
       </QueryClientProvider>,
     );
     const github = within(screen.getByRole('region', { name: 'GitHub', exact: true }));
+    fireEvent.click(github.getByText('Saved accounts'));
     fireEvent.click(github.getByRole('button', { name: 'Select GitHub account' }));
     const select = await github.findByRole('combobox', { name: 'GitHub account' });
     await github.findByRole('option', { name: 'second' });
@@ -120,7 +228,7 @@ describe('CombinedReportPage', () => {
     fireEvent.click(github.getByRole('button', { name: 'Connect selected account' }));
     await github.findByText('second', { exact: true });
     fireEvent.click(await github.findByRole('checkbox', { name: 'second-org (organization)' }));
-    fireEvent.click(github.getByRole('button', { name: 'Change account' }));
+    fireEvent.click(github.getByRole('button', { name: 'Select GitHub account' }));
     await github.findByRole('combobox', { name: 'GitHub account' });
     expect(client.getQueryData(['report-draft'])).toMatchObject({
       azureSelected: ['kept-azure'],
@@ -164,10 +272,11 @@ describe('CombinedReportPage', () => {
         </MemoryRouter>
       </QueryClientProvider>,
     );
+    fireEvent.click(screen.getByText('Saved accounts'));
     fireEvent.click(screen.getByRole('button', { name: 'Select GitHub account' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Account listing unavailable');
     fireEvent.click(screen.getByRole('button', { name: 'Refresh accounts' }));
-    await screen.findByText(/No GitHub CLI accounts found/);
+    await screen.findByText(/No saved GitHub accounts found/);
     expect(screen.getByRole('button', { name: 'Connect selected account' })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Cancel', exact: true }));
     expect(screen.getByRole('button', { name: 'Connect GitHub CLI' })).toBeEnabled();

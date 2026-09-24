@@ -36,7 +36,7 @@ Explore Azure DevOps and GitHub repository usage, security enablement, and purch
 1. Download the Windows executable and `SHA256SUMS.txt` from the release.
 2. Verify the checksum and review its signing status. Unsigned beta artifacts are for evaluation only; a checksum does not verify the publisher. Production distribution requires a verified publisher signature.
 3. For Azure DevOps, select **Sign in with Microsoft** or the adjacent **Sign in with a device code** button. Choose your account on Microsoft's page. The app connects directly and shows the signed-in username with **Change account**. Both methods use the publisher application; your tenant may require administrator consent or block device-code authentication.
-4. For GitHub, install GitHub CLI once and run `gh auth login --hostname github.com`. Use **Connect GitHub CLI** for its active account, or **Select GitHub account** to choose a stored account. Once connected, the app shows the username and **Change account**.
+4. For GitHub, install [GitHub CLI](https://cli.github.com/) once, reopen the executable, and select **Sign in with GitHub** or **Sign in with a device code**. The first opens GitHub automatically; the second shows a code and verification link without opening a browser. Approve access to finish connecting; no terminal login command is needed. Optional CLI account selection is under **Saved accounts**. Once connected, the app shows the username and **Change account**.
 5. Run the executable without Node.js, administrator rights, or installation.
 6. Choose Azure DevOps organizations and/or GitHub organizations or enterprises, security plans, and a 7/30/90/180/365-day activity window. Optionally include GitHub organization billing usage using existing account access.
 7. Run the minimum-permission check. Inaccessible sources are skipped with a reason and remediation while accessible sources continue.
@@ -115,11 +115,11 @@ Endpoint references: [Azure repository API](https://learn.microsoft.com/en-us/re
 
 The application never asks for an Azure DevOps PAT, customer app registration, client secret, or tenant identifier. Microsoft browser authentication uses the publisher's public-client registration and the signed-in user's Azure DevOps permissions. Tenant policy may require administrator approval.
 
-GitHub access uses your selected GitHub CLI account. **Select GitHub account** lists locally stored `github.com` accounts, marks the CLI-active account, and disables accounts that need sign-in. Use **Refresh accounts** after adding another account with `gh auth login --hostname github.com`. Account discovery requires a GitHub CLI version supporting `gh auth status --json hosts`; update GitHub CLI if listing is unavailable.
+GitHub access uses your selected GitHub CLI account. The initial controls mirror Microsoft: **Sign in with GitHub** and **Sign in with a device code**. Both use GitHub's device authorization; only the primary option opens the browser automatically. Both display the one-time code and verification link, connect after approval, support cancellation, and time out after 15 minutes. A missing CLI produces an installation message rather than asking you to run a login command. The collapsed **Saved accounts** section retains **Connect GitHub CLI** and **Select GitHub account** for existing credentials. Account discovery requires a GitHub CLI version supporting `gh auth status --json hosts`; update GitHub CLI if listing is unavailable.
 
-**Change account** disconnects the app's GitHub session, clears GitHub source selections and discovery data, and lets you select another stored account. Azure selections are preserved. After GitHub verifies the selected identity, subsequent requests use `gh auth token --user <login>` so an unrelated global CLI account switch cannot silently change the report identity. The app does not run `gh auth switch`, sign other tools out, or delete CLI credentials. Existing reports remain historical snapshots; generate a new report after changing accounts.
+**Change account** disconnects the app's GitHub session, clears GitHub source selections and discovery data, and starts a fresh browser sign-in. To choose an existing account instead, expand **Saved accounts** and select **Select GitHub account**. Azure selections are preserved. After GitHub verifies the selected identity, subsequent requests use `gh auth token --user <login>` so an unrelated global CLI account switch cannot silently change the report identity. The app does not run `gh auth switch`, sign other tools out, or delete CLI credentials. Existing reports remain historical snapshots; generate a new report after changing accounts.
 
-Committer Insights never returns the GitHub token to the browser, but the CLI token may have broader scopes than this report needs. Use a dedicated least-privilege GitHub CLI account when organizational policy requires tighter isolation. Adding new GitHub accounts still happens in GitHub CLI, not through a browser-token or PAT input in this app.
+Committer Insights never returns the GitHub token to the browser, but the CLI token may have broader scopes than this report needs. Use a dedicated least-privilege GitHub CLI account when organizational policy requires tighter isolation. New browser logins authorize GitHub CLI and are persisted by it; completing a new login can change the CLI's active account. GitHub CLI normally uses the operating-system credential store, but can fall back to plaintext storage if that store is unavailable. The app does not request insecure storage, a PAT, or a password, and only exposes the one-time verification code and sanitized status. Canceling does not revoke credentials already saved by GitHub CLI.
 
 ## Privacy and security
 
@@ -251,7 +251,7 @@ Prerequisites:
 - Node.js 24.19.0
 - npm 11.17.0
 - Publisher-configured Microsoft Entra public-client identity for live Azure DevOps browser sign-in testing
-- GitHub CLI with an authenticated user (`gh auth login`) for live GitHub report testing
+- GitHub CLI for live GitHub sign-in and report testing; authenticate using **Sign in with GitHub** in the app
 - Multitenant public-client registration details: [Microsoft Entra setup](#microsoft-entra-setup)
 - Authenticode signing service or certificate for public releases
 
@@ -270,7 +270,7 @@ npm ci
 npm run dev
 ```
 
-`npm run dev` builds the React application and starts the same local host used by the executable. Configure the publisher client ID and use **Sign in with Microsoft** for Azure DevOps; run `gh auth login` for GitHub access.
+`npm run dev` builds the React application and starts the same local host used by the executable. Configure the publisher client ID and use **Sign in with Microsoft** for Azure DevOps or **Sign in with GitHub** for GitHub access.
 
 ### Architecture
 
@@ -376,6 +376,20 @@ Node SEA injection modifies the executable after copying Node, so the final bina
 
 ## Release notes
 
+### v0.1.0-beta.6 - 2026-09-24
+
+- Added in-app GitHub sign-in with two primary buttons matching Microsoft: **Sign in with GitHub** opens the verification page automatically; **Sign in with a device code** displays the code and link without opening a browser. Both connect after approval and support cancellation and expiry.
+- Moved existing CLI account controls into a collapsed **Saved accounts** section. **Change account** starts a fresh browser sign-in while clearing stale GitHub selections and preserving Azure selections.
+- Added protected local start/status/cancel endpoints and cleanup when sign-in is replaced, canceled, or the local server closes. Only the one-time verification code and sanitized state reach the browser.
+- Corrected consent information to disclose GitHub CLI OAuth scopes, credential storage fallback, and the effect of new logins on its active account.
+
+#### Beta.6 validation and limitations
+
+- All 181 application/API tests passed, along with lint, type/build checks, executable browser-launch regression and packaged smoke checks. Desktop/mobile browser checks verified the two-button layout, hidden saved-account controls, device endpoint selection and cancellation.
+- A real GitHub CLI challenge and cancellation were verified with an empty temporary configuration. No live login approval or customer report collection was performed during this validation.
+- GitHub CLI must still be installed on the target computer. It is not bundled in this release; terminal login commands are no longer required for the new sign-in buttons.
+- The executable remains unsigned and the Entra publisher unverified. GitHub organization approval and Microsoft tenant policies still apply. This release is for evaluation only and does not modify previously downloaded beta.5 executables.
+
 ### v0.1.0-beta.5 - 2026-09-24
 
 - Added deterministic synthetic report generation, real CSV/HTML/PDF/JSON samples, a static Astro demo reusing the report dashboard, and a release-triggered GitHub Pages workflow with reproducibility and desktop/mobile browser tests.
@@ -445,7 +459,7 @@ Publisher verification is intentionally not required for this beta: the Entra pu
 - **Microsoft sign-in is not configured:** the publisher must configure the client ID and provide a rebuilt executable. Running `az login` does not fix this build configuration.
 - **Organization cannot be accessed:** verify the organization URL and that the signed-in user is a member with Advanced Security reporting access.
 - **Administrator approval appears:** ask the tenant administrator to review and approve the publisher application's delegated access. The app cannot bypass tenant consent or Conditional Access.
-- **GitHub sign-in fails:** run `gh auth login --hostname github.com`, confirm the intended active account with `gh auth status --active`, and retry.
+- **GitHub sign-in fails:** install or update GitHub CLI, reopen the app, and select **Sign in with GitHub**. Enter the displayed code on GitHub's verification page and approve access. Use the **GitHub device sign-in** link if the browser did not open. Organization policy may require approval of GitHub CLI's OAuth access.
 - **A GitHub repository is missing:** use **Change account** to select a stored account with access and confirm it has completed any required organization SAML authorization.
 - **Browser did not open:** copy the loopback URL shown by the application only in explicit no-browser/test mode; normal releases open the default browser automatically.
 

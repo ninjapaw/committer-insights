@@ -3,6 +3,17 @@ import type { Server } from 'node:http';
 import { startLocalServer } from '../../src/local-server.js';
 import { listGitHubAccounts, disconnectGitHubAccount } from '../../src/auth/github-cli.js';
 import { connectGitHub } from '../../src/services/github.js';
+import {
+  cancelGitHubSignIn,
+  getGitHubSignIn,
+  startGitHubSignIn,
+} from '../../src/auth/github-sign-in.js';
+
+vi.mock('../../src/auth/github-sign-in.js', () => ({
+  startGitHubSignIn: vi.fn(),
+  getGitHubSignIn: vi.fn(),
+  cancelGitHubSignIn: vi.fn(),
+}));
 
 vi.mock('../../src/auth/github-cli.js', () => ({
   listGitHubAccounts: vi.fn(),
@@ -79,9 +90,13 @@ describe('device sign-in local API boundary', () => {
       ['/api/auth/github/accounts', 'GET'],
       ['/api/auth/github/sign-in', 'POST'],
       ['/api/auth/github/sign-out', 'POST'],
+      ['/api/auth/github/browser', 'POST'],
+      ['/api/auth/github/device-code', 'POST'],
+      [`/api/auth/github/browser/${id}`, 'GET'],
+      [`/api/auth/github/browser/${id}`, 'DELETE'],
     ]) {
       expect((await fetch(`${origin}${path}`, { method })).status).toBe(401);
-      if (method === 'POST')
+      if (method === 'POST' || method === 'DELETE')
         expect(
           (
             await fetch(`${origin}${path}`, {
@@ -137,6 +152,44 @@ describe('device sign-in local API boundary', () => {
       (await fetch(`${origin}/api/connections/github/targets`, { headers: { authorization } }))
         .status,
     ).toBe(401);
+  });
+
+  it('starts, polls, and cancels GitHub login without granting report access before verification', async () => {
+    const pending = {
+      id,
+      status: 'pending' as const,
+      challenge: {
+        userCode: 'ABCD-1234',
+        verificationUri: 'https://github.com/login/device',
+      },
+    };
+    vi.mocked(startGitHubSignIn).mockReturnValue(pending);
+    vi.mocked(getGitHubSignIn).mockReturnValue(pending);
+    vi.mocked(cancelGitHubSignIn).mockReturnValue({ id, status: 'canceled' });
+    const headers = { authorization, origin };
+    const start = await fetch(`${origin}/api/auth/github/browser`, { method: 'POST', headers });
+    expect(start.status).toBe(202);
+    expect(await start.json()).toEqual(pending);
+    expect(startGitHubSignIn).toHaveBeenCalledWith(expect.any(Function));
+    const device = await fetch(`${origin}/api/auth/github/device-code`, {
+      method: 'POST',
+      headers,
+    });
+    expect(device.status).toBe(202);
+    expect(await device.json()).toEqual(pending);
+    expect(startGitHubSignIn).toHaveBeenLastCalledWith(undefined);
+    const status = await fetch(`${origin}/api/auth/github/browser/${id}`, { headers });
+    expect(status.headers.get('cache-control')).toBe('no-store');
+    expect(await status.json()).toEqual(pending);
+    expect((await fetch(`${origin}/api/connections/github/targets`, { headers })).status).toBe(401);
+    const cancel = await fetch(`${origin}/api/auth/github/browser/${id}`, {
+      method: 'DELETE',
+      headers,
+    });
+    expect(await cancel.json()).toEqual({ id, status: 'canceled' });
+    expect(cancelGitHubSignIn).toHaveBeenCalledWith(id);
+    vi.mocked(getGitHubSignIn).mockReturnValue(undefined);
+    expect((await fetch(`${origin}/api/auth/github/browser/${id}`, { headers })).status).toBe(404);
   });
 
   it('rejects unauthenticated reads and writes, and cross-origin mutations', async () => {

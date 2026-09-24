@@ -15,6 +15,7 @@ import {
 } from '@ninjapaw/contracts';
 import { AzureDevOpsAdapterError } from './adapters/azure-devops/estimate-client.js';
 import { listGitHubAccounts, disconnectGitHubAccount } from './auth/github-cli.js';
+import { cancelGitHubSignIn, getGitHubSignIn, startGitHubSignIn } from './auth/github-sign-in.js';
 import {
   cancelDeviceSignIn,
   disconnectMicrosoftAccount,
@@ -210,12 +211,34 @@ async function handleApi(
     if (!state) return sendJson(response, 404, { message: 'Device sign-in attempt not found.' });
     return sendJson(response, 200, state);
   }
+  if (
+    request.method === 'POST' &&
+    (pathname === '/api/auth/github/browser' || pathname === '/api/auth/github/device-code')
+  ) {
+    githubSignedIn = false;
+    disconnectGitHubAccount();
+    return sendJson(
+      response,
+      202,
+      startGitHubSignIn(pathname === '/api/auth/github/browser' ? openBrowser : undefined),
+    );
+  }
+  const githubAttempt = pathname.match(/^\/api\/auth\/github\/browser\/([a-f0-9-]+)$/);
+  if (githubAttempt?.[1] && (request.method === 'GET' || request.method === 'DELETE')) {
+    const state =
+      request.method === 'DELETE'
+        ? cancelGitHubSignIn(githubAttempt[1])
+        : getGitHubSignIn(githubAttempt[1]);
+    if (!state) return sendJson(response, 404, { message: 'GitHub sign-in attempt not found.' });
+    return sendJson(response, 200, state);
+  }
   if (request.method === 'POST' && pathname === '/api/auth/github/sign-in') {
     const parsed = gitHubSignInSchema.safeParse(
       request.headers['content-type']?.includes('application/json') ? await readJson(request) : {},
     );
     if (!parsed.success)
       return sendJson(response, 400, { message: 'Select a valid GitHub account.' });
+    cancelGitHubSignIn();
     githubSignedIn = false;
     const connection = await connectGitHub(parsed.data.login);
     githubSignedIn = true;
@@ -225,6 +248,7 @@ async function handleApi(
     return sendJson(response, 200, { accounts: await listGitHubAccounts() });
   }
   if (request.method === 'POST' && pathname === '/api/auth/github/sign-out') {
+    cancelGitHubSignIn();
     githubSignedIn = false;
     disconnectGitHubAccount();
     return sendJson(response, 200, { authenticated: false });
@@ -347,7 +371,11 @@ export async function startLocalServer(): Promise<Server> {
     process.stdout.write(`Committer Insights opened at http://${HOST}:${address.port}/\n`);
   }
 
-  const shutdown = () => server.close(() => process.exit(0));
+  server.once('close', () => cancelGitHubSignIn());
+  const shutdown = () => {
+    cancelGitHubSignIn();
+    server.close(() => process.exit(0));
+  };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
   return server;
