@@ -184,6 +184,10 @@ Pending attempts expire after ten minutes. Leaving the screen cancels an availab
 
 ### Publisher setup
 
+**Publisher policy:** Committer Insights will remain an **unverified Microsoft Entra publisher**. Do not initiate publisher verification or associate a verified Partner ID unless this policy is explicitly changed. This does not remove the requirement for a publisher-owned multitenant app registration and public client ID.
+
+Customers may see an unverified-publisher warning. Their consent policies or Microsoft's risk-based consent protections can require administrator approval even for user-consentable delegated scopes; administrator-free cross-tenant sign-in is not guaranteed. Device-code sign-in does not bypass these controls. Do not ask customers to weaken tenant policies. Entra publisher verification is separate from executable Authenticode signing and checksum validation, whose requirements are unchanged.
+
 The declarative publisher manifest is [infra/publisher/public-client.json](infra/publisher/public-client.json). Shared reconciliation lives in Pawprint's [publisher provisioner](https://github.com/ninjapaw/pawprint/blob/186a5a544b9e3972e4b63e216b8d86f350f81138/scripts/publisher-public-client.mjs), with a strict public-client schema. Use Pawprint revision `186a5a544b9e3972e4b63e216b8d86f350f81138` in a checkout beside this repository and install its dependencies. No cloud-hosted application, resource group, subscription deployment or duplicate identity framework is needed.
 
 ```powershell
@@ -195,7 +199,7 @@ node ../pawprint/scripts/publisher-public-client.mjs apply --config infra/publis
 
 Offline validation writes nothing; plan reads the explicit tenant only. Apply creates or reconciles one tagged public-client app and verifies it by reading it back. Run plan and apply again to confirm `found`. It refuses unmanaged name collisions, duplicate ownership tags, unexpected grants and client credentials. Scope IDs are resolved from live Azure DevOps metadata for `vso.code`, `vso.project`, `vso.profile` and `vso.advsec`; missing scopes stop the operation rather than falling back to `user_impersonation`. No admin consent, client secret, certificate, Graph application permission or Azure RBAC is granted. Actual report access still needs live validation.
 
-The returned `clientId` is public. Set the repository Actions variable `COMMITTER_INSIGHTS_CLIENT_ID` to that verified value, or set the environment variable before a local release build. This is the only per-release identity configuration; end users configure nothing. Do not publish an unconfigured binary or treat a successful plan as proof of authentication. Keep publisher tenant IDs and app ownership decisions outside the shared manifest. Publisher registration has not been applied in this change pending tenant approval.
+The returned `clientId` is public. Set the repository Actions variable `COMMITTER_INSIGHTS_CLIENT_ID` to that verified value, or set the environment variable before a local release build. This is the only per-release identity configuration; end users configure nothing. Do not publish an unconfigured binary or treat a successful plan as proof of authentication. Keep publisher tenant IDs and app ownership decisions outside the shared manifest. The publisher registration is now provisioned and the repository client-ID variable is configured. Read-back confirmed multitenant public-client settings, no secrets or certificates, and an unverified publisher; a second apply returned `found` without changes.
 
 Manual equivalent and remaining publisher duties:
 
@@ -206,7 +210,7 @@ Manual equivalent and remaining publisher duties:
 4. Do not create a client secret or upload a certificate.
 5. Configure and obtain consent for the Azure DevOps delegated permissions required by the report APIs, following [Microsoft's Entra OAuth guidance](https://learn.microsoft.com/en-us/azure/devops/integrate/get-started/authentication/entra-oauth). Verify available scopes in the publisher tenant; do not assume legacy Azure DevOps OAuth scope names are available as Entra permissions. Broader grants require explicit security review.
 6. Do not add Microsoft Graph permissions unless a future feature has a documented requirement.
-7. Configure publisher verification, logo, publisher domain, privacy URL, and terms URL before public release.
+7. Keep Entra publisher status unverified. Configure accurate branding, publisher domain, privacy URL, and terms URL without claiming verified-publisher status.
 8. Test user and administrator consent in a separate tenant, including Conditional Access behavior.
 
 The application uses the `organizations` authority, so personal Microsoft accounts are not supported.
@@ -339,23 +343,25 @@ Node SEA injection modifies the executable after copying Node, so the final bina
 
 ## Release notes
 
-### v0.1.0-beta.4 - Draft
+### v0.1.0-beta.4 - 2026-09-24
 
-**Release status:** draft only. The publisher app and repository client-ID variable are not configured, so Windows CI packaging is blocked. Do not distribute an unconfigured local executable as a working Microsoft sign-in release. The published beta.3 remains unchanged.
+Publisher verification is intentionally not required for this beta: the Entra publisher will remain unverified. Customer tenants may require administrator approval; no tenant consent policy is relaxed.
+
+**Evaluation beta:** the Windows executable embeds the configured public client ID. It is unsigned and its Entra publisher is unverified. Customer tenants may show warnings or require administrator approval. Automated tests and registration read-back do not establish successful user consent, cross-tenant sign-in, or complete report access; those live user workflows remain unverified. This release does not change previously downloaded beta.3 executables.
 
 - Microsoft sign-in now connects directly after the Microsoft account picker, displays the signed-in username, and offers **Change account**. Device code is under **Other sign-in options**. Changing accounts clears stale Azure selections and discovery data, preserving GitHub selections.
-- Added a declarative publisher manifest and shared Pawprint provisioner with offline validation, read-only planning, tenant/ownership checks, live delegated-scope resolution, verified apply and idempotency tests. Publisher registration remains unapplied pending tenant approval.
+- Added a declarative publisher manifest and shared Pawprint provisioner with offline validation, read-only planning, tenant/ownership checks, live delegated-scope resolution, verified apply and idempotency tests. The publisher registration was created with approval, and its public client ID is configured for Windows packaging. No tenant-wide consent, secrets, certificates, or Azure roles were added.
 - Added explicit **Sign in with a device code** alongside default browser sign-in on both Azure DevOps connection screens. The protected local challenge supports polling, cancellation, retry, navigation cleanup and a ten-minute timeout; tokens stay in process memory. Both methods still require publisher configuration and live tenant validation.
 - Microsoft sign-in now uses the publisher-configured browser credential directly, without Azure CLI fallback. Azure DevOps authentication remediation no longer asks users to run `az login`.
 - Windows CI packaging requires the repository variable `COMMITTER_INSIGHTS_CLIENT_ID` and embeds it in the executable. Missing publisher configuration prevents release packaging; local unconfigured builds report a configuration error.
 - Browser authentication still requires a publisher-owned Entra public-client registration, tenant consent and live validation. These source changes do not change the already published beta.3 executable.
 
-#### Beta.4 validation and publication requirements
+#### Beta.4 validation and limitations
 
 - Local `npm run ci` passed: formatting, lint, type checks, 161 tests, executable packaging and three packaged startup smoke checks.
 - Synthetic Edge checks passed for browser and device-code flows at desktop/mobile widths, including direct connection, secondary sign-in options, account display/change and clearing stale Azure selections.
-- Pawprint's full suite passed, including public-client schema validation, ownership/tenant guardrails, read-back verification and synthetic two-run idempotency. A live read-only plan resolved the four delegated scopes and proposed one new app; no tenant changes were applied.
-- Before publication: approve the publisher tenant, apply and verify the managed app, set the public `COMMITTER_INSIGHTS_CLIENT_ID` repository variable, rerun Windows packaging, and validate real Microsoft sign-in and tenant consent. Upload only the matching CI executable, checksums and SBOM. Unsigned artifacts must remain labeled evaluation-only.
+- Pawprint's full suite passed, including public-client schema validation, ownership/tenant guardrails, read-back verification and synthetic two-run idempotency. Live provisioning resolved the four delegated scopes, created one managed app, and confirmed a second apply made no changes.
+- The release assets are the matching CI-built executable, checksums and SBOM. Checksums verify integrity, not publisher trust. Real account login, consent, token renewal and cross-tenant report permissions still require user-led validation before production use. No administrator-free sign-in guarantee is made.
 
 ### v0.1.0-beta.3 - 2026-09-24
 

@@ -39,6 +39,7 @@ jobs:
     needs: validate
     runs-on: windows-latest
     env:
+      # Public app identity embedded in the binary, not a secret or verification badge.
       COMMITTER_INSIGHTS_CLIENT_ID: ${{ vars.COMMITTER_INSIGHTS_CLIENT_ID }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
