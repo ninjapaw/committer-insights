@@ -72,6 +72,26 @@ describe('standalone report formats', () => {
           totalCommits: 6,
         },
       ],
+      costEstimates: [
+        {
+          provider: 'azure-devops',
+          label: 'Azure DevOps Advanced Security billable committers',
+          count: 2,
+          unitPriceUsd: 49,
+          estimatedMonthlyCostUsd: 98,
+          basis: 'Azure basis',
+          source: 'Azure source',
+        },
+        {
+          provider: 'github',
+          label: 'GitHub Enterprise observed users',
+          count: 1,
+          unitPriceUsd: 21,
+          estimatedMonthlyCostUsd: 21,
+          basis: 'GitHub Enterprise basis',
+          source: 'GitHub Enterprise source',
+        },
+      ],
     };
     const xlsx = await generateReportExport(withProviders, 'xlsx');
     const workbook = new ExcelJS.Workbook();
@@ -83,11 +103,17 @@ describe('standalone report formats', () => {
     expect(sheet.getCell('H2').value).toBe('Not applicable');
     expect(sheet.getCell('H3').value).toBe('3');
     expect(sheet.getCell('I3').value).toBe('6');
+    const billing = workbook.getWorksheet('Estimated Billing')!;
+    expect(billing.getCell('B2').value).toBe('Azure DevOps Advanced Security billable committers');
+    expect(billing.getCell('E2').value).toBe('98');
     for (const content of [generateCsv(withProviders), generateStandaloneHtml(withProviders)]) {
       expect(content).toContain('Security estimate');
       expect(content).toContain('Commit activity');
       expect(content).toContain('Estimate methodology');
       expect(content).toContain('Commit methodology');
+      expect(content).toMatch(/Estimated billing|cost-estimate/);
+      expect(content).toContain('Azure DevOps Advanced Security billable committers');
+      expect(content).toContain('GitHub Enterprise observed users');
     }
     expect(generateCsv(withProviders)).toContain('provider-summary');
     const draw = vi.spyOn(PDFPage.prototype, 'drawText');
@@ -98,6 +124,8 @@ describe('standalone report formats', () => {
         expect.arrayContaining([
           'Azure DevOps',
           'GitHub',
+          'Estimated billing',
+          'Azure DevOps Advanced Security billable committers: 2 x $49.00 = $98.00 / month',
           'Commits: 6',
           'Repositories: 3',
           'Measurement: Security estimate',
@@ -214,6 +242,9 @@ describe('standalone report formats', () => {
       expect(output).toContain('contoso');
       expect(output).toContain('octocat/example');
       expect(output).toContain('Code Security, Secret Protection');
+      expect(output).toMatch(/Billable committer|billableCommitter/);
+      expect(output).toContain('Yes');
+      expect(output).toContain('No');
       for (const secret of [
         'private-upn',
         'private-cuid',

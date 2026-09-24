@@ -147,6 +147,41 @@ export function ResultsDashboardPage(): JSX.Element {
           </div>
         </section>
       )}
+      {query.data?.costEstimates && query.data.costEstimates.length > 0 && (
+        <section aria-labelledby="cost-estimates-title">
+          <h2 id="cost-estimates-title">Estimated billing</h2>
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Provider</th>
+                  <th>Estimate</th>
+                  <th>Count</th>
+                  <th>Unit price</th>
+                  <th>Estimated monthly cost</th>
+                  <th>Basis</th>
+                </tr>
+              </thead>
+              <tbody>
+                {query.data.costEstimates.map((item) => (
+                  <tr key={`${item.provider}:${item.label}`}>
+                    <td>{item.provider}</td>
+                    <td>{item.label}</td>
+                    <td>{item.count}</td>
+                    <td>${item.unitPriceUsd.toFixed(2)}</td>
+                    <td>${item.estimatedMonthlyCostUsd.toFixed(2)}</td>
+                    <td>
+                      {item.basis}
+                      <br />
+                      <span>{item.source}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
       {query.data && query.data.warnings.length > 0 && (
         <ul role="status">
           {query.data.warnings.map((warning) => (

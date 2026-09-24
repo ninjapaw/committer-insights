@@ -29,6 +29,7 @@ describe('uniqueAzureDevOpsCommitters', () => {
         displayName: 'Dr Bill McIlhargey',
         userPrincipalName: 'bill.mcilhargey@ninjapaws.org',
         plan: 'Code Security, Secret Protection',
+        billableCommitter: 'Yes',
       },
     ]);
   });

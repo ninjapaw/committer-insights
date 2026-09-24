@@ -10,6 +10,7 @@ export const azurePlans = azureDevOpsPlanSchema.options;
 
 export type AzureDevOpsDisplayCommitter = Omit<AzureDevOpsCommitter, 'plan'> & {
   plan: string;
+  billableCommitter: string;
 };
 
 const planLabels = {
@@ -48,6 +49,7 @@ export function uniqueAzureDevOpsCommitters(
     plan: Array.from(plans)
       .map((plan) => planLabels[plan])
       .join(', '),
+    billableCommitter: committer.isEstimated || committer.isLicensed ? 'Yes' : 'No',
   }));
 }
 
@@ -83,6 +85,7 @@ export const azureColumns: ColumnDef<AzureDevOpsDisplayCommitter>[] = [
   { accessorKey: 'organization', header: 'Organization' },
   { accessorKey: 'resultType', header: 'Result type' },
   { accessorKey: 'plan', header: 'Effective plans' },
+  { accessorKey: 'billableCommitter', header: 'Billable committer' },
   { accessorKey: 'cuid', header: 'CUID' },
   { accessorKey: 'identityId', header: 'Identity ID' },
   { accessorKey: 'collectedAt', header: 'Collected at' },

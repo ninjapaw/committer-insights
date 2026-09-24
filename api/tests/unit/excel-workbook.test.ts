@@ -63,7 +63,8 @@ describe('generateReportWorkbook', () => {
     const github = workbook.getWorksheet('GitHub Committers')!;
     expect(github.getCell('A2').value).toBe('octocat');
     expect(github.getCell('C2').value).toBe('octocat/example');
-    expect(github.getCell('D2').value).toBe('2');
+    expect(github.getCell('D2').value).toBe('No');
+    expect(github.getCell('E2').value).toBe('2');
     expect(github.rowCount).toBe(2);
   });
 
@@ -80,6 +81,17 @@ describe('generateReportWorkbook', () => {
         azureDevOpsCommitters: [],
         gitHubCommitters: [],
         warnings: [],
+        costEstimates: [
+          {
+            provider: 'github',
+            label: 'GitHub Enterprise observed users',
+            count: 3,
+            unitPriceUsd: 21,
+            estimatedMonthlyCostUsd: 63,
+            basis: 'Observed users',
+            source: 'Public price',
+          },
+        ],
         sourceStatuses: [
           {
             provider: 'github',
@@ -102,6 +114,7 @@ describe('generateReportWorkbook', () => {
     );
     expect(workbook.worksheets.map(({ name }) => name)).toEqual([
       'Summary',
+      'Estimated Billing',
       'Azure DevOps Committers',
       'GitHub Committers',
       'Source Status',
@@ -109,6 +122,9 @@ describe('generateReportWorkbook', () => {
       'Warnings and Methodology',
     ]);
     const source = workbook.getWorksheet('Source Status')!;
+    const billing = workbook.getWorksheet('Estimated Billing')!;
+    expect(billing.getCell('B2').value).toBe('GitHub Enterprise observed users');
+    expect(billing.getCell('E2').value).toBe('63');
     expect(source.getCell('B2').value).toBe('octocat/private');
     expect(source.getCell('C2').value).toBe('skipped');
     expect(source.getCell('F2').value).toBe("'=unsafe-formula");

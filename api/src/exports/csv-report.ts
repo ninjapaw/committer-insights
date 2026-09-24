@@ -14,6 +14,7 @@ export function generateCsv(report: Report): string {
         'organization',
         'resultType',
         'plan',
+        'billableCommitter',
         'cuid',
         'identityId',
         'collectedAt',
@@ -22,11 +23,12 @@ export function generateCsv(report: Report): string {
   }
   if (report.provider === 'github') {
     return toCsv(
-      report.gitHubCommitters.map((committer) => ({ ...committer })),
+      report.gitHubCommitters.map((committer) => ({ ...committer, billableCommitter: 'No' })),
       [
         'login',
         'displayName',
         'repository',
+        'billableCommitter',
         'commitCount',
         'lastCommitAt',
         'profileUrl',
@@ -42,6 +44,7 @@ export function generateCsv(report: Report): string {
         source: committer.organization,
         identity: committer.displayName,
         plan: committer.plan,
+        billableCommitter: committer.billableCommitter,
         count: 1,
         collectedAt: committer.collectedAt,
       })),
@@ -50,6 +53,7 @@ export function generateCsv(report: Report): string {
         provider: committer.provider,
         source: committer.repository,
         identity: committer.login,
+        billableCommitter: 'No',
         count: committer.commitCount,
         lastActivity: committer.lastCommitAt,
         collectedAt: committer.collectedAt,
@@ -69,12 +73,17 @@ export function generateCsv(report: Report): string {
         totalRepositories: summary.totalRepositories ?? 'Not applicable',
         totalCommits: summary.totalCommits ?? 'Not applicable',
       })),
+      ...(report.costEstimates ?? []).map((estimate) => ({
+        ...estimate,
+        rowType: 'cost-estimate',
+      })),
     ],
     [
       'provider',
       'source',
       'identity',
       'plan',
+      'billableCommitter',
       'count',
       'lastActivity',
       'collectedAt',
@@ -92,6 +101,11 @@ export function generateCsv(report: Report): string {
       'apiVersion',
       'methodology',
       'scope',
+      'label',
+      'unitPriceUsd',
+      'estimatedMonthlyCostUsd',
+      'basis',
+      'source',
     ],
   );
 }

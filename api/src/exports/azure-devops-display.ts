@@ -2,6 +2,7 @@ import type { AzureDevOpsCommitter } from '@ninjapaw/contracts';
 
 export type AzureDevOpsDisplayCommitter = Omit<AzureDevOpsCommitter, 'plan'> & {
   plan: string;
+  billableCommitter: string;
 };
 
 const planLabels: Record<AzureDevOpsCommitter['plan'], string> = {
@@ -40,5 +41,6 @@ export function uniqueAzureDevOpsCommitters(
     plan: Array.from(plans)
       .map((plan) => planLabels[plan])
       .join(', '),
+    billableCommitter: committer.isEstimated || committer.isLicensed ? 'Yes' : 'No',
   }));
 }

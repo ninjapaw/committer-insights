@@ -5,6 +5,7 @@ import { acquireAzureDevOpsToken } from '../auth/local-credential.js';
 import { saveReport } from '../reports/report-store.js';
 import { config } from '../shared/config.js';
 import { buildProviderSummary } from '../reports/provider-summary.js';
+import { buildAzureDevOpsCostEstimates } from '../reports/billing-estimates.js';
 
 type AzureSource = Extract<MultiSource, { provider: 'azure-devops' }>;
 
@@ -65,6 +66,7 @@ export async function createAzureReport(source: AzureSource) {
     gitHubCommitters: [],
     sourceStatuses,
     providerSummaries: [summarizeAzureDevOps(azureDevOpsCommitters, sourceStatuses)],
+    costEstimates: buildAzureDevOpsCostEstimates(azureDevOpsCommitters),
     warnings: ['This report uses an Azure DevOps preview API.'],
   });
 }

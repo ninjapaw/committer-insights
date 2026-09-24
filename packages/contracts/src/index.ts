@@ -63,6 +63,16 @@ export interface ProviderSummary {
   totalCommits?: number;
 }
 
+export interface CostEstimateLineItem {
+  provider: MultiSource['provider'];
+  label: string;
+  count: number;
+  unitPriceUsd: number;
+  estimatedMonthlyCostUsd: number;
+  basis: string;
+  source: string;
+}
+
 export interface Report {
   reportId: string;
   provider: 'azure-devops' | 'github' | 'combined';
@@ -76,6 +86,7 @@ export interface Report {
   sourceStatuses?: SourceStatus[];
   executiveSummary?: ExecutiveSummary;
   providerSummaries?: ProviderSummary[];
+  costEstimates?: CostEstimateLineItem[];
   warnings: string[];
 }
 

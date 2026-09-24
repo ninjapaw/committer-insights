@@ -30,6 +30,20 @@ describe('local API transport', () => {
     vi.mocked(getPortalApiToken).mockRejectedValue(new Error('Restart the application.'));
     await expect(localRequest('/api/session')).rejects.toThrow('Restart the application.');
     expect(fetchMock).not.toHaveBeenCalled();
+    expect(window.location.pathname).toBe('/sign-in');
+    expect(window.location.search).toBe('?reason=session');
+  });
+
+  it('routes API invalid-session responses through the sign-in page', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(Response.json({ message: 'Invalid local session.' }, { status: 401 })),
+    );
+    await expect(requestJson('/api/session')).rejects.toThrow('Invalid local session.');
+    expect(window.location.pathname).toBe('/sign-in');
+    expect(window.location.search).toBe('?reason=session');
   });
 
   it('serializes JSON payloads and returns parsed results', async () => {

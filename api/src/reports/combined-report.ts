@@ -21,6 +21,7 @@ import {
   summarizeGitHub,
 } from '../services/github.js';
 import { saveReport } from './report-store.js';
+import { buildAzureDevOpsCostEstimates, buildGitHubCostEstimates } from './billing-estimates.js';
 
 export async function createCombinedReport(sources: MultiSource[]) {
   const collection = await collectSources(sources);
@@ -35,6 +36,13 @@ export async function createCombinedReport(sources: MultiSource[]) {
     sourceStatuses: collection.statuses,
     executiveSummary: collection.summary,
     providerSummaries: collection.providerSummaries,
+    costEstimates: [
+      ...buildAzureDevOpsCostEstimates(collection.azureDevOpsCommitters),
+      ...buildGitHubCostEstimates(
+        collection.gitHubCommitters,
+        collection.providerSummaries.find((summary) => summary.provider === 'github'),
+      ),
+    ],
     warnings: [
       'Skipped sources are excluded from totals and listed with remediation guidance.',
       'Cross-provider identities are not automatically merged.',

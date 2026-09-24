@@ -94,6 +94,23 @@ export async function generateReportWorkbook(input: ReportExportInput): Promise<
     );
   }
 
+  if (input.costEstimates) {
+    addTable(
+      workbook.addWorksheet('Estimated Billing'),
+      'EstimatedBilling',
+      [
+        { name: 'Provider', key: 'provider' },
+        { name: 'Estimate', key: 'label' },
+        { name: 'Count', key: 'count' },
+        { name: 'Unit price USD', key: 'unitPriceUsd' },
+        { name: 'Estimated monthly cost USD', key: 'estimatedMonthlyCostUsd' },
+        { name: 'Basis', key: 'basis' },
+        { name: 'Source', key: 'source' },
+      ],
+      input.costEstimates.map((item) => ({ ...item })),
+    );
+  }
+
   if (input.provider !== 'github') {
     const ado = workbook.addWorksheet('Azure DevOps Committers');
     addTable(
@@ -105,6 +122,7 @@ export async function generateReportWorkbook(input: ReportExportInput): Promise<
         { name: 'Organization', key: 'organization' },
         { name: 'Result type', key: 'resultType' },
         { name: 'Effective plans', key: 'plan' },
+        { name: 'Billable committer', key: 'billableCommitter' },
         { name: 'CUID', key: 'cuid' },
         { name: 'Identity ID', key: 'identityId' },
         { name: 'Collected at', key: 'collectedAt' },
@@ -121,12 +139,13 @@ export async function generateReportWorkbook(input: ReportExportInput): Promise<
         { name: 'Login', key: 'login' },
         { name: 'Display name', key: 'displayName' },
         { name: 'Repository', key: 'repository' },
+        { name: 'Billable committer', key: 'billableCommitter' },
         { name: 'Commit count', key: 'commitCount' },
         { name: 'Last commit at', key: 'lastCommitAt' },
         { name: 'Profile URL', key: 'profileUrl' },
         { name: 'Collected at', key: 'collectedAt' },
       ],
-      input.gitHubCommitters.map((c) => ({ ...c })),
+      input.gitHubCommitters.map((c) => ({ ...c, billableCommitter: 'No' })),
     );
   }
 

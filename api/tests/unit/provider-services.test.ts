@@ -246,6 +246,20 @@ describe('GitHub report service', () => {
       totalCommits: 0,
       measurement: 'Default-branch commit activity',
     });
+    expect(report.costEstimates).toMatchObject([
+      {
+        label: 'GitHub Enterprise observed users',
+        count: 0,
+        unitPriceUsd: 21,
+        estimatedMonthlyCostUsd: 0,
+      },
+      {
+        label: 'GitHub Advanced Security estimated active committers',
+        count: 0,
+        unitPriceUsd: 49,
+        estimatedMonthlyCostUsd: 0,
+      },
+    ]);
   });
 
   it('propagates collection failure without storing a report', async () => {

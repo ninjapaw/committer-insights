@@ -32,6 +32,7 @@ export const githubColumns: ColumnDef<GitHubCommitter>[] = [
   { accessorKey: 'login', header: 'Login' },
   { accessorKey: 'displayName', header: 'Display name' },
   { accessorKey: 'repository', header: 'Repository' },
+  { id: 'billableCommitter', header: 'Billable committer', accessorFn: () => 'No' },
   { accessorKey: 'commitCount', header: 'Commit count' },
   { accessorKey: 'lastCommitAt', header: 'Last commit at' },
   { accessorKey: 'profileUrl', header: 'Profile URL' },

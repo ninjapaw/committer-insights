@@ -9,6 +9,7 @@ import {
 import { acquireGitHubToken } from '../auth/github-cli.js';
 import { saveReport } from '../reports/report-store.js';
 import { buildProviderSummary } from '../reports/provider-summary.js';
+import { buildGitHubCostEstimates } from '../reports/billing-estimates.js';
 
 type GitHubSource = Extract<MultiSource, { provider: 'github' }>;
 const GITHUB_REPOSITORY_COLLECTION_CONCURRENCY = 4;
@@ -128,6 +129,7 @@ export function summarizeGitHub(committers: GitHubCommitter[], statuses: SourceS
 
 export async function createGitHubReport(source: GitHubSource) {
   const gitHubCommitters = await collectGitHub(source);
+  const providerSummary = summarizeGitHub(gitHubCommitters, []);
   const sourceStatuses: SourceStatus[] = [
     {
       provider: source.provider,
@@ -147,6 +149,7 @@ export async function createGitHubReport(source: GitHubSource) {
     gitHubCommitters,
     sourceStatuses,
     providerSummaries: [summarizeGitHub(gitHubCommitters, sourceStatuses)],
+    costEstimates: buildGitHubCostEstimates(gitHubCommitters, providerSummary),
     warnings: [
       'GitHub counts include commits on the repository default branch in the selected window.',
     ],

@@ -67,6 +67,18 @@ export async function generateExecutivePdf(report: StoredReport): Promise<Uint8A
     addLine(summary.methodology, { size: 9 });
     y -= 10;
   }
+  if (report.costEstimates?.length) {
+    addLine('Estimated billing', { bold: true, size: 15 });
+    for (const item of report.costEstimates) {
+      addLine(
+        `${item.label}: ${item.count} x $${item.unitPriceUsd.toFixed(2)} = $${item.estimatedMonthlyCostUsd.toFixed(2)} / month`,
+        { bold: true },
+      );
+      addLine(item.basis, { size: 9 });
+      addLine(item.source, { size: 9 });
+    }
+    y -= 10;
+  }
   addLine('Source status', { bold: true, size: 15 });
   for (const source of report.sourceStatuses ?? []) {
     addLine(
