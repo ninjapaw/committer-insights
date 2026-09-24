@@ -1,10 +1,13 @@
 import type { Report } from '@ninjapaw/contracts';
+import { uniqueAzureDevOpsCommitters } from './azure-devops-display.js';
 import { toCsv } from './sanitize.js';
 
 export function generateCsv(report: Report): string {
   if (report.provider === 'azure-devops') {
     return toCsv(
-      report.azureDevOpsCommitters.map((committer) => ({ ...committer })),
+      uniqueAzureDevOpsCommitters(report.azureDevOpsCommitters).map((committer) => ({
+        ...committer,
+      })),
       [
         'displayName',
         'userPrincipalName',
@@ -33,7 +36,7 @@ export function generateCsv(report: Report): string {
   }
   return toCsv(
     [
-      ...report.azureDevOpsCommitters.map((committer) => ({
+      ...uniqueAzureDevOpsCommitters(report.azureDevOpsCommitters).map((committer) => ({
         rowType: 'committer',
         provider: committer.provider,
         source: committer.organization,
@@ -63,6 +66,7 @@ export function generateCsv(report: Report): string {
       ...(report.providerSummaries ?? []).map((summary) => ({
         ...summary,
         rowType: 'provider-summary',
+        totalRepositories: summary.totalRepositories ?? 'Not applicable',
         totalCommits: summary.totalCommits ?? 'Not applicable',
       })),
     ],
@@ -83,6 +87,7 @@ export function generateCsv(report: Report): string {
       'skippedSources',
       'identityRecords',
       'uniqueIdentities',
+      'totalRepositories',
       'totalCommits',
       'apiVersion',
       'methodology',

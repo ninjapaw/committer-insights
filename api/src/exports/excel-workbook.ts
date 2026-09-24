@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
 import type { ExportFormat, Report } from '@ninjapaw/contracts';
+import { uniqueAzureDevOpsCommitters } from './azure-devops-display.js';
 import { sanitizeCellValue } from './sanitize.js';
 
 export interface ExportWarning {
@@ -80,12 +81,14 @@ export async function generateReportWorkbook(input: ReportExportInput): Promise<
         { name: 'Sources skipped', key: 'skippedSources' },
         { name: 'Identity records', key: 'identityRecords' },
         { name: 'Unique identities', key: 'uniqueIdentities' },
+        { name: 'Repositories', key: 'totalRepositories' },
         { name: 'Commits', key: 'totalCommits' },
         { name: 'API version', key: 'apiVersion' },
         { name: 'Methodology', key: 'methodology' },
       ],
       input.providerSummaries.map((summary) => ({
         ...summary,
+        totalRepositories: summary.totalRepositories ?? 'Not applicable',
         totalCommits: summary.totalCommits ?? 'Not applicable',
       })),
     );
@@ -101,12 +104,12 @@ export async function generateReportWorkbook(input: ReportExportInput): Promise<
         { name: 'User principal name', key: 'userPrincipalName' },
         { name: 'Organization', key: 'organization' },
         { name: 'Result type', key: 'resultType' },
-        { name: 'Effective plan', key: 'plan' },
+        { name: 'Effective plans', key: 'plan' },
         { name: 'CUID', key: 'cuid' },
         { name: 'Identity ID', key: 'identityId' },
         { name: 'Collected at', key: 'collectedAt' },
       ],
-      input.azureDevOpsCommitters.map((c) => ({ ...c })),
+      uniqueAzureDevOpsCommitters(input.azureDevOpsCommitters).map((c) => ({ ...c })),
     );
   }
   if (input.provider !== 'azure-devops') {

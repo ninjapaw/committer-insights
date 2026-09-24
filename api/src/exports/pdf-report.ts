@@ -60,6 +60,8 @@ export async function generateExecutivePdf(report: StoredReport): Promise<Uint8A
     addLine(
       `Identity records: ${summary.identityRecords}; unique identities: ${summary.uniqueIdentities}`,
     );
+    if (summary.totalRepositories !== undefined)
+      addLine(`Repositories: ${summary.totalRepositories}`);
     if (summary.totalCommits !== undefined) addLine(`Commits: ${summary.totalCommits}`);
     addLine(`API version: ${summary.apiVersion}`);
     addLine(summary.methodology, { size: 9 });

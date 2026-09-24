@@ -7,7 +7,7 @@ import {
   azureDevOpsPlanSchema,
   type AzureDevOpsCommitter,
 } from './azure-devops.js';
-import { gitHubRepositorySchema, type GitHubCommitter } from './github.js';
+import { gitHubTargetSchema, gitHubTargetTypeSchema, type GitHubCommitter } from './github.js';
 
 export const multiSourceSchema = z.discriminatedUnion('provider', [
   z.object({
@@ -17,7 +17,8 @@ export const multiSourceSchema = z.discriminatedUnion('provider', [
   }),
   z.object({
     provider: z.literal('github'),
-    repository: gitHubRepositorySchema,
+    targetType: gitHubTargetTypeSchema,
+    target: gitHubTargetSchema,
     sinceDays: z.number().int().min(1).max(365).default(90),
   }),
 ]);
@@ -58,6 +59,7 @@ export interface ProviderSummary {
   skippedSources: number;
   identityRecords: number;
   uniqueIdentities: number;
+  totalRepositories?: number;
   totalCommits?: number;
 }
 

@@ -11,7 +11,7 @@ import { acquireGitHubToken } from '../../src/auth/github-cli.js';
 import { fetchAzureDevOpsEstimate } from '../../src/adapters/azure-devops/estimate-client.js';
 import {
   fetchGitHubCommitters,
-  preflightGitHubRepository,
+  listGitHubRepositoriesForTarget,
 } from '../../src/adapters/github/github-client.js';
 
 vi.mock('../../src/auth/local-credential.js', () => ({ acquireAzureDevOpsToken: vi.fn() }));
@@ -22,7 +22,7 @@ vi.mock('../../src/adapters/azure-devops/estimate-client.js', () => ({
 vi.mock('../../src/adapters/github/github-client.js', () => ({
   API_VERSION: '2022-11-28',
   fetchGitHubCommitters: vi.fn(),
-  preflightGitHubRepository: vi.fn(),
+  listGitHubRepositoriesForTarget: vi.fn(),
 }));
 
 beforeEach(() => {
@@ -31,7 +31,8 @@ beforeEach(() => {
   vi.mocked(acquireGitHubToken).mockResolvedValue('github-token');
   vi.mocked(fetchAzureDevOpsEstimate).mockReset();
   vi.mocked(fetchGitHubCommitters).mockReset();
-  vi.mocked(preflightGitHubRepository).mockReset();
+  vi.mocked(listGitHubRepositoriesForTarget).mockReset();
+  vi.mocked(listGitHubRepositoriesForTarget).mockResolvedValue(['octocat/example']);
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -78,7 +79,9 @@ describe('combined reports', () => {
     const save = vi.spyOn(reportStore, 'put');
     vi.mocked(fetchGitHubCommitters).mockRejectedValue(new Error('Permission denied'));
     await expect(
-      createCombinedReport([{ provider: 'github', repository: 'octocat/private', sinceDays: 90 }]),
+      createCombinedReport([
+        { provider: 'github', targetType: 'organization', target: 'octocat', sinceDays: 90 },
+      ]),
     ).rejects.toThrow('None of the selected sources');
     expect(save).not.toHaveBeenCalled();
     save.mockRestore();
@@ -86,15 +89,17 @@ describe('combined reports', () => {
 
   it('skips a source that fails preflight and explains how to fix it', async () => {
     vi.mocked(fetchAzureDevOpsEstimate).mockResolvedValue([]);
-    vi.mocked(preflightGitHubRepository).mockRejectedValue(new Error('GitHub denied access.'));
+    vi.mocked(listGitHubRepositoriesForTarget).mockRejectedValue(
+      new Error('GitHub denied access.'),
+    );
     const statuses = await preflightSources([
       { provider: 'azure-devops', organization: 'contoso', plans: ['all'] },
-      { provider: 'github', repository: 'octocat/private', sinceDays: 90 },
+      { provider: 'github', targetType: 'organization', target: 'octocat', sinceDays: 90 },
     ]);
     expect(statuses).toEqual([
       expect.objectContaining({ subject: 'contoso', status: 'included' }),
       expect.objectContaining({
-        subject: 'octocat/private',
+        subject: 'octocat',
         status: 'skipped',
         reason: 'Minimum read permission not met',
         remediation: expect.stringContaining('read access'),
@@ -113,7 +118,7 @@ describe('combined reports', () => {
     ]);
     const result = await collectSources([
       { provider: 'azure-devops', organization: 'contoso', plans: ['all'] },
-      { provider: 'github', repository: 'octocat/example', sinceDays: 90 },
+      { provider: 'github', targetType: 'organization', target: 'octocat', sinceDays: 90 },
     ]);
     expect(result.summary).toEqual({
       requestedSources: 2,
@@ -121,7 +126,7 @@ describe('combined reports', () => {
       skippedSources: 0,
       uniqueProviderIdentities: 2,
       azureIdentityRecords: 2,
-      gitHubIdentityRecords: 2,
+      gitHubIdentityRecords: 1,
     });
   });
 
@@ -136,10 +141,13 @@ describe('combined reports', () => {
       if (repository === 'octocat/private') throw new Error('403 permission denied');
       return [githubRecord];
     });
+    vi.mocked(listGitHubRepositoriesForTarget).mockImplementation(async ({ target }) => [
+      target === 'private-org' ? 'octocat/private' : 'octocat/example',
+    ]);
     const report = await createCombinedReport([
       { provider: 'azure-devops', organization: 'contoso', plans: ['all'] },
-      { provider: 'github', repository: 'octocat/private', sinceDays: 90 },
-      { provider: 'github', repository: 'octocat/example', sinceDays: 90 },
+      { provider: 'github', targetType: 'organization', target: 'private-org', sinceDays: 90 },
+      { provider: 'github', targetType: 'organization', target: 'octocat', sinceDays: 90 },
     ]);
     expect(visits).toEqual(['contoso', 'octocat/private', 'octocat/example']);
     expect(report.sourceStatuses?.map(({ status }) => status)).toEqual([
@@ -148,7 +156,7 @@ describe('combined reports', () => {
       'included',
     ]);
     expect(report.sourceStatuses?.[1]).toMatchObject({
-      subject: 'octocat/private',
+      subject: 'private-org',
       committerCount: 0,
       reason: 'Minimum read permission not met',
       remediation: expect.stringContaining('read access'),
@@ -178,7 +186,7 @@ describe('combined reports', () => {
         organization: 'contoso',
         plans: ['codeSecurity', 'secretProtection'],
       },
-      { provider: 'github', repository: 'octocat/example', sinceDays: 90 },
+      { provider: 'github', targetType: 'organization', target: 'octocat', sinceDays: 90 },
     ]);
     expect(result.azureDevOpsCommitters).toEqual([]);
     expect(result.summary).toMatchObject({
@@ -192,7 +200,7 @@ describe('combined reports', () => {
   it('reports empty but accessible sources as included', async () => {
     vi.mocked(fetchGitHubCommitters).mockResolvedValue([]);
     const result = await collectSources([
-      { provider: 'github', repository: 'octocat/empty', sinceDays: 90 },
+      { provider: 'github', targetType: 'organization', target: 'octocat', sinceDays: 90 },
     ]);
     expect(result.statuses[0]).toMatchObject({ status: 'included', committerCount: 0 });
     expect(result.summary).toMatchObject({
@@ -207,7 +215,7 @@ describe('combined reports', () => {
     vi.mocked(acquireGitHubToken).mockRejectedValue(new Error('401 authentication required'));
     const statuses = await preflightSources([
       { provider: 'azure-devops', organization: 'contoso', plans: ['all'] },
-      { provider: 'github', repository: 'octocat/example', sinceDays: 90 },
+      { provider: 'github', targetType: 'organization', target: 'octocat', sinceDays: 90 },
     ]);
     expect(statuses).toEqual([
       expect.objectContaining({
@@ -222,6 +230,6 @@ describe('combined reports', () => {
       }),
     ]);
     expect(fetchAzureDevOpsEstimate).not.toHaveBeenCalled();
-    expect(preflightGitHubRepository).not.toHaveBeenCalled();
+    expect(listGitHubRepositoriesForTarget).not.toHaveBeenCalled();
   });
 });

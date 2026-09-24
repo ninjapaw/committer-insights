@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-  discoverGitHubRepositories,
+  discoverGitHubTargets,
   fetchGitHubCommitters,
   getGitHubViewer,
 } from '../../src/adapters/github/github-client.js';
@@ -22,28 +22,51 @@ describe('GitHub client', () => {
     });
   });
 
-  it('discovers and sorts repositories', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(
-      Response.json(
-        [
-          {
-            id: 2,
-            full_name: 'octocat/zeta',
-            html_url: 'https://github.com/octocat/zeta',
-            private: true,
-          },
-          {
-            id: 1,
-            full_name: 'octocat/alpha',
-            html_url: 'https://github.com/octocat/alpha',
-            private: false,
-          },
-        ],
-        { headers: { 'x-ratelimit-remaining': '4999' } },
-      ),
+  it('discovers organizations and enterprises as selectable sources', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json(
+          [
+            { id: 2, login: 'octocat' },
+            { id: 3, malformed: true },
+          ],
+          { headers: { 'x-ratelimit-remaining': '4999' } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        Response.json(
+          [
+            {
+              id: 1,
+              slug: 'octo-enterprise',
+              html_url: 'https://github.com/enterprises/octo-enterprise',
+            },
+          ],
+          { headers: { 'x-ratelimit-remaining': '4999' } },
+        ),
+      );
+    const result = await discoverGitHubTargets('token', fetchImpl as typeof fetch);
+    expect(result.map(({ targetType, name }) => `${targetType}:${name}`)).toEqual([
+      'enterprise:octo-enterprise',
+      'organization:octocat',
+    ]);
+    expect(result.find((item) => item.name === 'octocat')?.url).toBe('https://github.com/octocat');
+  });
+
+  it('does not hide enterprise discovery rate-limit failures', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json([], { headers: { 'x-ratelimit-remaining': '4999' } }))
+      .mockResolvedValueOnce(
+        Response.json(
+          { message: 'rate limited' },
+          { status: 403, headers: { 'x-ratelimit-remaining': '0' } },
+        ),
+      );
+    await expect(discoverGitHubTargets('token', fetchImpl as typeof fetch)).rejects.toThrow(
+      'rate limit',
     );
-    const result = await discoverGitHubRepositories('token', fetchImpl as typeof fetch);
-    expect(result.map(({ name }) => name)).toEqual(['octocat/alpha', 'octocat/zeta']);
   });
 
   it('aggregates commits without retaining email, message, or sha fields', async () => {
@@ -89,7 +112,7 @@ describe('GitHub client', () => {
         },
       }),
     );
-    await expect(discoverGitHubRepositories('token', fetchImpl as typeof fetch)).rejects.toThrow(
+    await expect(discoverGitHubTargets('token', fetchImpl as typeof fetch)).rejects.toThrow(
       'unsafe pagination URL',
     );
   });

@@ -42,19 +42,21 @@ export function ConsentExplanationPage(): JSX.Element {
         <li>Closing the application clears the in-memory session and reports</li>
       </ul>
 
-      <label htmlFor="consent-checkbox">
-        <input
-          id="consent-checkbox"
-          type="checkbox"
-          checked={acknowledged}
-          onChange={(event) => setAcknowledged(event.currentTarget.checked)}
-        />
-        I understand the access being requested and want to continue.
-      </label>
+      <div className="consent-actions">
+        <label htmlFor="consent-checkbox">
+          <input
+            id="consent-checkbox"
+            type="checkbox"
+            checked={acknowledged}
+            onChange={(event) => setAcknowledged(event.currentTarget.checked)}
+          />
+          I understand the access being requested and want to continue.
+        </label>
 
-      <button type="button" disabled={!acknowledged} onClick={continueToMicrosoft}>
-        Continue
-      </button>
+        <button type="button" disabled={!acknowledged} onClick={continueToMicrosoft}>
+          Continue
+        </button>
+      </div>
     </section>
   );
 }

@@ -75,7 +75,7 @@ function remediation(provider: MultiSource['provider'], error: unknown): SourceS
 }
 
 function subject(source: MultiSource): string {
-  return source.provider === 'azure-devops' ? source.organization : source.repository;
+  return source.provider === 'azure-devops' ? source.organization : source.target;
 }
 
 function scope(source: MultiSource): string {
@@ -131,7 +131,7 @@ export async function collectSources(sources: MultiSource[]): Promise<CombinedCo
         gitHubCommitters.push(...committers);
         statuses.push({
           provider: source.provider,
-          subject: source.repository,
+          subject: source.target,
           scope: scope(source),
           status: 'included',
           committerCount: committers.length,

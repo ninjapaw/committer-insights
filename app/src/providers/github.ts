@@ -1,19 +1,30 @@
 import type { ColumnDef } from '@tanstack/react-table';
-import type { GitHubCommitter } from '@ninjapaw/contracts';
+import type { GitHubCommitter, GitHubTargetType } from '@ninjapaw/contracts';
 import { postJson, requestJson } from '../services/local-api';
+
+export interface GitHubTargetOption {
+  id: string;
+  name: string;
+  targetType: GitHubTargetType;
+  url?: string;
+}
 
 export function connectGitHub() {
   return postJson<{ viewer: { login: string; name?: string } }>('/api/auth/github/sign-in');
 }
 
-export async function discoverRepositories() {
+export async function discoverGitHubTargets() {
   const result = await requestJson<{
-    repositories: Array<{ id: string; name: string; url: string; private: boolean }>;
-  }>('/api/connections/github/repositories');
-  return result.repositories;
+    targets: GitHubTargetOption[];
+  }>('/api/connections/github/targets');
+  return result.targets;
 }
 
-export function createGitHubReport(input: { repository: string; sinceDays: number }) {
+export function createGitHubReport(input: {
+  targetType: GitHubTargetType;
+  target: string;
+  sinceDays: number;
+}) {
   return postJson<{ reportId: string }>('/api/reports/github', input);
 }
 

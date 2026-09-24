@@ -2,6 +2,17 @@ export const API_ORIGIN = 'https://api.github.com';
 export const API_VERSION = '2022-11-28';
 export const MAX_PAGES = 100;
 
+export class GitHubRequestError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly rateLimited: boolean,
+  ) {
+    super(message);
+    this.name = 'GitHubRequestError';
+  }
+}
+
 function headers(token: string): Record<string, string> {
   return {
     Authorization: `Bearer ${token}`,
@@ -26,15 +37,19 @@ export async function request(url: URL, token: string, fetchImpl: typeof fetch):
   if (url.origin !== API_ORIGIN) throw new Error('GitHub requests must use api.github.com.');
   const response = await fetchImpl(url, { headers: headers(token) });
   if (!response.ok) {
+    const remainingHeader = response.headers.get('x-ratelimit-remaining');
+    const rateLimited = response.status === 403 && remainingHeader === '0';
     const message =
       response.status === 401
         ? 'GitHub CLI authentication expired. Run "gh auth login" and try again.'
         : response.status === 403
-          ? 'GitHub denied access or rate-limited this request.'
+          ? rateLimited
+            ? 'GitHub API rate limit is exhausted. Try again later.'
+            : 'GitHub denied access to this request.'
           : response.status === 404
             ? 'GitHub repository was not found or is not accessible.'
             : 'GitHub returned an unexpected error.';
-    throw new Error(message);
+    throw new GitHubRequestError(message, response.status, rateLimited);
   }
   const remainingHeader = response.headers.get('x-ratelimit-remaining');
   const remaining = remainingHeader === null ? undefined : Number(remainingHeader);

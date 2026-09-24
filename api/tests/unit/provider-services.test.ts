@@ -10,6 +10,7 @@ import {
   createGitHubReport,
   discoverGitHubSources,
   summarizeGitHub,
+  uniqueGitHubCommitters,
 } from '../../src/services/github.js';
 import type { AzureDevOpsCommitter, GitHubCommitter, SourceStatus } from '@ninjapaw/contracts';
 import { reportStore } from '../../src/reports/report-store.js';
@@ -17,9 +18,10 @@ import { acquireAzureDevOpsToken } from '../../src/auth/local-credential.js';
 import { acquireGitHubToken } from '../../src/auth/github-cli.js';
 import { fetchAzureDevOpsEstimate } from '../../src/adapters/azure-devops/estimate-client.js';
 import {
-  discoverGitHubRepositories,
+  discoverGitHubTargets,
   fetchGitHubCommitters,
   getGitHubViewer,
+  listGitHubRepositoriesForTarget,
 } from '../../src/adapters/github/github-client.js';
 import { discoverAzureDevOpsOrganizations } from '../../src/adapters/azure-devops/organizations-client.js';
 
@@ -34,9 +36,9 @@ vi.mock('../../src/adapters/azure-devops/organizations-client.js', () => ({
 vi.mock('../../src/adapters/github/github-client.js', () => ({
   API_VERSION: '2022-11-28',
   getGitHubViewer: vi.fn(),
-  discoverGitHubRepositories: vi.fn(),
+  discoverGitHubTargets: vi.fn(),
+  listGitHubRepositoriesForTarget: vi.fn(),
   fetchGitHubCommitters: vi.fn(),
-  preflightGitHubRepository: vi.fn(),
 }));
 
 beforeEach(() => {
@@ -45,6 +47,7 @@ beforeEach(() => {
   vi.mocked(acquireGitHubToken).mockResolvedValue('github-token');
   vi.mocked(fetchAzureDevOpsEstimate).mockResolvedValue([]);
   vi.mocked(fetchGitHubCommitters).mockResolvedValue([]);
+  vi.mocked(listGitHubRepositoriesForTarget).mockResolvedValue(['octocat/example']);
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -94,33 +97,130 @@ describe('Azure DevOps report service', () => {
 });
 
 describe('GitHub report service', () => {
-  it('connects and discovers repositories using only GitHub credentials', async () => {
-    const viewer = { id: 'viewer-1', login: 'octocat' };
-    const repositories = [
+  it('deduplicates GitHub committers across repositories and excludes dependabot', () => {
+    const first: GitHubCommitter = {
+      provider: 'github',
+      repository: 'octocat/alpha',
+      userId: 'user-1',
+      login: 'octocat',
+      displayName: 'Octo Cat',
+      profileUrl: 'https://github.com/octocat',
+      commitCount: 2,
+      lastCommitAt: '2026-09-21T10:00:00.000Z',
+      collectedAt: '2026-09-23T10:00:00.000Z',
+      sourceApiVersion: '2022-11-28',
+    };
+    expect(
+      uniqueGitHubCommitters([
+        first,
+        {
+          ...first,
+          repository: 'octocat/zeta',
+          commitCount: 3,
+          lastCommitAt: '2026-09-23T10:00:00.000Z',
+        },
+        {
+          ...first,
+          repository: 'octocat/alpha',
+          userId: '49699333',
+          login: 'dependabot[bot]',
+          displayName: 'dependabot[bot]',
+          profileUrl: 'https://github.com/apps/dependabot',
+          commitCount: 10,
+        },
+        {
+          ...first,
+          repository: 'octocat/alpha',
+          userId: '41898282',
+          login: 'github-actions[bot]',
+          displayName: 'github-actions[bot]',
+          profileUrl: 'https://github.com/apps/github-actions',
+          commitCount: 20,
+        },
+      ]),
+    ).toMatchObject([
       {
-        id: 'repo-1',
-        name: 'octocat/example',
-        url: 'https://github.com/octocat/example',
-        private: false,
+        login: 'octocat',
+        repository: 'octocat/alpha, octocat/zeta',
+        commitCount: 5,
+        lastCommitAt: '2026-09-23T10:00:00.000Z',
+      },
+    ]);
+  });
+
+  it('merges linked GitHub accounts with unlinked commit-author name variants', () => {
+    const linked: GitHubCommitter = {
+      provider: 'github',
+      repository: 'ninjapaw/site',
+      userId: '12345',
+      login: 'billmcilhargey',
+      displayName: 'Dr Bill McIlhargey',
+      profileUrl: 'https://github.com/billmcilhargey',
+      commitCount: 16,
+      lastCommitAt: '2026-09-21T18:44:21.000Z',
+      collectedAt: '2026-09-24T00:00:00.000Z',
+      sourceApiVersion: '2022-11-28',
+    };
+    expect(
+      uniqueGitHubCommitters([
+        linked,
+        {
+          ...linked,
+          repository: 'ninjapaw/sentinel-optimizer',
+          userId: undefined,
+          login: 'Bill McIlhargey',
+          displayName: 'Bill McIlhargey',
+          profileUrl: undefined,
+          commitCount: 3,
+          lastCommitAt: '2026-08-17T13:46:46.000Z',
+        },
+      ]),
+    ).toMatchObject([
+      {
+        login: 'billmcilhargey',
+        displayName: 'Dr Bill McIlhargey',
+        profileUrl: 'https://github.com/billmcilhargey',
+        repository: 'ninjapaw/sentinel-optimizer, ninjapaw/site',
+        commitCount: 19,
+        lastCommitAt: '2026-09-21T18:44:21.000Z',
+      },
+    ]);
+  });
+
+  it('connects and discovers organizations and enterprises using only GitHub credentials', async () => {
+    const viewer = { id: 'viewer-1', login: 'octocat' };
+    const sources = [
+      {
+        id: 'organization:1',
+        name: 'octocat',
+        targetType: 'organization' as const,
+        url: 'https://github.com/octocat',
       },
     ];
     vi.mocked(getGitHubViewer).mockResolvedValue(viewer);
-    vi.mocked(discoverGitHubRepositories).mockResolvedValue(repositories);
+    vi.mocked(discoverGitHubTargets).mockResolvedValue(sources);
     expect(await connectGitHub()).toEqual({ authenticated: true, viewer });
-    expect(await discoverGitHubSources()).toEqual(repositories);
+    expect(await discoverGitHubSources()).toEqual(sources);
     expect(getGitHubViewer).toHaveBeenCalledWith('github-token');
-    expect(discoverGitHubRepositories).toHaveBeenCalledWith('github-token');
+    expect(discoverGitHubTargets).toHaveBeenCalledWith('github-token');
     expect(acquireAzureDevOpsToken).not.toHaveBeenCalled();
   });
 
   it('uses GitHub credentials and retains repository window metadata', async () => {
     const report = await createGitHubReport({
       provider: 'github',
-      repository: 'octocat/example',
+      targetType: 'organization',
+      target: 'octocat',
       sinceDays: 30,
     });
-    expect(fetchGitHubCommitters).toHaveBeenCalledWith({
+    expect(listGitHubRepositoriesForTarget).toHaveBeenCalledWith({
       provider: 'github',
+      targetType: 'organization',
+      target: 'octocat',
+      sinceDays: 30,
+      accessToken: 'github-token',
+    });
+    expect(fetchGitHubCommitters).toHaveBeenCalledWith({
       repository: 'octocat/example',
       sinceDays: 30,
       accessToken: 'github-token',
@@ -128,18 +228,21 @@ describe('GitHub report service', () => {
     expect(acquireAzureDevOpsToken).not.toHaveBeenCalled();
     expect(report).toMatchObject({
       provider: 'github',
-      subject: 'octocat/example',
+      subject: 'octocat',
       organization: 'octocat',
       plans: ['last-30-days'],
       sourceApiVersion: '2022-11-28',
       azureDevOpsCommitters: [],
     });
-    expect(report.sourceStatuses?.[0]?.scope).toBe('Default branch, last 30 days');
+    expect(report.sourceStatuses?.[0]?.scope).toBe(
+      'Organization repositories, default branch, last 30 days',
+    );
     expect(reportStore.get(report.reportId)).toBe(report);
     expect(report.providerSummaries?.[0]).toMatchObject({
       provider: 'github',
       includedSources: 1,
       uniqueIdentities: 0,
+      totalRepositories: 0,
       totalCommits: 0,
       measurement: 'Default-branch commit activity',
     });
@@ -149,7 +252,12 @@ describe('GitHub report service', () => {
     const save = vi.spyOn(reportStore, 'put');
     vi.mocked(fetchGitHubCommitters).mockRejectedValue(new Error('Repository not accessible'));
     await expect(
-      createGitHubReport({ provider: 'github', repository: 'octocat/private', sinceDays: 30 }),
+      createGitHubReport({
+        provider: 'github',
+        targetType: 'organization',
+        target: 'octocat',
+        sinceDays: 30,
+      }),
     ).rejects.toThrow('Repository not accessible');
     expect(save).not.toHaveBeenCalled();
   });
@@ -203,6 +311,7 @@ describe('provider summaries', () => {
       uniqueIdentities: 1,
       includedSources: 1,
       skippedSources: 1,
+      totalRepositories: 1,
       totalCommits: 5,
     });
     expect(azureSummary.methodology).toContain('not licensed-user');

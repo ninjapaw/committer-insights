@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { gitHubRepositorySchema } from '@ninjapaw/contracts';
+import { gitHubRepositorySchema, parseGitHubTargetInput } from '@ninjapaw/contracts';
 
 describe('gitHubRepositorySchema', () => {
   it.each([
@@ -14,4 +14,18 @@ describe('gitHubRepositorySchema', () => {
     'rejects %s',
     (input) => expect(gitHubRepositorySchema.safeParse(input).success).toBe(false),
   );
+});
+
+describe('parseGitHubTargetInput', () => {
+  it.each([
+    ['octocat', { targetType: 'organization', target: 'octocat' }],
+    ['https://github.com/octocat', { targetType: 'organization', target: 'octocat' }],
+    ['https://github.com/orgs/octocat', { targetType: 'organization', target: 'octocat' }],
+    [
+      'https://github.com/enterprises/octo-enterprise',
+      { targetType: 'enterprise', target: 'octo-enterprise' },
+    ],
+  ] as const)('normalizes %s', (input, expected) => {
+    expect(parseGitHubTargetInput(input)).toEqual(expected);
+  });
 });

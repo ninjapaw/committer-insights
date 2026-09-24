@@ -196,12 +196,12 @@ async function handleApi(
     githubSignedIn = true;
     return sendJson(response, 200, connection);
   }
-  if (request.method === 'GET' && pathname === '/api/connections/github/repositories') {
+  if (request.method === 'GET' && pathname === '/api/connections/github/targets') {
     if (!githubSignedIn) {
       return sendJson(response, 401, { message: 'Sign in with GitHub CLI to continue.' });
     }
-    const repositories = await discoverGitHubSources();
-    return sendJson(response, 200, { repositories });
+    const targets = await discoverGitHubSources();
+    return sendJson(response, 200, { targets });
   }
   if (request.method === 'POST' && pathname === '/api/reports/github') {
     if (!githubSignedIn) {

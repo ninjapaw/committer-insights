@@ -1,44 +1,53 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { commitWindows, createGitHubReport, discoverRepositories } from '../providers/github';
+import { parseGitHubTargetInput } from '@ninjapaw/contracts';
+import { commitWindows, createGitHubReport, discoverGitHubTargets } from '../providers/github';
 
 export function GitHubRepositoryPage(): JSX.Element {
-  const [repository, setRepository] = useState('');
+  const [target, setTarget] = useState('');
   const [sinceDays, setSinceDays] = useState(90);
   const navigate = useNavigate();
   const discovery = useQuery({
-    queryKey: ['github-repositories'],
-    queryFn: discoverRepositories,
+    queryKey: ['github-targets'],
+    queryFn: discoverGitHubTargets,
     retry: false,
   });
   const createReport = useMutation({
-    mutationFn: () => createGitHubReport({ repository, sinceDays }),
+    mutationFn: () =>
+      createGitHubReport({
+        targetType:
+          discovery.data?.find((item) => item.name === target)?.targetType ??
+          parseGitHubTargetInput(target).targetType,
+        target: parseGitHubTargetInput(target).target,
+        sinceDays,
+      }),
     onSuccess: ({ reportId }) => navigate(`/reports/${reportId}`),
   });
 
   useEffect(() => {
-    const onlyRepository = discovery.data?.length === 1 ? discovery.data[0] : undefined;
-    if (onlyRepository) setRepository((current) => current || onlyRepository.name);
+    const onlyTarget = discovery.data?.length === 1 ? discovery.data[0] : undefined;
+    if (onlyTarget) setTarget((current) => current || onlyTarget.name);
   }, [discovery.data]);
 
   return (
     <section aria-labelledby="github-repository-title">
-      <h1 id="github-repository-title">GitHub repository</h1>
-      {discovery.isPending && <p aria-live="polite">Discovering your repositories...</p>}
+      <h1 id="github-repository-title">GitHub organization or enterprise</h1>
+      {discovery.isPending && (
+        <p aria-live="polite">Discovering your organizations and enterprises...</p>
+      )}
       {discovery.data && discovery.data.length > 0 && (
         <div>
-          <label htmlFor="discovered-repository">Discovered repositories</label>
+          <label htmlFor="discovered-repository">Discovered organizations and enterprises</label>
           <select
             id="discovered-repository"
-            value={discovery.data.some((item) => item.name === repository) ? repository : ''}
-            onChange={(event) => setRepository(event.currentTarget.value)}
+            value={discovery.data.some((item) => item.name === target) ? target : ''}
+            onChange={(event) => setTarget(event.currentTarget.value)}
           >
-            <option value="">Select a repository</option>
+            <option value="">Select an organization or enterprise</option>
             {discovery.data.map((item) => (
               <option key={item.id} value={item.name}>
-                {item.name}
-                {item.private ? ' (private)' : ''}
+                {item.name} ({item.targetType})
               </option>
             ))}
           </select>
@@ -51,12 +60,12 @@ export function GitHubRepositoryPage(): JSX.Element {
           createReport.mutate();
         }}
       >
-        <label htmlFor="github-repository">Repository name or URL</label>
+        <label htmlFor="github-repository">Organization, enterprise, or URL</label>
         <input
           id="github-repository"
-          value={repository}
-          onChange={(event) => setRepository(event.currentTarget.value)}
-          placeholder="owner/repository"
+          value={target}
+          onChange={(event) => setTarget(event.currentTarget.value)}
+          placeholder="octocat"
           required
         />
         <label htmlFor="github-window">Commit window</label>
@@ -71,7 +80,7 @@ export function GitHubRepositoryPage(): JSX.Element {
             </option>
           ))}
         </select>
-        <button type="submit" disabled={createReport.isPending}>
+        <button type="submit" disabled={createReport.isPending || !target.trim()}>
           Generate GitHub report
         </button>
       </form>

@@ -3,20 +3,22 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
   azureDevOpsOrganizationSchema,
-  gitHubRepositorySchema,
+  parseGitHubTargetInput,
   type AzureDevOpsPlan,
+  type GitHubTargetType,
   type MultiSource,
   type SourceStatus,
 } from '@ninjapaw/contracts';
 import { AzurePlanPicker } from '../components/AzurePlanPicker';
 import { SourcePicker } from '../components/SourcePicker';
 import { connectAzure, discoverOrganizations } from '../providers/azure-devops';
-import { commitWindows, connectGitHub, discoverRepositories } from '../providers/github';
+import { commitWindows, connectGitHub, discoverGitHubTargets } from '../providers/github';
 import { postJson } from '../services/local-api';
 
 interface ReportDraft {
   azureSelected: string[];
   githubSelected: string[];
+  githubTargetTypes: Record<string, GitHubTargetType>;
   plans: AzureDevOpsPlan[];
   sinceDays: number;
 }
@@ -24,6 +26,7 @@ interface ReportDraft {
 const emptyDraft: ReportDraft = {
   azureSelected: [],
   githubSelected: [],
+  githubTargetTypes: {},
   plans: ['all'],
   sinceDays: 90,
 };
@@ -37,7 +40,7 @@ export function CombinedReportPage(): JSX.Element {
     staleTime: Infinity,
     gcTime: Infinity,
   });
-  const { azureSelected, githubSelected, plans, sinceDays } = draft;
+  const { azureSelected, githubSelected, githubTargetTypes, plans, sinceDays } = draft;
   const [reviewing, setReviewing] = useState(false);
   const [statuses, setStatuses] = useState<SourceStatus[] | null>(null);
   const navigate = useNavigate();
@@ -48,9 +51,10 @@ export function CombinedReportPage(): JSX.Element {
       organization,
       plans,
     })),
-    ...githubSelected.map((repository) => ({
+    ...githubSelected.map((target) => ({
       provider: 'github' as const,
-      repository,
+      targetType: githubTargetTypes[target] ?? ('organization' as const),
+      target,
       sinceDays,
     })),
   ];
@@ -83,6 +87,17 @@ export function CombinedReportPage(): JSX.Element {
         : [...current, value],
     });
   };
+  const toggleGitHubTarget = (name: string, targetType: GitHubTargetType = 'organization') => {
+    const current = githubSelected;
+    updateDraft({
+      githubSelected: current.includes(name)
+        ? current.filter((item) => item !== name)
+        : [...current, name],
+      githubTargetTypes: current.includes(name)
+        ? Object.fromEntries(Object.entries(githubTargetTypes).filter(([key]) => key !== name))
+        : { ...githubTargetTypes, [name]: targetType },
+    });
+  };
   const readyCount = statuses?.filter((status) => status.status === 'included').length ?? 0;
   const busy = preflight.isPending || generate.isPending;
   const valid = sources.length > 0 && (azureSelected.length === 0 || plans.length > 0);
@@ -111,21 +126,38 @@ export function CombinedReportPage(): JSX.Element {
         />
         <SourcePicker
           title="GitHub"
-          legend="Repositories"
+          legend="Organizations and enterprises"
           connectLabel="Connect GitHub CLI"
           connect={connectGitHub}
-          discover={discoverRepositories}
-          parseSource={(value) => gitHubRepositorySchema.parse(value)}
-          manualLabel="Repository name or URL"
+          discover={discoverGitHubTargets}
+          parseSource={(value) => {
+            const parsed = parseGitHubTargetInput(value);
+            return { name: parsed.target, targetType: parsed.targetType };
+          }}
+          manualLabel="Organization, enterprise, or URL"
+          discoveryErrorMessage="GitHub source discovery is unavailable. Add an organization or enterprise manually."
           selected={githubSelected}
-          onToggle={(name) => toggle(name, 'githubSelected')}
+          onToggle={(name, option) => {
+            const discovered = option?.targetType
+              ? option
+              : queryClient
+                  .getQueryData<Array<{ name: string; targetType?: GitHubTargetType }>>([
+                    'source-picker',
+                    'GitHub',
+                  ])
+                  ?.find((item) => item.name === name);
+            toggleGitHubTarget(
+              name,
+              discovered?.targetType === 'enterprise' ? 'enterprise' : 'organization',
+            );
+          }}
           disabled={busy}
         />
       </div>
 
       <p className="selection-summary">
         {azureSelected.length} Azure DevOps organizations / {githubSelected.length} GitHub
-        repositories
+        organizations and enterprises
       </p>
 
       {reviewing && (
@@ -166,11 +198,11 @@ export function CombinedReportPage(): JSX.Element {
                   <li
                     key={
                       source.provider +
-                      (source.provider === 'github' ? source.repository : source.organization)
+                      (source.provider === 'github' ? source.target : source.organization)
                     }
                   >
                     <strong>{source.provider === 'github' ? 'GitHub' : 'Azure DevOps'}</strong>{' '}
-                    {source.provider === 'github' ? source.repository : source.organization}
+                    {source.provider === 'github' ? source.target : source.organization}
                   </li>
                 ))}
               </ul>

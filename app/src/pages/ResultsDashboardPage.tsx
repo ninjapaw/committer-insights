@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { exportFormats, type ExportFormat, type Report } from '@ninjapaw/contracts';
 import { ReportTable } from '../components/ReportTable';
-import { azureColumns } from '../providers/azure-devops';
+import { azureColumns, uniqueAzureDevOpsCommitters } from '../providers/azure-devops';
 import { githubColumns } from '../providers/github';
 import { localRequest, requestJson } from '../services/local-api';
 
@@ -83,6 +83,7 @@ export function ResultsDashboardPage(): JSX.Element {
                   <th scope="col">Sources skipped</th>
                   <th scope="col">Identity records</th>
                   <th scope="col">Unique identities</th>
+                  <th scope="col">Repositories</th>
                   <th scope="col">Commits</th>
                   <th scope="col">API version</th>
                 </tr>
@@ -98,6 +99,7 @@ export function ResultsDashboardPage(): JSX.Element {
                     <td>{summary.skippedSources}</td>
                     <td>{summary.identityRecords}</td>
                     <td>{summary.uniqueIdentities}</td>
+                    <td>{summary.totalRepositories ?? 'Not applicable'}</td>
                     <td>{summary.totalCommits ?? 'Not applicable'}</td>
                     <td>{summary.apiVersion}</td>
                   </tr>
@@ -167,7 +169,7 @@ export function ResultsDashboardPage(): JSX.Element {
             (source) => source.provider === 'azure-devops' && source.status === 'included',
           )) && (
           <ReportTable
-            data={query.data.azureDevOpsCommitters}
+            data={uniqueAzureDevOpsCommitters(query.data.azureDevOpsCommitters)}
             columns={azureColumns}
             globalFilter={globalFilter}
             caption="Azure DevOps committers"

@@ -1,4 +1,5 @@
 import type { StoredReport } from '../reports/report-store.js';
+import { uniqueAzureDevOpsCommitters } from './azure-devops-display.js';
 
 function escapeHtml(value: unknown): string {
   return String(value ?? '')
@@ -31,12 +32,13 @@ export function generateStandaloneHtml(report: StoredReport): string {
 <dl><dt>${escapeHtml(provider.sourceLabel)} included</dt><dd>${provider.includedSources}</dd>
 <dt>Sources skipped</dt><dd>${provider.skippedSources}</dd><dt>Identity records</dt><dd>${provider.identityRecords}</dd>
 <dt>Unique identities</dt><dd>${provider.uniqueIdentities}</dd>
+${provider.totalRepositories === undefined ? '' : `<dt>Repositories</dt><dd>${provider.totalRepositories}</dd>`}
 ${provider.totalCommits === undefined ? '' : `<dt>Commits</dt><dd>${provider.totalCommits}</dd>`}
 <dt>API version</dt><dd>${escapeHtml(provider.apiVersion)}</dd></dl>
 <p>${escapeHtml(provider.methodology)}</p></section>`,
     )
     .join('');
-  const azureRows = report.azureDevOpsCommitters
+  const azureRows = uniqueAzureDevOpsCommitters(report.azureDevOpsCommitters)
     .map(
       (item) =>
         `<tr><td>${escapeHtml(item.displayName)}</td><td>${escapeHtml(item.organization)}</td><td>${escapeHtml(item.plan)}</td></tr>`,
@@ -64,7 +66,7 @@ ${
 }
 ${providerSections}
 ${report.sourceStatuses ? `<section><h2>Source status</h2><table><thead><tr><th>Provider</th><th>Source</th><th>Status</th><th>Count</th><th>Reason</th><th>How to fix</th><th>Scope</th></tr></thead><tbody>${sourceRows(report)}</tbody></table></section>` : ''}
-${azureRows ? `<section><h2>Azure DevOps committers</h2><table><thead><tr><th>Display name</th><th>Organization</th><th>Plan</th></tr></thead><tbody>${azureRows}</tbody></table></section>` : ''}
+${azureRows ? `<section><h2>Azure DevOps committers</h2><table><thead><tr><th>Display name</th><th>Organization</th><th>Effective plans</th></tr></thead><tbody>${azureRows}</tbody></table></section>` : ''}
 ${githubRows ? `<section><h2>GitHub committers</h2><table><thead><tr><th>Login</th><th>Display name</th><th>Repository</th><th>Commits</th><th>Last commit</th></tr></thead><tbody>${githubRows}</tbody></table></section>` : ''}
 <p class="notice">Cross-provider identities are not automatically merged. Skipped sources are excluded from totals and listed with remediation above.</p>
 </body></html>`;

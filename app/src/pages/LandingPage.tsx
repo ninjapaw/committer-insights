@@ -7,8 +7,8 @@ export function LandingPage(): JSX.Element {
         <span className="eyebrow">Local reporting workspace</span>
         <h1 id="landing-title">Active Committer Portal</h1>
         <p className="landing__lead">
-          Review Azure DevOps Advanced Security estimates or GitHub repository committers, then
-          export the results to Excel or CSV.
+          Review Azure DevOps Advanced Security estimates or GitHub organization and enterprise
+          committers, then export the results to Excel or CSV.
         </p>
         <p className="callout" role="status">
           Delegated, read-only access. The portal does not ask for an Azure DevOps personal access
@@ -34,9 +34,9 @@ export function LandingPage(): JSX.Element {
             GH
           </span>
           <div>
-            <span className="eyebrow">Repository activity</span>
+            <span className="eyebrow">Organization activity</span>
             <h2>GitHub</h2>
-            <p>Count committers on a repository default branch over a selected date window.</p>
+            <p>Count committers across visible repositories in an organization or enterprise.</p>
           </div>
           <Link className="btn btn-secondary" to="/connect/github" role="button">
             Connect GitHub

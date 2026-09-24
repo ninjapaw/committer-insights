@@ -2,8 +2,9 @@ import { useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 interface SourceOption {
-  id: string;
+  id?: string;
   name: string;
+  targetType?: string;
   private?: boolean;
 }
 
@@ -19,6 +20,7 @@ export function SourcePicker({
   children,
   parseSource,
   manualLabel,
+  discoveryErrorMessage,
 }: {
   title: string;
   legend: string;
@@ -26,11 +28,12 @@ export function SourcePicker({
   connect: () => Promise<unknown>;
   discover: () => Promise<SourceOption[]>;
   selected: string[];
-  onToggle: (name: string) => void;
+  onToggle: (name: string, option?: SourceOption) => void;
   disabled: boolean;
   children?: ReactNode;
-  parseSource?: (value: string) => string;
+  parseSource?: (value: string) => string | { name: string; targetType?: string };
   manualLabel?: string;
+  discoveryErrorMessage?: string;
 }): JSX.Element {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
@@ -80,7 +83,7 @@ export function SourcePicker({
       )}
       {discovery.isError && (
         <div role="alert">
-          {discovery.error.message}{' '}
+          {discoveryErrorMessage ?? discovery.error.message}{' '}
           <button
             type="button"
             disabled={disabled || discovery.isFetching}
@@ -108,14 +111,15 @@ export function SourcePicker({
             </legend>
             {visibleOptions.length === 0 && <p>No matching {legend.toLowerCase()}.</p>}
             {visibleOptions.map((item: SourceOption) => (
-              <label key={item.id}>
+              <label key={item.id ?? item.name}>
                 <input
                   type="checkbox"
                   checked={selected.includes(item.name)}
-                  onChange={() => onToggle(item.name)}
+                  onChange={() => onToggle(item.name, item)}
                 />
                 <span>
                   {item.name}
+                  {item.targetType ? ` (${item.targetType})` : ''}
                   {item.private ? ' (private)' : ''}
                 </span>
               </label>
@@ -130,8 +134,9 @@ export function SourcePicker({
             onSubmit={(event) => {
               event.preventDefault();
               try {
-                const name = parseSource(manual);
-                if (!selected.includes(name)) onToggle(name);
+                const parsed = parseSource(manual);
+                const option = typeof parsed === 'string' ? { name: parsed } : parsed;
+                if (!selected.includes(option.name)) onToggle(option.name, option);
                 setSearch('');
                 setManual('');
                 setManualError('');

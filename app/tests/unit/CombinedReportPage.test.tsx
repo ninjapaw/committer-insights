@@ -17,7 +17,7 @@ afterEach(() => {
 
 const ready: SourceStatus = {
   provider: 'github',
-  subject: 'octocat/private',
+  subject: 'octocat',
   status: 'included',
   committerCount: 0,
 };
@@ -27,9 +27,9 @@ function renderGitHubFlow(preflight: () => Promise<Response>) {
     switch (String(input)) {
       case '/api/auth/github/sign-in':
         return Response.json({ authenticated: true });
-      case '/api/connections/github/repositories':
+      case '/api/connections/github/targets':
         return Response.json({
-          repositories: [{ id: 'repo-id', name: 'octocat/private', private: true }],
+          targets: [{ id: 'organization:1', name: 'octocat', targetType: 'organization' }],
         });
       case '/api/reports/combined/preflight':
         return preflight();
@@ -66,7 +66,7 @@ function renderGitHubFlow(preflight: () => Promise<Response>) {
 
 async function selectGitHubSource() {
   fireEvent.click(screen.getByRole('button', { name: 'Connect GitHub CLI' }));
-  const checkbox = await screen.findByRole('checkbox', { name: 'octocat/private (private)' });
+  const checkbox = await screen.findByRole('checkbox', { name: 'octocat (organization)' });
   fireEvent.click(checkbox);
   await waitFor(() => expect(screen.getByRole('button', { name: 'Review report' })).toBeEnabled());
   return checkbox;
@@ -78,7 +78,7 @@ describe('CombinedReportPage', () => {
       switch (String(input)) {
         case '/api/auth/github/sign-in':
           return Response.json({ authenticated: true });
-        case '/api/connections/github/repositories':
+        case '/api/connections/github/targets':
           return Response.json({ message: 'Discovery unavailable.' }, { status: 503 });
         case '/api/reports/combined/preflight':
           return Response.json({ statuses: [ready] });
@@ -96,13 +96,15 @@ describe('CombinedReportPage', () => {
       </QueryClientProvider>,
     );
     fireEvent.click(screen.getByRole('button', { name: 'Connect GitHub CLI' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Discovery unavailable.');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'GitHub source discovery is unavailable. Add an organization or enterprise manually.',
+    );
     fireEvent.click(screen.getByText('Add by name or URL'));
-    fireEvent.change(screen.getByLabelText('Repository name or URL'), {
-      target: { value: 'https://github.com/octocat/private.git' },
+    fireEvent.change(screen.getByLabelText('Organization, enterprise, or URL'), {
+      target: { value: 'https://github.com/enterprises/octo-enterprise' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Add source' }));
-    expect(await screen.findByRole('checkbox', { name: 'octocat/private' })).toBeChecked();
+    expect(await screen.findByRole('checkbox', { name: 'octo-enterprise' })).toBeChecked();
     fireEvent.click(screen.getByRole('button', { name: 'Review report' }));
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Generate report' })).toBeEnabled(),
@@ -110,7 +112,14 @@ describe('CombinedReportPage', () => {
     const requests = fetchMock.mock.calls as unknown as Array<[string, RequestInit]>;
     const request = requests.find(([url]) => url === '/api/reports/combined/preflight');
     expect(JSON.parse(String(request?.[1].body))).toEqual({
-      sources: [{ provider: 'github', repository: 'octocat/private', sinceDays: 90 }],
+      sources: [
+        {
+          provider: 'github',
+          targetType: 'enterprise',
+          target: 'octo-enterprise',
+          sinceDays: 90,
+        },
+      ],
     });
   });
 
@@ -119,12 +128,12 @@ describe('CombinedReportPage', () => {
       switch (String(input)) {
         case '/api/auth/github/sign-in':
           return Response.json({ viewer: { login: 'octocat' } });
-        case '/api/connections/github/repositories':
+        case '/api/connections/github/targets':
           return Response.json({
-            repositories: [{ id: 'repo-id', name: 'octocat/example', private: false }],
+            targets: [{ id: 'organization:1', name: 'octocat', targetType: 'organization' }],
           });
         case '/api/reports/combined/preflight':
-          return Response.json({ statuses: [{ ...ready, subject: 'octocat/example' }] });
+          return Response.json({ statuses: [{ ...ready, subject: 'octocat' }] });
         case '/api/reports/combined':
           return Response.json({ reportId: 'github-only' });
         case '/api/reports/github-only':
@@ -138,7 +147,7 @@ describe('CombinedReportPage', () => {
               {
                 provider: 'github',
                 displayName: 'GitHub',
-                sourceLabel: 'Repositories',
+                sourceLabel: 'Organizations and enterprises',
                 measurement: 'Default-branch commit activity',
                 apiVersion: '2022-11-28',
                 methodology: 'Not a security billing estimate.',
@@ -165,9 +174,15 @@ describe('CombinedReportPage', () => {
         </MemoryRouter>
       </QueryClientProvider>,
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Use GitHub CLI account' }));
-    const repo = await screen.findByRole('checkbox', { name: 'octocat/example' });
-    fireEvent.click(repo);
+    expect(screen.getByRole('button', { name: 'Continue with GitHub CLI' })).toBeDisabled();
+    fireEvent.click(
+      screen.getByRole('checkbox', {
+        name: 'I understand the GitHub access being requested and want to continue.',
+      }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with GitHub CLI' }));
+    const target = await screen.findByRole('checkbox', { name: 'octocat (organization)' });
+    fireEvent.click(target);
     const review = screen.getByRole('button', { name: 'Review report' });
     await waitFor(() => expect(review).toBeEnabled());
     fireEvent.click(review);
@@ -182,7 +197,7 @@ describe('CombinedReportPage', () => {
       screen.queryByRole('region', { name: 'Azure DevOps committers' }),
     ).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('link', { name: 'Change sources' }));
-    expect(await screen.findByRole('checkbox', { name: 'octocat/example' })).toBeChecked();
+    expect(await screen.findByRole('checkbox', { name: 'octocat (organization)' })).toBeChecked();
     expect(fetchMock.mock.calls.filter(([url]) => url === '/api/auth/github/sign-in')).toHaveLength(
       1,
     );
@@ -212,16 +227,16 @@ describe('CombinedReportPage', () => {
     expect(await screen.findByRole('heading', { name: 'Created report' })).toBeInTheDocument();
     const requests = fetchMock.mock.calls as unknown as Array<[string, RequestInit]>;
     const sourceRequest = {
-      sources: [{ provider: 'github', repository: 'octocat/private', sinceDays: 90 }],
+      sources: [
+        { provider: 'github', targetType: 'organization', target: 'octocat', sinceDays: 90 },
+      ],
     };
     for (const path of ['/api/reports/combined/preflight', '/api/reports/combined']) {
       const request = requests.find(([url]) => url === path);
       expect(JSON.parse(String(request?.[1].body))).toEqual(sourceRequest);
     }
     fireEvent.click(screen.getByRole('link', { name: 'Change sources' }));
-    expect(
-      await screen.findByRole('checkbox', { name: 'octocat/private (private)' }),
-    ).toBeChecked();
+    expect(await screen.findByRole('checkbox', { name: 'octocat (organization)' })).toBeChecked();
     expect(screen.getByRole('button', { name: 'GitHub connected' })).toBeDisabled();
     expect(requests.filter(([url]) => url === '/api/auth/github/sign-in')).toHaveLength(1);
   });
@@ -293,9 +308,9 @@ describe('CombinedReportPage', () => {
         if (path === '/api/connections/azure-devops/organizations') {
           return Response.json({ organizations: [{ id: 'azure-id', name: 'contoso' }] });
         }
-        if (path === '/api/connections/github/repositories') {
+        if (path === '/api/connections/github/targets') {
           return Response.json({
-            repositories: [{ id: 'github-id', name: 'octocat/private', private: true }],
+            targets: [{ id: 'organization:1', name: 'octocat', targetType: 'organization' }],
           });
         }
         if (path === '/api/reports/combined/preflight') {
@@ -309,7 +324,7 @@ describe('CombinedReportPage', () => {
               },
               {
                 provider: 'github',
-                subject: 'octocat/private',
+                subject: 'octocat',
                 status: 'skipped',
                 committerCount: 0,
                 reason: 'Minimum read permission not met',
@@ -336,9 +351,9 @@ describe('CombinedReportPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Connect GitHub CLI' }));
     fireEvent.click(await screen.findByRole('checkbox', { name: 'contoso' }));
     await waitFor(() => expect(screen.getByRole('checkbox', { name: 'contoso' })).toBeChecked());
-    fireEvent.click(await screen.findByRole('checkbox', { name: 'octocat/private (private)' }));
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'octocat (organization)' }));
     await waitFor(() =>
-      expect(screen.getByRole('checkbox', { name: 'octocat/private (private)' })).toBeChecked(),
+      expect(screen.getByRole('checkbox', { name: 'octocat (organization)' })).toBeChecked(),
     );
     fireEvent.click(screen.getByRole('button', { name: 'Review report' }));
     const generate = screen.getByRole('button', { name: 'Generate report' });

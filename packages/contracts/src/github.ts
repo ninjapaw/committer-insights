@@ -2,6 +2,60 @@ import { z } from 'zod';
 
 export const GITHUB_NAME_PATTERN = /^[A-Za-z0-9_.-]{1,100}$/;
 
+export const gitHubTargetTypeSchema = z.enum(['organization', 'enterprise']);
+export type GitHubTargetType = z.infer<typeof gitHubTargetTypeSchema>;
+
+export function normalizeGitHubTarget(value: string): string {
+  const input = value.trim();
+  try {
+    const url = new URL(input);
+    if (url.protocol !== 'https:' || url.hostname.toLowerCase() !== 'github.com') return input;
+    const parts = url.pathname.split('/').filter(Boolean);
+    if (parts[0] === 'orgs' && parts[1]) return parts[1];
+    if (parts[0] === 'enterprises' && parts[1]) return parts[1];
+    if (parts.length === 1 && parts[0]) return parts[0];
+    return input;
+  } catch {
+    return input;
+  }
+}
+
+export const gitHubTargetSchema = z
+  .string()
+  .transform(normalizeGitHubTarget)
+  .pipe(
+    z
+      .string()
+      .min(1, 'GitHub organization or enterprise is required')
+      .max(100, 'GitHub organization or enterprise name is too long')
+      .regex(GITHUB_NAME_PATTERN, 'Enter a GitHub organization, enterprise, or URL'),
+  );
+
+export function parseGitHubTargetInput(value: string): {
+  targetType: GitHubTargetType;
+  target: string;
+} {
+  const input = value.trim();
+  try {
+    const url = new URL(input);
+    if (url.protocol === 'https:' && url.hostname.toLowerCase() === 'github.com') {
+      const parts = url.pathname.split('/').filter(Boolean);
+      if (parts[0] === 'enterprises' && parts[1]) {
+        return { targetType: 'enterprise', target: gitHubTargetSchema.parse(parts[1]) };
+      }
+      if (parts[0] === 'orgs' && parts[1]) {
+        return { targetType: 'organization', target: gitHubTargetSchema.parse(parts[1]) };
+      }
+      if (parts.length === 1 && parts[0]) {
+        return { targetType: 'organization', target: gitHubTargetSchema.parse(parts[0]) };
+      }
+    }
+  } catch {
+    // Bare names are treated as organizations because GitHub enterprise slugs are URL-scoped.
+  }
+  return { targetType: 'organization', target: gitHubTargetSchema.parse(input) };
+}
+
 export function normalizeGitHubRepository(value: string): string {
   const input = value.trim();
   try {
@@ -45,7 +99,8 @@ export const gitHubCommitterSchema = z.object({
 export type GitHubCommitter = z.infer<typeof gitHubCommitterSchema>;
 
 export const gitHubReportRequestSchema = z.object({
-  repository: gitHubRepositorySchema,
+  targetType: gitHubTargetTypeSchema,
+  target: gitHubTargetSchema,
   sinceDays: z.number().int().min(1).max(365).default(90),
 });
 
@@ -63,6 +118,22 @@ export const gitHubRepositoryResponseSchema = z.object({
 });
 
 export const gitHubRepositoriesResponseSchema = z.array(gitHubRepositoryResponseSchema);
+
+export const gitHubOrganizationResponseSchema = z.object({
+  id: z.number().int().positive(),
+  login: gitHubTargetSchema,
+  html_url: z.string().url().optional(),
+});
+
+export const gitHubOrganizationsResponseSchema = z.array(gitHubOrganizationResponseSchema);
+
+export const gitHubEnterpriseResponseSchema = z.object({
+  id: z.number().int().positive(),
+  slug: gitHubTargetSchema,
+  html_url: z.string().url().optional(),
+});
+
+export const gitHubEnterprisesResponseSchema = z.array(gitHubEnterpriseResponseSchema);
 
 export const gitHubCommitResponseSchema = z.object({
   author: z

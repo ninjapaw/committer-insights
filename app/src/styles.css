@@ -1,14 +1,52 @@
 :root {
+  color-scheme: dark;
+  --ms-blue: #0078d4;
+  --ms-blue-dark: #2899f5;
+  --ms-blue-darker: #8ecbff;
+  --ms-blue-light: #153d5b;
+  --ms-blue-lighter: #102a40;
+  --ms-square-1: #f25022;
+  --ms-square-2: #7fba00;
+  --ms-square-3: #00a4ef;
+  --ms-square-4: #ffb900;
+  --color-text: #f3f7fb;
+  --color-text-soft: #d5dde8;
+  --color-text-muted: #9facbd;
+  --color-bg: #121821;
+  --color-bg-alt: #0b1118;
+  --color-bg-tint: #182333;
+  --color-border: #273345;
+  --color-border-strong: #3b4a60;
+  --color-success: #6ccb5f;
+  --color-warning: #ffb454;
+  --color-error: #ff7a85;
+  --notice-bg: #3d300b;
+  --notice-border: #7d6117;
+  --notice-text: #ffe6a6;
+  --notice-strong: #fff2c8;
+  --status-bg: #18361d;
+  --status-border: #3f7a46;
+  --status-text: #b7f3bc;
+  --success-bg: #102d16;
+  --error-bg: #3a1418;
+  --error-text: #ffd4d8;
+  --shadow-card: 0 4px 16px rgb(0 0 0 / 35%);
+  --shadow-card-hover: 0 8px 24px rgb(0 0 0 / 45%);
+  --font-sans: 'Segoe UI', 'Segoe UI Variable', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'Cascadia Code', Consolas, monospace;
+  --container-max: 1120px;
+  --navbar-h: 60px;
+  --radius-sm: 4px;
+  --radius: 8px;
+}
+
+:root[data-theme='light'] {
   color-scheme: light;
   --ms-blue: #0078d4;
   --ms-blue-dark: #106ebe;
   --ms-blue-darker: #005a9e;
   --ms-blue-light: #deecf9;
   --ms-blue-lighter: #eff6fc;
-  --ms-square-1: #f25022;
-  --ms-square-2: #7fba00;
-  --ms-square-3: #00a4ef;
-  --ms-square-4: #ffb900;
   --color-text: #201f1e;
   --color-text-soft: #424242;
   --color-text-muted: #605e5c;
@@ -20,14 +58,18 @@
   --color-success: #107c10;
   --color-warning: #ca5010;
   --color-error: #a4262c;
+  --notice-bg: #fff4ce;
+  --notice-border: #f0d896;
+  --notice-text: #5a3e08;
+  --notice-strong: #4a3306;
+  --status-bg: #dff6dd;
+  --status-border: #b6e3b6;
+  --status-text: #0e6027;
+  --success-bg: #f0faf0;
+  --error-bg: #fde7e9;
+  --error-text: #6f1015;
   --shadow-card: 0 4px 16px rgb(0 0 0 / 7%);
   --shadow-card-hover: 0 8px 24px rgb(0 0 0 / 11%);
-  --font-sans: 'Segoe UI', 'Segoe UI Variable', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: 'Cascadia Code', Consolas, monospace;
-  --container-max: 1120px;
-  --navbar-h: 60px;
-  --radius-sm: 4px;
-  --radius: 8px;
 }
 
 *,
@@ -46,8 +88,8 @@ body,
 body {
   background-color: var(--color-bg-alt);
   background-image:
-    linear-gradient(rgb(0 120 212 / 3%) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(0 120 212 / 3%) 1px, transparent 1px);
+    linear-gradient(rgb(120 180 230 / 5%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(120 180 230 / 5%) 1px, transparent 1px);
   background-size: 32px 32px;
   color: var(--color-text);
   font-family: var(--font-sans);
@@ -134,24 +176,24 @@ code {
   position: sticky;
   top: 0;
   z-index: 100;
-  background: rgb(255 255 255 / 96%);
+  background: color-mix(in srgb, var(--color-bg) 96%, transparent);
   border-bottom: 1px solid var(--color-border);
-  box-shadow: 0 1px 3px rgb(0 0 0 / 5%);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 18%);
   backdrop-filter: blur(12px);
 }
 
 .community-disclaimer {
   padding: 0.6rem 24px;
-  border-bottom: 1px solid #f0d896;
-  background: #fff4ce;
-  color: #5a3e08;
+  border-bottom: 1px solid var(--notice-border);
+  background: var(--notice-bg);
+  color: var(--notice-text);
   font-size: 0.82rem;
   line-height: 1.5;
   text-align: center;
 }
 
 .community-disclaimer strong {
-  color: #4a3306;
+  color: var(--notice-strong);
 }
 
 .navbar__inner {
@@ -228,10 +270,10 @@ code {
   align-items: center;
   gap: 6px;
   padding: 0.25rem 0.6rem;
-  border: 1px solid #b6e3b6;
+  border: 1px solid var(--status-border);
   border-radius: 999px;
-  background: #dff6dd;
-  color: #0e6027;
+  background: var(--status-bg);
+  color: var(--status-text);
   font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -340,7 +382,8 @@ code {
   background: var(--ms-blue);
 }
 .provider-card--github .provider-card__mark {
-  background: #24292f;
+  background: var(--color-bg-tint);
+  border: 1px solid var(--color-border-strong);
 }
 
 .provider-card h2 {
@@ -366,7 +409,7 @@ code {
   margin-top: 1.25rem;
   padding: 1.25rem 1.5rem;
   background: linear-gradient(100deg, var(--ms-blue-lighter), var(--color-bg));
-  border: 1px solid #b8daff;
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius);
 }
 
@@ -475,12 +518,12 @@ code {
   gap: 0.25rem 1rem;
   padding: 0.8rem 1rem;
   border-left: 4px solid var(--color-success);
-  background: #f0faf0;
+  background: var(--success-bg);
 }
 
 .permission-result--skipped {
   border-left-color: var(--color-error);
-  background: #fde7e9;
+  background: var(--error-bg);
 }
 
 .permission-result p {
@@ -542,8 +585,8 @@ code {
   margin-top: 1rem;
   border-left: 4px solid var(--color-error);
   border-radius: 0 var(--radius) var(--radius) 0;
-  background: #fde7e9;
-  color: #6f1015;
+  background: var(--error-bg);
+  color: var(--error-text);
   padding: 0.85rem 1rem;
 }
 
@@ -603,6 +646,13 @@ fieldset {
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   background: var(--color-bg-alt);
+}
+
+.consent-actions {
+  display: grid;
+  gap: 0.85rem;
+  justify-items: start;
+  margin-top: 1.25rem;
 }
 
 button,

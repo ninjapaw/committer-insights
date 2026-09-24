@@ -68,6 +68,7 @@ describe('standalone report formats', () => {
           skippedSources: 1,
           identityRecords: 1,
           uniqueIdentities: 1,
+          totalRepositories: 3,
           totalCommits: 6,
         },
       ],
@@ -80,7 +81,8 @@ describe('standalone report formats', () => {
     expect(sheet.getCell('A2').value).toBe('Azure DevOps');
     expect(sheet.getCell('A3').value).toBe('GitHub');
     expect(sheet.getCell('H2').value).toBe('Not applicable');
-    expect(sheet.getCell('H3').value).toBe('6');
+    expect(sheet.getCell('H3').value).toBe('3');
+    expect(sheet.getCell('I3').value).toBe('6');
     for (const content of [generateCsv(withProviders), generateStandaloneHtml(withProviders)]) {
       expect(content).toContain('Security estimate');
       expect(content).toContain('Commit activity');
@@ -97,6 +99,7 @@ describe('standalone report formats', () => {
           'Azure DevOps',
           'GitHub',
           'Commits: 6',
+          'Repositories: 3',
           'Measurement: Security estimate',
           'Measurement: Commit activity',
         ]),
@@ -177,6 +180,20 @@ describe('standalone report formats', () => {
           collectedAt: report.generatedAt,
           sourceApiVersion: '7.2-preview.3',
         },
+        {
+          provider: 'azure-devops',
+          organization: 'contoso',
+          displayName: '<script>alert("x")</script>',
+          plan: 'secretProtection',
+          resultType: 'estimated',
+          userPrincipalName: 'private-upn@example.invalid',
+          cuid: 'private-cuid',
+          identityId: 'private-identity',
+          isEstimated: true,
+          isLicensed: false,
+          collectedAt: report.generatedAt,
+          sourceApiVersion: '7.2-preview.3',
+        },
       ],
       gitHubCommitters: [
         {
@@ -196,6 +213,7 @@ describe('standalone report formats', () => {
     for (const output of [generateCsv(populated), generateStandaloneHtml(populated)]) {
       expect(output).toContain('contoso');
       expect(output).toContain('octocat/example');
+      expect(output).toContain('Code Security, Secret Protection');
       for (const secret of [
         'private-upn',
         'private-cuid',
@@ -207,6 +225,7 @@ describe('standalone report formats', () => {
     }
     const html = generateStandaloneHtml(populated);
     expect(html).toContain('&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;');
+    expect(html.match(/&lt;script&gt;alert/g) ?? []).toHaveLength(1);
     expect(html).not.toMatch(/<script|<iframe|<link\b|\ssrc=/i);
     const csv = generateCsv({
       ...populated,
