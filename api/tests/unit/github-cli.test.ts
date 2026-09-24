@@ -3,6 +3,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const execute = vi.hoisted(() => vi.fn());
 vi.mock('node:child_process', () => ({ execFile: execute }));
 vi.mock('node:util', () => ({ promisify: () => execute }));
+vi.mock('../../src/auth/github-cli-binary.js', () => ({
+  resolveGitHubCli: () => 'C:/private-app/tools/gh.exe',
+}));
 
 afterEach(() => {
   vi.resetAllMocks();
@@ -43,6 +46,7 @@ describe('GitHub account selection', () => {
       { login: 'first', active: true, available: true },
       { login: 'second', active: false, available: false },
     ]);
+    expect(execute.mock.calls[0]![0]).toBe('C:/private-app/tools/gh.exe');
     expect(execute.mock.calls[0]![1]).toEqual([
       'auth',
       'status',
@@ -64,7 +68,7 @@ describe('GitHub account selection', () => {
     selectGitHubAccount('second');
     expect(await acquireGitHubToken()).toBe('synthetic-token');
     expect(execute).toHaveBeenCalledWith(
-      'gh',
+      'C:/private-app/tools/gh.exe',
       ['auth', 'token', '--hostname', 'github.com', '--user', 'second'],
       expect.objectContaining({ windowsHide: true }),
     );
@@ -97,13 +101,17 @@ describe('GitHub account selection', () => {
     expect(execute).not.toHaveBeenCalled();
     execute.mockRejectedValue(new Error('secret CLI output'));
     await expect(auth.listGitHubAccounts()).rejects.toThrow('Unable to list GitHub CLI accounts');
-    await expect(auth.acquireGitHubToken('first')).rejects.toThrow('Sign in with GitHub CLI');
+    await expect(auth.acquireGitHubToken('first')).rejects.toThrow(
+      'Sign in with GitHub using the sign-in button',
+    );
   });
 
   it('handles empty account lists and empty tokens', async () => {
     const auth = await import('../../src/auth/github-cli.js');
     execute.mockResolvedValueOnce({ stdout: '{"hosts":{}}' }).mockResolvedValueOnce({ stdout: '' });
     expect(await auth.listGitHubAccounts()).toEqual([]);
-    await expect(auth.acquireGitHubToken()).rejects.toThrow('Sign in with GitHub CLI');
+    await expect(auth.acquireGitHubToken()).rejects.toThrow(
+      'Sign in with GitHub using the sign-in button',
+    );
   });
 });

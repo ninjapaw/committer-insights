@@ -5,14 +5,14 @@ import { uniqueAzureDevOpsCommitters } from '@ninjapaw/contracts';
 function committer(plan: AzureDevOpsCommitter['plan']): AzureDevOpsCommitter {
   return {
     provider: 'azure-devops',
-    organization: 'ninjapaws',
+    organization: 'example-org',
     plan,
     resultType: 'estimated',
-    cuid: '25d8699f-2560-749f-9f08-13a5e8fae976',
-    identityId: '25d8699f-2560-649f-9f08-13a5e8fae976',
+    cuid: '11111111-1111-4111-8111-111111111111',
+    identityId: '22222222-2222-4222-8222-222222222222',
     descriptor: 'aad.example',
-    displayName: 'Dr Bill McIlhargey',
-    userPrincipalName: 'bill.mcilhargey@ninjapaws.org',
+    displayName: 'Dr Alex Example',
+    userPrincipalName: 'alex@example.test',
     isEstimated: true,
     isLicensed: false,
     collectedAt: '2026-09-24T03:42:12.762Z',
@@ -26,8 +26,8 @@ describe('uniqueAzureDevOpsCommitters', () => {
       uniqueAzureDevOpsCommitters([committer('codeSecurity'), committer('secretProtection')]),
     ).toMatchObject([
       {
-        displayName: 'Dr Bill McIlhargey',
-        userPrincipalName: 'bill.mcilhargey@ninjapaws.org',
+        displayName: 'Dr Alex Example',
+        userPrincipalName: 'alex@example.test',
         plan: 'Code Security, Secret Protection',
         billableCommitter: 'Estimated',
       },

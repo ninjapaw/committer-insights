@@ -1,6 +1,9 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
 import { once } from 'node:events';
+import { createHash } from 'node:crypto';
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 
 const executable = join(
   resolve('.'),
@@ -33,8 +36,22 @@ for (const args of [
 }
 
 async function smokeStartup(args) {
+  const sandbox = await mkdtemp(join(tmpdir(), 'committer-smoke-'));
+  const environment = { ...process.env, COMMITTER_INSIGHTS_NO_BROWSER: 'true' };
+  if (process.platform === 'win32') {
+    for (const name of Object.keys(environment)) {
+      if (
+        name.toLowerCase() === 'path' ||
+        /^(GH_TOKEN|GITHUB_TOKEN|GH_ENTERPRISE_TOKEN|GITHUB_ENTERPRISE_TOKEN)$/.test(name)
+      )
+        delete environment[name];
+    }
+    environment.PATH = '';
+    environment.LOCALAPPDATA = sandbox;
+    environment.GH_CONFIG_DIR = join(sandbox, 'gh-config');
+  }
   const child = spawn(executable, [...args, '--skip-update-check'], {
-    env: { ...process.env, COMMITTER_INSIGHTS_NO_BROWSER: 'true' },
+    env: environment,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
@@ -68,10 +85,60 @@ async function smokeStartup(args) {
     if (!allowed.ok || session.authenticated !== false) {
       throw new Error('Authorized local session check failed.');
     }
+    if (process.platform === 'win32') {
+      const accounts = await fetch(`${origin}/api/auth/github/accounts`, {
+        headers: { Authorization: `Bearer ${capability}` },
+      });
+      if (![200, 500].includes(accounts.status))
+        throw new Error('Unexpected fresh-account response.');
+      const tools = join(sandbox, 'CommitterInsights', 'tools', 'github-cli');
+      const versions = await readdir(tools);
+      if (versions.length !== 1) throw new Error('Bundled CLI was not extracted privately.');
+      const binaryPath = join(tools, versions[0], 'gh.exe');
+      const binaryHash = createHash('sha256')
+        .update(await readFile(binaryPath))
+        .digest('hex');
+      const sbom = JSON.parse(
+        await readFile(join(resolve('.'), 'release/github-cli.spdx.json'), 'utf8'),
+      );
+      if (
+        sbom.spdxVersion !== 'SPDX-2.3' ||
+        sbom.files[0].checksums[0].checksumValue !== binaryHash
+      ) {
+        throw new Error('Bundled CLI does not match the release SBOM.');
+      }
+      const version = spawnSync(binaryPath, ['--version'], {
+        env: environment,
+        encoding: 'utf8',
+        timeout: 15000,
+        windowsHide: true,
+      });
+      if (
+        version.status !== 0 ||
+        !version.stdout.startsWith(`gh version ${sbom.packages[0].versionInfo} `)
+      ) {
+        throw new Error('Bundled CLI did not run with an empty PATH.');
+      }
+      if (
+        !(await readFile(join(tools, versions[0], 'LICENSE'), 'utf8')).includes('MIT License') ||
+        !(await readFile(join(resolve('.'), 'release/THIRD-PARTY-NOTICES.txt'), 'utf8')).includes(
+          'Copyright (c) 2019 GitHub Inc.',
+        )
+      ) {
+        throw new Error('Bundled GitHub CLI license notices are missing.');
+      }
+      process.stdout.write(
+        'Bundled GitHub CLI smoke passed with empty PATH and fresh user directories.\n',
+      );
+    }
     process.stdout.write('Executable smoke test passed.\n');
   } finally {
-    child.kill();
-    await once(child, 'exit').catch(() => undefined);
+    if (child.exitCode === null && child.signalCode === null) {
+      const exited = once(child, 'exit');
+      child.kill();
+      await exited.catch(() => undefined);
+    }
+    await rm(sandbox, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 }
 

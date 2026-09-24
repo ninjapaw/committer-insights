@@ -1,6 +1,5 @@
 import { z } from 'zod';
 
-/** Allowed Azure DevOps Advanced Security meter-usage-estimate plan values. */
 export const azureDevOpsPlanSchema = z.enum(['codeSecurity', 'secretProtection', 'all']);
 export type AzureDevOpsPlan = z.infer<typeof azureDevOpsPlanSchema>;
 
@@ -92,7 +91,6 @@ export const azureDevOpsAllMeterUsageEstimateResponseSchema = z.object({
   secretProtectionMeterUsageEstimate: azureDevOpsMeterUsageEstimateResponseSchema,
 });
 
-/** Normalized Azure DevOps committer record retained by this application. */
 export const azureDevOpsCommitterSchema = z.object({
   provider: z.literal('azure-devops'),
   organization: z.string(),

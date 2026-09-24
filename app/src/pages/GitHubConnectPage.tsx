@@ -26,12 +26,6 @@ export function GitHubConnectPage(): JSX.Element {
   return (
     <section aria-labelledby="github-connect-title">
       <h1 id="github-connect-title">Connect GitHub</h1>
-      <p>
-        GitHub CLI is required on this computer.{' '}
-        <a href="https://cli.github.com/" target="_blank" rel="noopener noreferrer">
-          Install GitHub CLI
-        </a>
-      </p>
       <h2>What the portal requests</h2>
       <ul>
         <li>

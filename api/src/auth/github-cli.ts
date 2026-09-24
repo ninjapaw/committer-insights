@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { gitHubAccountLoginSchema, type GitHubCliAccount } from '@ninjapaw/contracts';
+import { resolveGitHubCli } from './github-cli-binary.js';
 
 const execFileAsync = promisify(execFile);
 let selectedLogin: string | null | undefined;
@@ -19,7 +20,7 @@ export function disconnectGitHubAccount(): void {
 export async function listGitHubAccounts(): Promise<GitHubCliAccount[]> {
   try {
     const { stdout } = await execFileAsync(
-      'gh',
+      resolveGitHubCli(),
       ['auth', 'status', '--hostname', 'github.com', '--json', 'hosts'],
       {
         env: githubCliEnvironment(),
@@ -42,7 +43,7 @@ export async function listGitHubAccounts(): Promise<GitHubCliAccount[]> {
       }));
   } catch {
     throw new Error(
-      'Unable to list GitHub CLI accounts. Run "gh auth login --hostname github.com" to add an account, then refresh.',
+      'Unable to list GitHub CLI accounts. Use Sign in with GitHub to add an account, then refresh.',
     );
   }
 }
@@ -69,7 +70,7 @@ export async function acquireGitHubToken(login = selectedLogin): Promise<string>
   try {
     const args = ['auth', 'token', '--hostname', 'github.com'];
     if (login) args.push('--user', login);
-    const { stdout } = await execFileAsync('gh', args, {
+    const { stdout } = await execFileAsync(resolveGitHubCli(), args, {
       env: githubCliEnvironment(),
       timeout: 15_000,
       maxBuffer: 8 * 1024,
@@ -79,6 +80,6 @@ export async function acquireGitHubToken(login = selectedLogin): Promise<string>
     if (!token) throw new Error('GitHub CLI returned an empty token.');
     return token;
   } catch {
-    throw new Error('Sign in with GitHub CLI by running "gh auth login", then try again.');
+    throw new Error('Sign in with GitHub using the sign-in button, then try again.');
   }
 }

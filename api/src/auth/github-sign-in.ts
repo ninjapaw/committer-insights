@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import type { GitHubSignInState } from '@ninjapaw/contracts';
 import { githubCliEnvironment } from './github-cli.js';
+import { resolveGitHubCli } from './github-cli-binary.js';
 
 let active: { state: GitHubSignInState; child: ChildProcess; timer: NodeJS.Timeout } | undefined;
 
@@ -23,7 +24,7 @@ export function startGitHubSignIn(openBrowser?: (url: string) => void): GitHubSi
   cancelGitHubSignIn();
   const state: GitHubSignInState = { id: randomUUID(), status: 'pending' };
   const child = spawn(
-    'gh',
+    resolveGitHubCli(),
     ['auth', 'login', '--hostname', 'github.com', '--web', '--skip-ssh-key'],
     {
       env: { ...githubCliEnvironment(), NO_COLOR: '1', GH_PROMPT_DISABLED: '1' },
@@ -69,7 +70,7 @@ export function startGitHubSignIn(openBrowser?: (url: string) => void): GitHubSi
     finish(
       'failed',
       error.code === 'ENOENT'
-        ? 'GitHub CLI is required. Install it from https://cli.github.com, reopen this app, and sign in again.'
+        ? 'GitHub CLI could not start. Download a fresh Windows application release. Source builds require GitHub CLI from https://cli.github.com.'
         : 'Unable to start GitHub sign-in. Check GitHub CLI and try again.',
     );
   });

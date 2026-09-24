@@ -5,6 +5,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { executableBundleOptions } from './executable-bundle-options.mjs';
+import { bundleGitHubCli } from './bundle-github-cli.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const buildDir = join(root, 'build');
@@ -25,7 +26,6 @@ async function walk(directory) {
   return files;
 }
 
-// Remove stale assets and binaries so every package is produced from the current source tree.
 await rm(buildDir, { recursive: true, force: true });
 await rm(releaseDir, { recursive: true, force: true });
 await mkdir(buildDir, { recursive: true });
@@ -44,6 +44,7 @@ const assets = Object.fromEntries(
     path,
   ]),
 );
+Object.assign(assets, await bundleGitHubCli(root, buildDir, releaseDir));
 const seaConfigPath = join(buildDir, 'sea-config.json');
 await writeFile(
   seaConfigPath,

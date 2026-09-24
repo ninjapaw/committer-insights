@@ -160,7 +160,6 @@ export interface Report {
 export const exportFormats = ['csv', 'pdf', 'html'] as const;
 export type ExportFormat = (typeof exportFormats)[number];
 
-/** Typed error model for upstream and portal API failures. */
 export const providerErrorCodeSchema = z.enum([
   'invalid_request',
   'authentication_required',

@@ -8,6 +8,16 @@ test-results/
 .env
 .env.*
 !.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+*.jks
+local.settings.json
+/secrets/
+/credentials/
+/reports/
+/exports/
 .DS_Store
 *.tsbuildinfo
 demo/public/generated/

@@ -3,6 +3,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const launch = vi.hoisted(() => vi.fn());
 vi.mock('node:child_process', () => ({ spawn: launch, execFile: vi.fn() }));
+vi.mock('../../src/auth/github-cli-binary.js', () => ({
+  resolveGitHubCli: () => 'C:/private-app/tools/gh.exe',
+}));
 
 function processStub() {
   return Object.assign(new EventEmitter(), {
@@ -30,6 +33,7 @@ describe('GitHub browser sign-in', () => {
     const auth = await import('../../src/auth/github-sign-in.js');
     const openBrowser = vi.fn();
     const state = auth.startGitHubSignIn(openBrowser);
+    expect(launch.mock.calls[0]![0]).toBe('C:/private-app/tools/gh.exe');
     expect(launch.mock.calls[0]![1]).toContain('--web');
     expect(launch.mock.calls[0]![2].shell).toBeUndefined();
     expect(launch.mock.calls[0]![2].env.GH_TOKEN).toBeUndefined();
