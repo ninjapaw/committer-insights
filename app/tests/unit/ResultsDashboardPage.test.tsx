@@ -13,6 +13,8 @@ vi.mock('../../src/auth/get-token', () => ({
 }));
 afterEach(() => {
   cleanup();
+  delete document.documentElement.dataset.theme;
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
@@ -61,45 +63,79 @@ describe('Results dashboard', () => {
       screen.getByText('Pricing assumptions and billing comparison limits').closest('details'),
     ).not.toHaveAttribute('open');
   });
-  it('renders a supplied static report without calling the local API or authentication', async () => {
-    const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
-    const report: Report = {
-      reportId: 'synthetic-empty',
-      provider: 'github',
-      subject: 'Synthetic demo',
-      organization: 'synthetic-org',
-      plans: [],
-      generatedAt: '2026-09-24T12:00:00.000Z',
-      sourceApiVersion: 'synthetic',
-      warnings: [],
-      azureDevOpsCommitters: [],
-      gitHubCommitters: [],
-    };
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <QueryClientProvider client={client}>
-        <MemoryRouter initialEntries={['/reports/synthetic-empty']}>
-          <Routes>
-            <Route
-              path="/reports/:reportId"
-              element={
-                <ResultsDashboardPage
-                  staticReport={report}
-                  staticExportBase="/demo/downloads/"
-                  sourceHref="/demo/"
-                />
-              }
-            />
-          </Routes>
-        </MemoryRouter>
-      </QueryClientProvider>,
-    );
-    expect(await screen.findByRole('heading', { name: 'Results dashboard' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Demo reports' })).toHaveAttribute('href', '/demo/');
-    expect(screen.queryByRole('link', { name: 'Change sources' })).not.toBeInTheDocument();
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
+  it.each(['dark', 'light'])(
+    'downloads a static report with the current %s theme without authentication',
+    async (theme) => {
+      document.documentElement.dataset.theme = theme;
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(
+          new Response(
+            '<!doctype html><html lang="en" data-theme="dark"><head><style>body{margin:0}</style></head><body><p>Full report &amp; evidence</p></body></html>',
+            { headers: { 'Content-Type': 'text/html' } },
+          ),
+        );
+      vi.stubGlobal('fetch', fetchMock);
+      const createObjectURL = vi.fn().mockReturnValue('blob:report');
+      const revokeObjectURL = vi.fn();
+      vi.stubGlobal(
+        'URL',
+        class extends URL {
+          static createObjectURL = createObjectURL;
+          static revokeObjectURL = revokeObjectURL;
+        },
+      );
+      vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+      const report: Report = {
+        reportId: 'synthetic-empty',
+        provider: 'github',
+        subject: 'Synthetic demo',
+        organization: 'synthetic-org',
+        plans: [],
+        generatedAt: '2026-09-24T12:00:00.000Z',
+        sourceApiVersion: 'synthetic',
+        warnings: [],
+        azureDevOpsCommitters: [],
+        gitHubCommitters: [],
+      };
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      render(
+        <QueryClientProvider client={client}>
+          <MemoryRouter initialEntries={['/reports/synthetic-empty']}>
+            <Routes>
+              <Route
+                path="/reports/:reportId"
+                element={
+                  <ResultsDashboardPage
+                    staticReport={report}
+                    staticExportBase="/demo/downloads/"
+                    sourceHref="/demo/"
+                  />
+                }
+              />
+            </Routes>
+          </MemoryRouter>
+        </QueryClientProvider>,
+      );
+      expect(await screen.findByRole('heading', { name: 'Results dashboard' })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Demo reports' })).toHaveAttribute('href', '/demo/');
+      expect(screen.queryByRole('link', { name: 'Change sources' })).not.toBeInTheDocument();
+      expect(fetchMock).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole('button', { name: 'Download HTML' }));
+      await waitFor(() => expect(createObjectURL).toHaveBeenCalledOnce());
+      const exported = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = reject;
+        reader.readAsText(createObjectURL.mock.calls[0]![0]);
+      });
+      expect(exported).toContain(`data-theme="${theme}"`);
+      expect(exported).toContain('Full report &amp; evidence');
+      expect(exported).toContain('<style>body{margin:0}</style>');
+      expect(fetchMock).toHaveBeenCalledWith('/demo/downloads/synthetic-empty.html');
+      expect(revokeObjectURL).toHaveBeenCalledWith('blob:report');
+    },
+  );
 
   it('labels local CIO analysis and copies only the aggregate AI brief with clipboard fallback', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);

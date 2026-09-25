@@ -28,4 +28,4 @@ npm exec --workspace api -- vitest run tests/unit/provider-services.test.ts test
 npm test
 ```
 
-Close running Committer Insights executables before `npm run ci` so packaging can replace the binary. The executable smoke test checks local startup, session authorization, and bundled CLI operation with an empty PATH without contacting either provider. Packaging downloads the pinned GitHub CLI archive from GitHub. See the [maintainer guide](docs/maintaining.md) for publisher setup and release procedures.
+Close running Committer Insights executables before `npm run ci` so packaging can replace the binary. The executable smoke test checks local startup, session authorization, and bundled CLI operation with an empty PATH without contacting either provider. Packaging downloads the pinned GitHub CLI archive from GitHub. See the [README maintenance section](README.md#maintenance) for publisher setup and release procedures.

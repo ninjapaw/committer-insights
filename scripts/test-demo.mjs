@@ -272,6 +272,85 @@ try {
       const download = await downloadPromise;
       assert.ok((await stat(await download.path())).size > 100);
     }
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate((value) => {
+        globalThis.document.documentElement.dataset.theme = value;
+      }, theme);
+      const siteStyle = await page.evaluate(() => {
+        const styles = globalThis.getComputedStyle(globalThis.document.body);
+        return {
+          background: styles.backgroundColor,
+          color: styles.color,
+          fontSize: styles.fontSize,
+          panel: styles.getPropertyValue('--color-bg').trim(),
+          tint: styles.getPropertyValue('--color-bg-tint').trim(),
+        };
+      });
+      const downloadPromise = page.waitForEvent('download');
+      await page.getByRole('button', { name: 'Download HTML', exact: true }).click();
+      const download = await downloadPromise;
+      const html = await readFile(await download.path(), 'utf8');
+      const exported = await browser.newPage({ viewport: { width, height: 1000 } });
+      const exportRequests = [];
+      await exported.route('**/*', (route) => {
+        exportRequests.push(route.request().url());
+        return route.abort();
+      });
+      await exported.setContent(html);
+      const result = await exported.evaluate(() => {
+        const styles = globalThis.getComputedStyle(globalThis.document.body);
+        const layout = globalThis.document.querySelector('.report-layout');
+        const navigation = layout.querySelector('.report-nav');
+        const content = layout.querySelector('.report-content');
+        return {
+          theme: globalThis.document.documentElement.dataset.theme,
+          styles: {
+            background: styles.backgroundColor,
+            color: styles.color,
+            fontSize: styles.fontSize,
+          },
+          metric: globalThis.getComputedStyle(globalThis.document.querySelector('.metric'))
+            .backgroundColor,
+          tableHeader: globalThis.getComputedStyle(globalThis.document.querySelector('thead th'))
+            .backgroundColor,
+          overflow: globalThis.document.documentElement.scrollWidth > globalThis.innerWidth,
+          sidebar: navigation.getBoundingClientRect().right <= content.getBoundingClientRect().left,
+          missingTargets: [...globalThis.document.querySelectorAll('a[href^="#"]')].filter(
+            (link) => !globalThis.document.getElementById(link.hash.slice(1)),
+          ).length,
+          scripts: globalThis.document.scripts.length,
+        };
+      });
+      assert.equal(result.theme, theme);
+      const { panel, tint, ...siteBody } = siteStyle;
+      assert.deepEqual(result.styles, siteBody, 'Export colors and type size must match the site');
+      const rgb = (hex) => {
+        const digits =
+          hex.length === 4
+            ? [...hex.slice(1)].map((digit) => digit + digit).join('')
+            : hex.slice(1);
+        return `rgb(${digits
+          .match(/../g)
+          .map((part) => parseInt(part, 16))
+          .join(', ')})`;
+      };
+      assert.equal(result.metric, rgb(panel), 'Metric background must follow the selected theme');
+      assert.equal(result.tableHeader, rgb(tint), 'Table headers must follow the selected theme');
+      assert.equal(result.overflow, false);
+      assert.equal(result.sidebar, width > 900);
+      assert.equal(result.missingTargets, 0);
+      assert.equal(result.scripts, 0);
+      assert.deepEqual(exportRequests, [], 'Downloaded reports must render without network access');
+      await exported.screenshot({
+        path: resolve(root, `test-results/demo/html-${theme}-${width}.png`),
+      });
+      await exported.getByRole('link', { name: 'Recommendations', exact: true }).first().click();
+      await exported.locator('#azure-devops-cio-brief').waitFor({ state: 'visible' });
+      await exported.close();
+    }
+    await page.evaluate(() => {
+      globalThis.document.documentElement.dataset.theme = 'light';
+    });
     assert.equal(
       await page.evaluate(
         () => globalThis.document.documentElement.scrollWidth <= globalThis.innerWidth,

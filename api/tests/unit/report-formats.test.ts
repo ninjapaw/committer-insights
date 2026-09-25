@@ -49,6 +49,19 @@ const report: StoredReport = {
 };
 
 describe('standalone report formats', () => {
+  it('uses dashboard navigation and theme tokens without external styles or scripts', () => {
+    const html = generateStandaloneHtml(report);
+    expect(html).toContain('<html lang="en" data-theme="dark">');
+    expect(html.match(/class="report-layout"/g)).toHaveLength(2);
+    expect(html.match(/class="report-content"/g)).toHaveLength(2);
+    expect(html).toContain('--container-max:1120px');
+    expect(html).toContain(':root[data-theme="light"]');
+    expect(html).toContain('grid-template-columns:180px minmax(0,1fr)');
+    expect(html).toContain('@media(max-width:900px)');
+    expect(html).not.toMatch(/<script|<link[^>]+stylesheet/i);
+    expect(html).toContain('&lt;unsafe&gt;');
+  });
+
   it('exports service scenario inputs and calculations without treating them as provider billing', async () => {
     const input: StoredReport = {
       ...report,

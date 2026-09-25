@@ -30,6 +30,7 @@ async function downloadExport(
   extension: ExportFormat,
   staticExportBase?: string,
 ): Promise<void> {
+  const theme = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
   const response = staticExportBase
     ? await fetch(`${staticExportBase}${encodeURIComponent(reportId)}.${extension}`)
     : await localRequest(`/api/reports/${reportId}/export.${extension}`);
@@ -37,7 +38,17 @@ async function downloadExport(
   const disposition = response.headers.get('Content-Disposition') ?? '';
   const filename =
     disposition.match(/filename="([^"]+)"/)?.[1] ?? `committer-insights.${extension}`;
-  const url = URL.createObjectURL(await response.blob());
+  let blob: Blob;
+  if (extension === 'html') {
+    const exported = new DOMParser().parseFromString(await response.text(), 'text/html');
+    exported.documentElement.dataset.theme = theme;
+    blob = new Blob(['<!doctype html>\n', exported.documentElement.outerHTML], {
+      type: 'text/html;charset=utf-8',
+    });
+  } else {
+    blob = await response.blob();
+  }
+  const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
   anchor.download = filename;
