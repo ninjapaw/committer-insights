@@ -49,7 +49,9 @@ describe('isolated Azure CLI authentication', () => {
     expect(ready).not.toHaveBeenCalled();
     expect(mocks.execute).not.toHaveBeenCalled();
   });
-  it('uses modern Windows account selection without forcing a device challenge', async () => {
+  it('uses system-browser login instead of the Windows broker without forcing a device challenge', async () => {
+    vi.stubEnv('AZURE_CORE_ENABLE_BROKER_ON_WINDOWS', 'true');
+    vi.stubEnv('BROWSER', 'untrusted-browser-command');
     const ready = vi.fn();
     const session = setup(
       [
@@ -72,7 +74,9 @@ describe('isolated Azure CLI authentication', () => {
     expect(ready).toHaveBeenCalledOnce();
     expect(mocks.execute.mock.calls[0]![2].windowsHide).toBe(false);
     expect(mocks.execute.mock.calls[1]![2].windowsHide).toBe(true);
-    expect(mocks.execute.mock.calls[0]![2].env.AZURE_CORE_ENABLE_BROKER_ON_WINDOWS).toBe('true');
+    expect(mocks.execute.mock.calls[0]![2].env.AZURE_CORE_ENABLE_BROKER_ON_WINDOWS).toBe('false');
+    expect(mocks.execute.mock.calls[0]![2].env.BROWSER).toBeUndefined();
+    expect(mocks.execute.mock.calls[1]![2].env.AZURE_CORE_ENABLE_BROKER_ON_WINDOWS).toBe('false');
     expect(mocks.execute.mock.calls[0]![2].env.AZURE_CORE_LOGIN_EXPERIENCE_V2).toBe('off');
     expect(mocks.execute.mock.calls[0]![1]).not.toContain('--use-device-code');
   });

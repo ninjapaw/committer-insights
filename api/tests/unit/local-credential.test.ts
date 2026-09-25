@@ -54,7 +54,7 @@ describe('Explicit Azure CLI sign-in', () => {
     const ready = vi.mocked(createAzureCliSignIn).mock.calls[0]![1]!;
     ready();
     expect(auth.getDeviceSignIn(state.id)?.message).toBe(
-      'Waiting for Microsoft account selection...',
+      'Waiting for Microsoft sign-in in your browser...',
     );
     auth.cancelDeviceSignIn(state.id);
     ready();

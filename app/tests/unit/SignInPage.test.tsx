@@ -88,16 +88,16 @@ describe('SignInPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Sign in with Microsoft' }));
     await screen.findByText(preparing.message);
     expect(
-      screen.queryByText('Waiting for Microsoft account selection...'),
+      screen.queryByText('Waiting for Microsoft sign-in in your browser...'),
     ).not.toBeInTheDocument();
     vi.mocked(getDeviceSignIn).mockResolvedValue({
       ...preparing,
-      message: 'Waiting for Microsoft account selection...',
+      message: 'Waiting for Microsoft sign-in in your browser...',
     });
     await act(async () => {
       await client.invalidateQueries({ queryKey: ['microsoft-device-sign-in'] });
     });
-    await screen.findByText('Waiting for Microsoft account selection...');
+    await screen.findByText('Waiting for Microsoft sign-in in your browser...');
     expect(screen.queryByLabelText('Device sign-in code')).not.toBeInTheDocument();
     expect(connectAzure).toHaveBeenCalledOnce();
     expect(startAzureCliSignIn).not.toHaveBeenCalled();

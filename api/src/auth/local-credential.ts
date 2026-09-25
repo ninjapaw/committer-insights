@@ -107,7 +107,7 @@ export function startAzureCliSignIn(): DeviceSignInState {
     attempt.state = {
       id: attempt.id,
       status: 'pending',
-      message: 'Waiting for Microsoft account selection...',
+      message: 'Waiting for Microsoft sign-in in your browser...',
     };
   });
   attempt.dispose = () => session.dispose();
