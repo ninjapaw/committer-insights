@@ -91,8 +91,17 @@ jobs:
       - name: Smoke test executable
         if: matrix.os != 'macos-latest'
         run: npm run test:exe
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - name: Upload Linux release bundle
+        if: matrix.os != 'macos-latest'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: developer-usage-insights-${{ matrix.os }}
           path: release/
+          retention-days: 30
+      - name: Upload macOS DMG
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: developer-usage-insights-macos-dmg
+          path: release/developer-usage-insights-darwin-arm64.dmg
           retention-days: 30
