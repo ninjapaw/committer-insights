@@ -126,9 +126,9 @@ describe('release update metadata', () => {
     const checksum = 'a'.repeat(64);
     expect(executableChecksum(`${checksum}  ${testExecutableName}\r\n`)).toBe(checksum);
     expect(() => executableChecksum(`${checksum}  different.exe`)).toThrow('missing');
-    expect(() =>
-      executableChecksum(`${checksum}  ${testExecutableName}\n`.repeat(2)),
-    ).toThrow('ambiguous');
+    expect(() => executableChecksum(`${checksum}  ${testExecutableName}\n`.repeat(2))).toThrow(
+      'ambiguous',
+    );
     expect(() => executableChecksum(`not-a-hash  ${testExecutableName}`)).toThrow('missing');
   });
 });
