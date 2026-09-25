@@ -10,15 +10,18 @@ const app = join(root, 'release', `${PRODUCT.displayName}.app`);
 const appExecutable = join(app, 'Contents', 'MacOS', PRODUCT.executableName);
 
 await access(executable, constants.X_OK);
-await access(appExecutable, constants.X_OK);
-if (!(await stat(app)).isDirectory()) throw new Error('macOS app bundle is missing.');
-const fileInfo = execFileSync('file', [executable], { encoding: 'utf8' });
-if (!fileInfo.includes('Mach-O') || !fileInfo.includes('arm64'))
-  throw new Error(`Unexpected macOS executable format: ${fileInfo.trim()}`);
-execFileSync('codesign', ['--verify', '--verbose=4', executable], { stdio: 'inherit' });
-const plist = join(app, 'Contents', 'Info.plist');
-await access(plist, constants.R_OK);
-const help = execFileSync(appExecutable, ['--help'], { encoding: 'utf8' });
+const help = execFileSync(executable, ['--help'], { encoding: 'utf8' });
 if (!help.includes('--timezone <IANA timezone>'))
-  throw new Error('macOS app wrapper did not launch the bundled application.');
-process.stdout.write('macOS native executable and app bundle integrity checks passed.\n');
+  throw new Error('macOS launcher did not launch the bundled application.');
+if (
+  await stat(app).then(
+    () => true,
+    () => false,
+  )
+) {
+  await access(appExecutable, constants.X_OK);
+  const plist = join(app, 'Contents', 'Info.plist');
+  await access(plist, constants.R_OK);
+  execFileSync('codesign', ['--verify', '--deep', '--strict', app], { stdio: 'inherit' });
+}
+process.stdout.write('macOS launcher and optional signed app bundle checks passed.\n');

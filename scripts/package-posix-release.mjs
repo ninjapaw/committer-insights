@@ -1,4 +1,4 @@
-import { chmod, cp, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { chmod, cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
@@ -41,7 +41,38 @@ if (platform === 'darwin') {
     join(appRoot, 'Contents', 'Info.plist'),
     `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict><key>CFBundleDisplayName</key><string>${PRODUCT.displayName}</string><key>CFBundleExecutable</key><string>${PRODUCT.executableName}</string><key>CFBundleIdentifier</key><string>org.ninjapaw.${PRODUCT.slug}</string><key>CFBundlePackageType</key><string>APPL</string><key>CFBundleVersion</key><string>0.1.0</string><key>CFBundleShortVersionString</key><string>0.1.0</string></dict></plist>\n`,
   );
-  archiveEntries.push(`${PRODUCT.displayName}.app`);
+  if (process.env.MACOS_SIGNING_IDENTITY) {
+    execFileSync(
+      'codesign',
+      [
+        '--force',
+        '--deep',
+        '--options',
+        'runtime',
+        '--timestamp',
+        '--sign',
+        process.env.MACOS_SIGNING_IDENTITY,
+        appRoot,
+      ],
+      { stdio: 'inherit' },
+    );
+    execFileSync('codesign', ['--verify', '--deep', '--strict', appRoot], {
+      stdio: 'inherit',
+    });
+    archiveEntries.push(`${PRODUCT.displayName}.app`);
+  } else {
+    await rm(appRoot, { recursive: true, force: true });
+  }
+  await writeFile(
+    executable,
+    `#!/bin/sh\nset -eu\nROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"\nexec /usr/bin/env node "$ROOT_DIR/${PRODUCT.executableName}.cjs" "$@"\n`,
+  );
+  await cp(
+    join(root, 'build', `${PRODUCT.executableName}.cjs`),
+    join(release, `${PRODUCT.executableName}.cjs`),
+  );
+  await chmod(executable, 0o755);
+  archiveEntries.push(`${PRODUCT.executableName}.cjs`);
 }
 await writeFile(
   join(release, 'PLATFORM-REQUIREMENTS.txt'),
