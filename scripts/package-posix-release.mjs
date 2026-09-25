@@ -50,19 +50,19 @@ if (platform === 'darwin') {
   });
   await rm(iconset, { recursive: true, force: true });
   const launcher = join(appRoot, 'Contents', 'MacOS', PRODUCT.executableName);
-  await writeFile(
-    launcher,
-    `#!/bin/sh
-set -eu
-RESOURCE_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/../Resources" && pwd)"
-export DEVELOPER_USAGE_INSIGHTS_GH_PATH="$RESOURCE_DIR/gh"
-export DEVELOPER_USAGE_INSIGHTS_BUNDLED_NODE=true
-export PATH="$RESOURCE_DIR:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
-cd "$RESOURCE_DIR"
-exec "$RESOURCE_DIR/node" "$RESOURCE_DIR/${PRODUCT.executableName}.cjs" "$@"
-`,
+  execFileSync(
+    'clang',
+    [
+      '-O2',
+      '-Wall',
+      '-Wextra',
+      '-Werror',
+      join(root, 'scripts', 'macos-launcher.c'),
+      '-o',
+      launcher,
+    ],
+    { stdio: 'inherit' },
   );
-  await chmod(launcher, 0o755);
   await writeFile(
     join(appRoot, 'Contents', 'Info.plist'),
     `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict><key>CFBundleDisplayName</key><string>${PRODUCT.displayName}</string><key>CFBundleExecutable</key><string>${PRODUCT.executableName}</string><key>CFBundleIdentifier</key><string>${PRODUCT.bundleIdentifier}</string><key>CFBundleIconFile</key><string>${PRODUCT.iconName}.icns</string><key>CFBundleName</key><string>${PRODUCT.shortName}</string><key>CFBundlePackageType</key><string>APPL</string><key>CFBundleVersion</key><string>${PRODUCT.version}</string><key>CFBundleShortVersionString</key><string>${PRODUCT.version}</string></dict></plist>\n`,
@@ -127,6 +127,28 @@ if (platform === 'darwin') {
     { stdio: 'inherit' },
   );
   await rm(imageRoot, { recursive: true, force: true });
+  if (process.env.APPLE_ID && process.env.APPLE_TEAM_ID && process.env.APPLE_APP_PASSWORD) {
+    execFileSync(
+      'xcrun',
+      [
+        'notarytool',
+        'submit',
+        archive,
+        '--apple-id',
+        process.env.APPLE_ID,
+        '--team-id',
+        process.env.APPLE_TEAM_ID,
+        '--password',
+        process.env.APPLE_APP_PASSWORD,
+        '--wait',
+      ],
+      { stdio: 'inherit' },
+    );
+  } else if (process.env.MACOS_SIGNING_IDENTITY) {
+    process.stderr.write(
+      'Developer ID signing is enabled, but notarization credentials are missing; Gatekeeper approval is not asserted.\n',
+    );
+  }
 } else {
   execFileSync('tar', ['-czf', archive, '-C', release, ...archiveEntries], {
     stdio: 'inherit',

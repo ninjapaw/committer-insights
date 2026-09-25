@@ -23,6 +23,9 @@ if (
   )
 ) {
   await access(appExecutable, constants.X_OK);
+  const executableInfo = execFileSync('file', [appExecutable], { encoding: 'utf8' });
+  if (!executableInfo.includes('Mach-O'))
+    throw new Error(`macOS app launcher is not a native executable: ${executableInfo.trim()}`);
   const plist = join(app, 'Contents', 'Info.plist');
   await access(plist, constants.R_OK);
   const plistText = await readFile(plist, 'utf8');

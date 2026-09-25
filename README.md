@@ -10,18 +10,38 @@ Review Azure DevOps and GitHub plans, repository activity, security settings, re
 
 ## Contents
 
-- [Get Started](#get-started)
-- [Sign In](#sign-in)
-- [Create and Export Reports](#create-and-export-reports)
-- [Access and Data Coverage](#access-and-data-coverage)
-- [Billing and Estimates](#billing-and-estimates)
-- [Privacy and Security](#privacy-and-security)
-- [Updates](#updates)
-- [Troubleshooting](#troubleshooting)
-- [Technical Collection Reference](#technical-collection-reference)
-- [Contributing](#contributing)
-- [Maintenance](#maintenance)
-- [License](#license)
+- [Developer Usage Insights](#developer-usage-insights)
+  - [Contents](#contents)
+  - [Get Started](#get-started)
+  - [Sign In](#sign-in)
+    - [Microsoft](#microsoft)
+    - [GitHub](#github)
+    - [Changing Accounts](#changing-accounts)
+  - [Create and Export Reports](#create-and-export-reports)
+  - [Access and Data Coverage](#access-and-data-coverage)
+  - [Billing and Estimates](#billing-and-estimates)
+    - [Azure DevOps](#azure-devops)
+    - [GitHub Billing](#github-billing)
+  - [Privacy and Security](#privacy-and-security)
+  - [Updates](#updates)
+  - [Troubleshooting](#troubleshooting)
+  - [Technical Collection Reference](#technical-collection-reference)
+    - [Authentication and Transport](#authentication-and-transport)
+    - [Azure DevOps Collection](#azure-devops-collection)
+    - [GitHub Collection](#github-collection)
+    - [GitHub Billing Collection](#github-billing-collection)
+    - [Local Calculations](#local-calculations)
+    - [Not Collected](#not-collected)
+    - [Verify a Result](#verify-a-result)
+  - [Contributing](#contributing)
+  - [Maintenance](#maintenance)
+    - [Development and Architecture](#development-and-architecture)
+    - [Publisher Authentication Configuration](#publisher-authentication-configuration)
+    - [Runtime Packaging and Integrity](#runtime-packaging-and-integrity)
+    - [Validation and Security Invariants](#validation-and-security-invariants)
+    - [Release Procedure](#release-procedure)
+    - [Demo Maintenance](#demo-maintenance)
+  - [License](#license)
 
 ## Get Started
 
@@ -40,7 +60,7 @@ Review Azure DevOps and GitHub plans, repository activity, security settings, re
 
 Keep the application console open while using the browser. The Microsoft runtime uses approximately 106 MB of local cache space, plus temporary extraction space. Later launches verify the cache before opening the workspace, without signing you in automatically.
 
-On macOS, open the `developer-usage-insights-darwin-arm64.dmg` disk image and launch the included app. The launcher resolves Node.js from common Homebrew, system, nvm, and mise locations; if it cannot find Node.js, it displays an actionable macOS dialog. The default image is an unsigned evaluation build; a Developer ID signature and Apple notarization are required for Gatekeeper-approved distribution. On Linux, make `developer-usage-insights` runnable with `chmod +x` and use the included `run-developer-usage-insights.sh` launcher. The release archive includes the platform requirements. The [public demo](https://ninjapaw.github.io/committer-insights/) contains fictional complete, partial, and empty reports. It requires no sign-in and collects no customer data.
+On macOS, open the `developer-usage-insights-darwin-arm64.dmg` disk image and launch the included app. The app contains a native Mach-O launcher, Node.js, and GitHub CLI; it does not depend on shell scripts or locally installed runtimes. The default image is an unsigned evaluation build; a Developer ID signature and Apple notarization are required for Gatekeeper-approved distribution. On Linux, make `developer-usage-insights` runnable with `chmod +x` and use the included `run-developer-usage-insights.sh` launcher. The release archive includes the platform requirements. The [public demo](https://ninjapaw.github.io/committer-insights/) contains fictional complete, partial, and empty reports. It requires no sign-in and collects no customer data.
 
 ## Sign In
 
