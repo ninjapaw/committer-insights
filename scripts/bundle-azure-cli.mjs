@@ -3,6 +3,7 @@ import { Buffer } from 'node:buffer';
 import { execFileSync } from 'node:child_process';
 import { mkdir, readFile, readdir, writeFile, appendFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { PRODUCT } from '../packages/metadata/dist/index.js';
 import {
   reduceAzureCli,
   reducedAzureCliVersion,
@@ -86,7 +87,7 @@ export async function bundleAzureCli(root, buildDir, releaseDir) {
   process.stdout.write(
     `Azure CLI reduced at build time: ${reduction.originalFiles} -> ${reduction.retainedFiles} files; ${reduction.originalBytes} -> ${reduction.retainedBytes} unpacked bytes; ${archive.length} -> ${reducedArchive.length} archive bytes.\n`,
   );
-  const notices = `\nAzure CLI ${pin.version}\nhttps://github.com/Azure/azure-cli\nOfficial source ZIP: ${pin.url}\nSource archive SHA-256: ${pin.sha256}\nReduced archive SHA-256: ${reducedSha256}\nCommitter Insights removes unrelated command modules and Azure service SDKs at build time. Python, shared third-party dependencies, certificates and all detected license/notice trees are preserved unchanged. This reduced runtime is not the complete official distribution or a general-purpose Azure CLI installation.\n`;
+  const notices = `\nAzure CLI ${pin.version}\nhttps://github.com/Azure/azure-cli\nOfficial source ZIP: ${pin.url}\nSource archive SHA-256: ${pin.sha256}\nReduced archive SHA-256: ${reducedSha256}\n${PRODUCT.displayName} removes unrelated command modules and Azure service SDKs at build time. Python, shared third-party dependencies, certificates and all detected license/notice trees are preserved unchanged. This reduced runtime is not the complete official distribution or a general-purpose Azure CLI installation.\n`;
   await appendFile(join(releaseDir, 'THIRD-PARTY-NOTICES.txt'), notices);
   const spdxPath = join(releaseDir, 'azure-cli.spdx.json');
   await writeFile(
@@ -96,11 +97,11 @@ export async function bundleAzureCli(root, buildDir, releaseDir) {
         spdxVersion: 'SPDX-2.3',
         dataLicense: 'CC0-1.0',
         SPDXID: 'SPDXRef-DOCUMENT',
-        name: 'Committer Insights bundled Azure CLI',
+        name: `${PRODUCT.displayName} bundled Azure CLI`,
         documentNamespace: `https://github.com/ninjapaw/committer-insights/sbom/azure-cli/${pin.version}/${reducedSha256}`,
         creationInfo: {
           created: new Date().toISOString(),
-          creators: ['Tool: Committer-Insights-Build'],
+          creators: [`Tool: ${PRODUCT.displayName} Build`],
         },
         packages: [
           {
@@ -117,7 +118,7 @@ export async function bundleAzureCli(root, buildDir, releaseDir) {
               'Distribution inventory only; consult bundled licenses for Python and individual dependencies.',
           },
           {
-            name: 'Committer Insights reduced Azure CLI runtime',
+            name: `${PRODUCT.displayName} reduced Azure CLI runtime`,
             SPDXID: 'SPDXRef-ReducedAzureCLI',
             versionInfo: pin.version,
             downloadLocation: 'NOASSERTION',

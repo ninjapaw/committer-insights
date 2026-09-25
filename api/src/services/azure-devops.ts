@@ -100,6 +100,8 @@ export async function collectAzureDevOps(
       source.sinceDays ?? 90,
       accessToken,
       insights,
+      fetch,
+      source.branchScope ?? 'all',
     );
   if (insights) {
     const plans: AzureBillingPlan[] = source.plans.includes('all')
@@ -121,6 +123,8 @@ export async function collectAzureDevOps(
           },
         });
         committers.push(...rows);
+        insights.azureEstimatedCommitters ??= [];
+        insights.azureEstimatedCommitters.push(...rows);
         readableEstimate = true;
       } catch (error) {
         failure = error;

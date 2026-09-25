@@ -4,6 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
+import { PRODUCT } from '../packages/metadata/dist/index.js';
 import { executableBundleOptions } from './executable-bundle-options.mjs';
 import { bundleGitHubCli } from './bundle-github-cli.mjs';
 import { bundleAzureCli } from './bundle-azure-cli.mjs';
@@ -11,10 +12,10 @@ import { bundleAzureCli } from './bundle-azure-cli.mjs';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const buildDir = join(root, 'build');
 const releaseDir = join(root, 'release');
-const bundlePath = join(buildDir, 'committer-insights.cjs');
-const blobPath = join(buildDir, 'committer-insights.blob');
+const bundlePath = join(buildDir, `${PRODUCT.executableName}.cjs`);
+const blobPath = join(buildDir, `${PRODUCT.executableName}.blob`);
 const executableName =
-  process.platform === 'win32' ? 'committer-insights.exe' : 'committer-insights';
+  process.platform === 'win32' ? `${PRODUCT.executableName}.exe` : PRODUCT.executableName;
 const executablePath = join(releaseDir, executableName);
 
 async function walk(directory) {
@@ -33,7 +34,7 @@ await mkdir(buildDir, { recursive: true });
 await mkdir(releaseDir, { recursive: true });
 
 await build({
-  ...executableBundleOptions(process.env.COMMITTER_INSIGHTS_CLIENT_ID),
+  ...executableBundleOptions(process.env.DEVELOPER_USAGE_INSIGHTS_CLIENT_ID),
   entryPoints: [join(root, 'api/src/index.ts')],
   outfile: bundlePath,
 });

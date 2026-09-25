@@ -1,10 +1,11 @@
 import { parseArgs } from 'node:util';
 import { config } from './shared/config.js';
+import { PRODUCT } from '@ninjapaw/developer-usage-insights-metadata';
 
-export const launchHelp = `Usage: committer-insights [--timezone <IANA timezone>] [--skip-update-check] [--help]
+export const launchHelp = `Usage: ${PRODUCT.slug} [--timezone <IANA timezone>] [--skip-update-check] [--help]
 
   --timezone <zone>  Display timezone, for example America/Toronto.
-                     Overrides COMMITTER_INSIGHTS_TIMEZONE for this run.
+                     Overrides DEVELOPER_USAGE_INSIGHTS_TIMEZONE for this run.
                      Default: UTC when neither option nor environment is set.
   --help, -h         Show this help without starting the application.
   --skip-update-check
@@ -12,7 +13,7 @@ export const launchHelp = `Usage: committer-insights [--timezone <IANA timezone>
                      Use only for offline access, recovery, or local testing.
 
 Environment:
-  COMMITTER_INSIGHTS_AUTO_UPDATE=true|false
+  DEVELOPER_USAGE_INSIGHTS_AUTO_UPDATE=true|false
                      Default: true. Set false to disable startup update checks.
                      --skip-update-check always skips checks for this launch.
 
@@ -36,9 +37,10 @@ export function parseLaunchOptions(args: string[]): {
     allowPositionals: false,
   });
   let timeZone = config.report.timeZone();
-  const autoUpdate = process.env.COMMITTER_INSIGHTS_AUTO_UPDATE?.trim().toLowerCase() || 'true';
+  const autoUpdate =
+    process.env.DEVELOPER_USAGE_INSIGHTS_AUTO_UPDATE?.trim().toLowerCase() || 'true';
   if (!values.help && !['true', 'false'].includes(autoUpdate)) {
-    throw new Error('Invalid COMMITTER_INSIGHTS_AUTO_UPDATE. Use true or false.');
+    throw new Error(`Invalid ${PRODUCT.environmentPrefix}_AUTO_UPDATE. Use true or false.`);
   }
   if (values.timezone !== undefined) {
     const requested = values.timezone.trim();

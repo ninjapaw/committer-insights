@@ -173,6 +173,7 @@ export const gitHubEnterpriseResponseSchema = z.object({
 export const gitHubEnterprisesResponseSchema = z.array(gitHubEnterpriseResponseSchema);
 
 export const gitHubCommitResponseSchema = z.object({
+  sha: z.string().min(1).optional(),
   author: z
     .object({
       id: z.number().int().positive(),

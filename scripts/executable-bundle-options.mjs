@@ -12,7 +12,7 @@ export function executableBundleOptions(clientId = '') {
     },
     define: {
       'import.meta.url': 'executableModuleUrl',
-      __COMMITTER_INSIGHTS_CLIENT_ID__: JSON.stringify(clientId),
+      __DEVELOPER_USAGE_INSIGHTS_CLIENT_ID__: JSON.stringify(clientId),
     },
   };
 }

@@ -6,9 +6,9 @@ import { BrowserRouter } from 'react-router-dom';
 import { App } from './App';
 import './styles.css';
 
-declare const __COMMITTER_INSIGHTS_THEME__: string | undefined;
+declare const __DEVELOPER_USAGE_INSIGHTS_THEME__: string | undefined;
 
-const themeName = __COMMITTER_INSIGHTS_THEME__ === 'light' ? 'light' : 'dark';
+const themeName = __DEVELOPER_USAGE_INSIGHTS_THEME__ === 'light' ? 'light' : 'dark';
 const fluentTheme = themeName === 'light' ? webLightTheme : webDarkTheme;
 
 document.documentElement.dataset.theme = themeName;

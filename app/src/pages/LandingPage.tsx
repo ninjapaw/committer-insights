@@ -1,11 +1,12 @@
 import { Link } from 'react-router-dom';
+import { PRODUCT } from '@ninjapaw/developer-usage-insights-metadata';
 
 export function LandingPage(): JSX.Element {
   return (
     <section className="landing" aria-labelledby="landing-title">
       <div className="landing__intro">
         <span className="eyebrow">Local reporting workspace</span>
-        <h1 id="landing-title">Active Committer Portal</h1>
+        <h1 id="landing-title">{PRODUCT.displayName}</h1>
         <p className="landing__lead">
           Review Azure DevOps Advanced Security estimates or GitHub organization and enterprise
           committers, then export the results to CSV, PDF, or HTML.

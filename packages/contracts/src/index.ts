@@ -49,6 +49,7 @@ export const multiSourceSchema = z.discriminatedUnion('provider', [
     organization: azureDevOpsOrganizationSchema,
     plans: z.array(azureDevOpsPlanSchema).min(1).default(['all']),
     sinceDays: z.number().int().min(1).max(365).optional(),
+    branchScope: z.enum(['all', 'default']).optional(),
     includeAzureBilling: z.boolean().optional(),
     includeAzureBillingDetails: z.boolean().optional(),
     serviceScenario: azureServiceScenarioSchema.optional(),
@@ -70,6 +71,7 @@ export const multiSourceSchema = z.discriminatedUnion('provider', [
     targetType: gitHubTargetTypeSchema,
     target: gitHubTargetSchema,
     sinceDays: z.number().int().min(1).max(365).default(90),
+    branchScope: z.enum(['all', 'default']).optional(),
     includeBilling: z.boolean().optional(),
   }),
 ]);

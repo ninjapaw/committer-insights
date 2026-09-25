@@ -64,7 +64,7 @@ const state = {
 };
 
 beforeAll(async () => {
-  vi.stubEnv('COMMITTER_INSIGHTS_NO_BROWSER', 'true');
+  vi.stubEnv('DEVELOPER_USAGE_INSIGHTS_NO_BROWSER', 'true');
   const output = vi.spyOn(process.stdout, 'write').mockReturnValue(true);
   server = await startLocalServer();
   const launch = output.mock.calls

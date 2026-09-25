@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { PRODUCT } from '@ninjapaw/developer-usage-insights-metadata';
 
 export function ConsentExplanationPage(): JSX.Element {
   const [acknowledged, setAcknowledged] = useState(false);
@@ -13,7 +14,7 @@ export function ConsentExplanationPage(): JSX.Element {
     <section aria-labelledby="consent-title">
       <h1 id="consent-title">Connect Azure DevOps</h1>
       <p>
-        To build your report, Active Committer Portal needs delegated access to Azure DevOps on your
+        To build your report, {PRODUCT.displayName} needs delegated access to Azure DevOps on your
         behalf.
       </p>
 
@@ -21,7 +22,7 @@ export function ConsentExplanationPage(): JSX.Element {
       <ul>
         <li>Read-only access required for Azure DevOps Advanced Security reporting</li>
         <li>Access is limited by your existing Azure DevOps permissions</li>
-        <li>Existing Azure CLI sign-in avoids Committer Insights-specific app approval</li>
+        <li>Existing Azure CLI sign-in avoids {PRODUCT.displayName}-specific app approval</li>
         <li>The fallback publisher sign-in may require administrator approval</li>
       </ul>
 

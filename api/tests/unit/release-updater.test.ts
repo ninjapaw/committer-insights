@@ -39,7 +39,7 @@ async function setupDownload() {
   const fetchMock = vi.fn(async (url: URL) => {
     if (url.hostname === 'api.github.com') return Response.json([candidate]);
     if (url.pathname.endsWith('SHA256SUMS.txt'))
-      return new Response(`${checksum}  committer-insights.exe\n`);
+      return new Response(`${checksum}  developer-usage-insights.exe\n`);
     return new Response(content);
   });
   vi.stubGlobal('fetch', fetchMock);
@@ -51,7 +51,7 @@ function release(tag: string, date: string): PublishedRelease {
     tag_name: tag,
     published_at: date,
     draft: false,
-    assets: ['committer-insights.exe', 'SHA256SUMS.txt'].map((name) => ({
+    assets: ['developer-usage-insights.exe', 'SHA256SUMS.txt'].map((name) => ({
       name,
       state: 'uploaded',
       size: 100,
@@ -68,13 +68,13 @@ describe('release update metadata', () => {
     ['false', true],
     [' FALSE ', true],
   ] as const)('resolves automatic updates from environment %s', (value, skipped) => {
-    vi.stubEnv('COMMITTER_INSIGHTS_AUTO_UPDATE', value);
+    vi.stubEnv('DEVELOPER_USAGE_INSIGHTS_AUTO_UPDATE', value);
     expect(parseLaunchOptions([]).skipUpdateCheck).toBe(skipped);
     expect(parseLaunchOptions(['--skip-update-check']).skipUpdateCheck).toBe(true);
   });
 
   it('rejects ambiguous updater values without preventing help', () => {
-    vi.stubEnv('COMMITTER_INSIGHTS_AUTO_UPDATE', 'off');
+    vi.stubEnv('DEVELOPER_USAGE_INSIGHTS_AUTO_UPDATE', 'off');
     expect(() => parseLaunchOptions([])).toThrow('Use true or false');
     expect(parseLaunchOptions(['--help']).help).toBe(true);
   });
@@ -107,7 +107,7 @@ describe('release update metadata', () => {
 
   it('rejects untrusted download URLs, duplicate assets, unsafe tags and oversized binaries', () => {
     const candidate = release('v0.1.0-beta.7', '2026-09-24');
-    candidate.assets[0]!.browser_download_url = 'https://example.test/committer-insights.exe';
+    candidate.assets[0]!.browser_download_url = 'https://example.test/developer-usage-insights.exe';
     expect(() => latestRelease([candidate])).toThrow('no valid');
     const duplicate = release('v0.1.0', '2026-09-24');
     duplicate.assets.push(duplicate.assets[0]!);
@@ -120,12 +120,12 @@ describe('release update metadata', () => {
 
   it('requires exactly one checksum for the Windows executable', () => {
     const checksum = 'a'.repeat(64);
-    expect(executableChecksum(`${checksum}  committer-insights.exe\r\n`)).toBe(checksum);
+    expect(executableChecksum(`${checksum}  developer-usage-insights.exe\r\n`)).toBe(checksum);
     expect(() => executableChecksum(`${checksum}  different.exe`)).toThrow('missing');
-    expect(() => executableChecksum(`${checksum}  committer-insights.exe\n`.repeat(2))).toThrow(
-      'ambiguous',
-    );
-    expect(() => executableChecksum('not-a-hash  committer-insights.exe')).toThrow('missing');
+    expect(() =>
+      executableChecksum(`${checksum}  developer-usage-insights.exe\n`.repeat(2)),
+    ).toThrow('ambiguous');
+    expect(() => executableChecksum('not-a-hash  developer-usage-insights.exe')).toThrow('missing');
   });
 });
 
@@ -153,7 +153,9 @@ describe('verified release cache', () => {
       windowsHide: false,
       stdio: 'inherit',
     });
-    expect(launch.mock.calls[0]![2].env.COMMITTER_INSIGHTS_UPDATE_HANDOFF).toBe(prepared.checksum);
+    expect(launch.mock.calls[0]![2].env.DEVELOPER_USAGE_INSIGHTS_UPDATE_HANDOFF).toBe(
+      prepared.checksum,
+    );
     child.emit('exit', 0, null);
     await running;
     expect(finished).toBe(true);
@@ -166,11 +168,11 @@ describe('verified release cache', () => {
   it('consumes a verified handoff once to avoid relaunch loops, rejecting mismatched hashes', async () => {
     const fixture = await setupDownload();
     const prepared = await prepareLatestRelease(fixture.executable, fixture.cache);
-    vi.stubEnv('COMMITTER_INSIGHTS_UPDATE_HANDOFF', prepared.checksum);
+    vi.stubEnv('DEVELOPER_USAGE_INSIGHTS_UPDATE_HANDOFF', prepared.checksum);
     expect(await consumeUpdateHandoff(prepared.path)).toBe(true);
-    expect(process.env.COMMITTER_INSIGHTS_UPDATE_HANDOFF).toBeUndefined();
+    expect(process.env.DEVELOPER_USAGE_INSIGHTS_UPDATE_HANDOFF).toBeUndefined();
     expect(await consumeUpdateHandoff(prepared.path)).toBe(false);
-    vi.stubEnv('COMMITTER_INSIGHTS_UPDATE_HANDOFF', prepared.checksum);
+    vi.stubEnv('DEVELOPER_USAGE_INSIGHTS_UPDATE_HANDOFF', prepared.checksum);
     expect(await consumeUpdateHandoff(fixture.executable)).toBe(false);
   });
 
@@ -221,7 +223,10 @@ describe('verified release cache', () => {
     expect(fixture.fetchMock).toHaveBeenCalledWith(expect.any(URL), {
       signal: expect.any(AbortSignal),
       redirect: 'manual',
-      headers: { 'User-Agent': 'Committer-Insights-Updater', 'X-GitHub-Api-Version': '2022-11-28' },
+      headers: {
+        'User-Agent': 'Developer Usage Insights-Updater',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
     });
   });
 
@@ -230,7 +235,7 @@ describe('verified release cache', () => {
     fixture.fetchMock.mockImplementation(async (url: URL) => {
       if (url.hostname === 'api.github.com') return Response.json([fixture.candidate]);
       if (url.pathname.endsWith('SHA256SUMS.txt'))
-        return new Response(`${fixture.checksum}  committer-insights.exe\n`);
+        return new Response(`${fixture.checksum}  developer-usage-insights.exe\n`);
       return new Response(Buffer.alloc(fixture.content.length));
     });
     await expect(prepareLatestRelease(fixture.executable, fixture.cache)).rejects.toThrow(

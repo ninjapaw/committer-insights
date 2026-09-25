@@ -37,7 +37,7 @@ async function loadBrowserOpener(preserveModuleUrl) {
   runInNewContext(result.outputFiles[0].text, {
     module,
     exports: module.exports,
-    __filename: join(root, 'relocated app', 'committer-insights.exe'),
+    __filename: join(root, 'relocated app', 'developer-usage-insights.exe'),
     process,
     Buffer,
     require: (name) =>
@@ -101,8 +101,8 @@ if (process.platform === 'win32') {
   let upgraded;
   let running;
   try {
-    const executable = join(sandbox, 'committer-insights.exe');
-    await copyFile(join(root, 'release/committer-insights.exe'), executable);
+    const executable = join(sandbox, 'developer-usage-insights.exe');
+    await copyFile(join(root, 'release/developer-usage-insights.exe'), executable);
     const checksum = createHash('sha256')
       .update(await readFile(executable))
       .digest('hex');
@@ -138,7 +138,7 @@ if (process.platform === 'win32') {
                   env: {
                     ...options.env,
                     LOCALAPPDATA: sandbox,
-                    COMMITTER_INSIGHTS_NO_BROWSER: 'true',
+                    DEVELOPER_USAGE_INSIGHTS_NO_BROWSER: 'true',
                   },
                 });
                 ready = new Promise((resolveReady, reject) => {

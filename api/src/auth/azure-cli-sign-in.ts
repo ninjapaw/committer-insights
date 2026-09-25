@@ -65,10 +65,11 @@ export function createAzureCliSignIn(signal: AbortSignal, onReady?: () => void) 
     signal.throwIfAborted();
     if (disposed) throw new Error('Azure CLI session is closed.');
     if (args[0] === 'login') onReady?.();
+    const cliArgs = process.platform === 'win32' ? ['-I', '-B', '-m', 'azure.cli', ...args] : args;
     return new Promise((resolve, reject) => {
       const child = execFile(
         executable,
-        ['-I', '-B', '-m', 'azure.cli', ...args],
+        cliArgs,
         {
           env: environment,
           cwd: directory,

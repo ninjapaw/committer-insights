@@ -8,6 +8,7 @@ import {
 } from '@azure/identity';
 import { config } from '../shared/config.js';
 import { createAzureCliSignIn } from './azure-cli-sign-in.js';
+import { PRODUCT } from '@ninjapaw/developer-usage-insights-metadata';
 
 let interactiveCredential: TokenCredential | undefined;
 let deviceAttempt:
@@ -24,7 +25,7 @@ function publisherClientId(): string {
   const clientId = config.entra.clientId();
   if (!clientId) {
     throw new Error(
-      'Microsoft sign-in is not configured in this build. The publisher must configure COMMITTER_INSIGHTS_CLIENT_ID and rebuild the application. No Azure CLI login is required.',
+      `Microsoft sign-in is not configured in this build. The publisher must configure ${PRODUCT.environmentPrefix}_CLIENT_ID and rebuild the application. No Azure CLI login is required.`,
     );
   }
   return clientId;
@@ -128,8 +129,10 @@ export function startAzureCliSignIn(): DeviceSignInState {
         id: attempt.id,
         status: 'failed',
         message: launching
-          ? 'Microsoft sign-in runtime is unavailable. Restart the app to prepare it; if this persists, ask your administrator to review local file access and endpoint protection. No account sign-in was started.'
-          : 'Azure CLI sign-in failed. Use the Windows x64 package and retry, or ask your administrator to review CLI access and interactive sign-in policy. No SDK fallback was attempted.',
+          ? process.platform === 'win32'
+            ? 'Microsoft sign-in runtime is unavailable. Restart the app to prepare it; if this persists, ask your administrator to review local file access and endpoint protection. No account sign-in was started.'
+            : 'Azure CLI is unavailable. Install Azure CLI, run az login, and retry. No account sign-in was started.'
+          : 'Azure CLI sign-in failed. Retry or ask your administrator to review CLI access and interactive sign-in policy.',
       };
     })
     .finally(() => clearTimeout(attempt.timer));

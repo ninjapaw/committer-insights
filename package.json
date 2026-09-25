@@ -1,10 +1,10 @@
 {
-  "name": "@ninjapaw/committer-insights",
+  "name": "@ninjapaw/developer-usage-insights",
   "version": "0.1.0",
   "private": true,
-  "description": "Local Azure DevOps and GitHub committer reports with CSV, PDF, and HTML exports.",
+  "description": "Local Azure DevOps and GitHub plan, usage, billing, and activity reports with CSV, PDF, and HTML exports.",
   "license": "MIT",
-  "author": "Microsoft Corporation",
+  "author": "Ninja Paws community",
   "repository": {
     "type": "git",
     "url": "https://github.com/ninjapaw/committer-insights.git"
@@ -18,16 +18,18 @@
   "workspaces": [
     "app",
     "api",
+    "packages/metadata",
     "packages/contracts",
     "demo"
   ],
   "scripts": {
     "dev": "npm run build && npm run start --workspace api",
     "prebuild": "node scripts/clean-build.mjs",
-    "build": "npm run build --workspace packages/contracts && npm run build --workspace app && npm run build --workspace api",
+    "build": "npm run build --workspace packages/metadata && npm run build --workspace packages/contracts && npm run build --workspace app && npm run build --workspace api",
     "build:exe": "npm run build && node scripts/build-executable.mjs",
+    "package:posix": "node scripts/package-posix-release.mjs",
     "test:exe": "node scripts/test-executable-bundle.mjs && node scripts/smoke-executable.mjs",
-    "demo:generate": "npm run build --workspace packages/contracts && npm run build --workspace api && node scripts/generate-demo.mjs",
+    "demo:generate": "npm run build --workspace packages/metadata && npm run build --workspace packages/contracts && npm run build --workspace api && node scripts/generate-demo.mjs",
     "demo:build": "npm run demo:generate && npm run build --workspace demo",
     "demo:test": "npm run demo:build && node scripts/test-demo.mjs",
     "demo:dev": "npm run dev --workspace demo",

@@ -3,6 +3,7 @@ import { Buffer } from 'node:buffer';
 import { execFileSync } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { PRODUCT } from '../packages/metadata/dist/index.js';
 
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 
@@ -43,7 +44,7 @@ export async function bundleGitHubCli(root, buildDir, releaseDir) {
     response = await fetch(url, {
       redirect: 'manual',
       signal,
-      headers: { 'User-Agent': 'Committer-Insights-Build' },
+      headers: { 'User-Agent': `${PRODUCT.displayName}-Build` },
     });
     if (![301, 302, 303, 307, 308].includes(response.status)) break;
     await response.body?.cancel();
@@ -121,11 +122,11 @@ export async function bundleGitHubCli(root, buildDir, releaseDir) {
     spdxVersion: 'SPDX-2.3',
     dataLicense: 'CC0-1.0',
     SPDXID: 'SPDXRef-DOCUMENT',
-    name: 'Committer Insights bundled GitHub CLI',
+    name: `${PRODUCT.displayName} bundled GitHub CLI`,
     documentNamespace: `https://github.com/ninjapaw/committer-insights/sbom/github-cli/${pin.version}/${binaryHash}`,
     creationInfo: {
       created: new Date().toISOString(),
-      creators: ['Tool: Committer-Insights-Build'],
+      creators: [`Tool: ${PRODUCT.displayName} Build`],
     },
     packages: [
       {

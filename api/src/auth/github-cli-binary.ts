@@ -26,8 +26,7 @@ function matches(path: string, sha256: string): boolean {
 }
 
 export function resolveGitHubCli(): string {
-  if (!isSea()) return 'gh';
-  if (process.platform !== 'win32') return 'gh';
+  if (!isSea() || process.platform !== 'win32') return 'gh';
   const manifest = JSON.parse(getAsset('github-cli/manifest.json', 'utf8')) as {
     version: string;
     sha256: string;

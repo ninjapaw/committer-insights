@@ -1,8 +1,8 @@
 {
   "schemaVersion": "1.0.0",
-  "key": "committer-insights",
-  "displayName": "Committer Insights",
-  "description": "Independent community desktop reporting for Azure DevOps and GitHub. Not a Microsoft or GitHub product. Reports stay on the user's computer.",
+  "key": "developer-usage-insights",
+  "displayName": "Developer Usage Insights",
+  "description": "Independent community desktop reporting for Azure DevOps and GitHub plans, usage, billing, and activity. Reports stay on the user's computer.",
   "redirectUris": ["http://localhost:8400"],
   "permissions": [
     {

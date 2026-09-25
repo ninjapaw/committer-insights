@@ -1,8 +1,8 @@
-# Committer Insights
+# Developer Usage Insights
 
-Review Azure DevOps and GitHub repository activity, security settings, reported billing, and cost estimates on your own computer. Explore interactive reports and export CSV, PDF, or standalone HTML without uploading report data to a hosted service.
+Review Azure DevOps and GitHub plans, repository activity, security settings, reported billing, access coverage, and cost scenarios on your own computer. Explore interactive reports and export CSV, PDF, or standalone HTML without uploading report data to a hosted service.
 
-[Download for Windows](https://github.com/ninjapaw/committer-insights/releases) | [Try the synthetic demo](https://ninjapaw.github.io/committer-insights/) | [Release notes](https://github.com/ninjapaw/committer-insights/releases)
+[Download releases](https://github.com/ninjapaw/committer-insights/releases) | [Try the synthetic demo](https://ninjapaw.github.io/committer-insights/) | [Release notes](https://github.com/ninjapaw/committer-insights/releases)
 
 > **Evaluation beta:** the Windows executable is unsigned and the Microsoft Entra publisher is unverified. Your organization may block it or require approval. Checksums verify download integrity, not publisher identity. Do not bypass security policies.
 >
@@ -25,22 +25,22 @@ Review Azure DevOps and GitHub repository activity, security settings, reported 
 
 ## Get Started
 
-**Requirements:** Windows x64, a web browser, internet access, and an authorized Microsoft or GitHub account. The download includes its runtimes and reporting tools; no separate Node.js or CLI installation, administrator rights, or PATH changes are needed. Organization and endpoint restrictions still apply.
+**Requirements:** Windows x64, macOS, or Linux, a web browser, internet access, and an authorized Microsoft or GitHub account. Windows releases include the required Azure and GitHub CLI runtimes. macOS/Linux releases include Node and the application; install Azure CLI (`az`) and GitHub CLI (`gh`) separately and make both available on `PATH` before provider sign-in. No administrator rights or global Node.js installation is required. Organization and endpoint restrictions still apply.
 
-1. Download `committer-insights.exe` and `SHA256SUMS.txt` from the **same [release](https://github.com/ninjapaw/committer-insights/releases)**.
+1. Download the release for your operating system and architecture from the **same [release](https://github.com/ninjapaw/committer-insights/releases)**.
 2. Calculate the executable's SHA-256 and compare it with the downloaded checksum:
 
    ```powershell
-   Get-FileHash .\committer-insights.exe -Algorithm SHA256
+   Get-FileHash .\developer-usage-insights.exe -Algorithm SHA256
    ```
 
-3. Run the executable. It checks for updates, prepares the Microsoft sign-in runtime, and opens the local workspace in your browser. First launch takes longer while the runtime is extracted; progress appears in the console.
+3. Run the executable. It checks for updates and opens the local workspace in your browser. Windows first launch prepares the Microsoft sign-in runtime; macOS/Linux use the installed Azure CLI and GitHub CLI.
 4. Sign in, select your sources and report options, then review access before generating a report.
 5. Export anything you need to keep before closing the application. Reports are held in memory; downloaded exports remain on disk.
 
 Keep the application console open while using the browser. The Microsoft runtime uses approximately 106 MB of local cache space, plus temporary extraction space. Later launches verify the cache before opening the workspace, without signing you in automatically.
 
-The [public demo](https://ninjapaw.github.io/committer-insights/) contains fictional complete, partial, and empty reports. It requires no sign-in and collects no customer data.
+On macOS, open `Developer Usage Insights.app` or run its bundled executable. On Linux, make `developer-usage-insights` runnable with `chmod +x` and use the included `run-developer-usage-insights.sh` launcher. The release archive includes the platform requirements. The [public demo](https://ninjapaw.github.io/committer-insights/) contains fictional complete, partial, and empty reports. It requires no sign-in and collects no customer data.
 
 ## Sign In
 
@@ -78,7 +78,7 @@ Select the organizations, repositories, or enterprise targets available to your 
 CSV, PDF, and standalone HTML exports contain the collected report, not just the current display filter. HTML downloads preserve the dashboard's light or dark theme, use matching responsive navigation and table styling, and remain self-contained without scripts or external assets. Provider sections are all included in the file rather than hidden behind dashboard tabs. CSV and HTML preserve Unicode; PDF standard fonts may replace unsupported characters with `?`. CSV timestamps and collection windows stay in UTC. To change dashboard, PDF, and HTML display time:
 
 ```powershell
-.\committer-insights.exe --timezone America/Toronto
+.\developer-usage-insights.exe --timezone America/Toronto
 ```
 
 The optional **AI review brief** produces aggregate text for manual use with an approved service. Nothing is sent to an AI model automatically. Review it for confidential information before sharing.
@@ -103,11 +103,15 @@ For missing data, ask your administrator to review the specific dataset and repo
 
 **Reported billing, observed activity, and modeled costs are different evidence.** Keep Azure DevOps and GitHub results separate. Observed committers are not verified licensed seats, and estimates are not invoices, quotes, or purchasing recommendations.
 
+The report now keeps four populations separate: observed contributors from repository history, Azure DevOps provider-estimated users for products that could be enabled, users present in Azure DevOps billing snapshots, and GitHub Advanced Security billing identities. The dashboard and exports classify identities as estimated only, currently licensed, both, or unavailable rather than presenting one blended licensing total.
+
+Repository history scans all discovered branches by default and deduplicates overlapping commits by commit SHA or commit ID. A provider pagination ceiling can still make a repository result a lower bound; the report marks that repository as truncated and never presents the partial count as complete. Default-branch-only collection remains available as an explicit source option for faster spot checks.
+
 ### Azure DevOps
 
 Reported billing includes available per-product snapshots and identities, with an optional UTC billing date. Diagnostic details are separately selectable and may contain personal identities, email addresses, and project, repository, or push evidence. Reconciled counts cover only selected organizations with complete same-date identity lists, not an entire subscription or invoice. Unmatched diagnostic identities are not added to totals.
 
-Selected security plans also request Microsoft's organization-level enablement estimates, even when a product is disabled or billing is unavailable. Code Security and Secret Protection are calculated independently using provider counts and the report's dated price assumptions. Incomplete identity detail remains visible; an unavailable estimate is never replaced with a count invented from Git history.
+Selected security plans also request Microsoft's organization-level enablement estimates, even when a product is disabled or billing is unavailable. These estimates are intended to identify users from repositories where Advanced Security is off and to model what enablement could cost; they are not invoices. Code Security and Secret Protection are calculated independently using provider counts and the report's dated price assumptions. Incomplete identity detail remains visible; an unavailable estimate is never replaced with a count invented from Git history.
 
 Optional service scenarios use **your entered quantities**, not collected license or usage inventories, for Basic, Basic + Test Plans, Pipelines, Artifacts, and GitHub AI credits for Azure DevOps. Empty quantities stay unavailable. Review included-license benefits, free allowances, paid capacity, and billing scope before entering values.
 
@@ -146,17 +150,17 @@ Normal Windows startup checks for the newest published release, **including prer
 Startup stops if the newest release cannot be confirmed or verified. To deliberately run your installed copy without checking for updates:
 
 ```powershell
-.\committer-insights.exe --skip-update-check
+.\developer-usage-insights.exe --skip-update-check
 ```
 
 Alternatively, control automatic updates through the launch environment:
 
 ```powershell
-$env:COMMITTER_INSIGHTS_AUTO_UPDATE = 'false'
-.\committer-insights.exe
+$env:DEVELOPER_USAGE_INSIGHTS_AUTO_UPDATE = 'false'
+.\developer-usage-insights.exe
 ```
 
-`COMMITTER_INSIGHTS_AUTO_UPDATE` defaults to `true` when unset or blank. It accepts `true` or `false` (case-insensitive, surrounding whitespace ignored); other values stop startup with an error. Set it back to `true` or remove the variable to restore checks. The PowerShell example affects this shell and its child processes only. `--skip-update-check` always disables checks for that launch, even when the variable is `true`. This controls the packaged Windows startup updater, not a background Windows service; it does not change download verification or provider collection.
+`DEVELOPER_USAGE_INSIGHTS_AUTO_UPDATE` defaults to `true` when unset or blank. It accepts `true` or `false` (case-insensitive, surrounding whitespace ignored); other values stop startup with an error. Set the variable back to `true` or remove it to restore checks. The PowerShell example affects this shell and its child processes only. `--skip-update-check` always disables checks for that launch, even when the variable is `true`. This controls the packaged Windows startup updater, not a background Windows service; it does not change download verification or provider collection.
 
 This does not make provider sign-in or collection available offline. Use `--help` to view options without contacting GitHub. For changes and previous versions, see [release notes](https://github.com/ninjapaw/committer-insights/releases).
 
@@ -186,13 +190,13 @@ This inventory describes the current collectors, reviewed against official refer
 
 Collectors use Node's HTTP `fetch` with bearer authentication and Zod response validation. They make read-only **GET** requests, not repository clones, web scraping, Microsoft Graph directory enumeration, or Azure Resource Manager queries. The CLIs acquire credentials; the TypeScript adapters perform report collection. Authentication itself exchanges credentials with the providers and is not limited to GET requests.
 
-| Purpose                                 | Mechanism Used                                                                                                                                                                                                                                                                                                            | Official Verification                                                                                                                                                                                                                                               |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Microsoft browser sign-in and tokens    | Bundled Azure CLI login in an isolated session, followed by account token requests for Azure DevOps resource `499b84ac-1321-427f-aa17-267ca6975798`; selected tenant and expiry retained API-side. CLI login also performs its normal Azure account discovery, not a report inventory of Azure resources.                 | [Interactive login](https://learn.microsoft.com/en-us/cli/azure/authenticate-azure-cli-interactively), [Azure DevOps Entra tokens](https://learn.microsoft.com/en-us/azure/devops/cli/entra-tokens?view=azure-devops)                                               |
-| Explicit Microsoft device code          | `@azure/identity` `DeviceCodeCredential`, using `https://app.vssps.visualstudio.com/.default` and the publisher public-client registration. No automatic SDK fallback from CLI failure.                                                                                                                                   | [DeviceCodeCredential](https://learn.microsoft.com/en-us/javascript/api/@azure/identity/devicecodecredential), [Entra authentication for Azure DevOps](https://learn.microsoft.com/en-us/azure/devops/integrate/get-started/authentication/entra?view=azure-devops) |
-| GitHub login, saved accounts and tokens | `gh auth login --hostname github.com --web --skip-ssh-key`; saved account metadata from `gh auth status --json hosts`; token from `gh auth token --hostname github.com` with the selected user. Inherited GitHub token environment variables are removed from these child processes. Tokens never enter the UI or report. | [GitHub CLI login](https://cli.github.com/manual/gh_auth_login), [status](https://cli.github.com/manual/gh_auth_status), [token](https://cli.github.com/manual/gh_auth_token)                                                                                       |
-| GitHub data reads                       | `https://api.github.com`, `Accept: application/vnd.github+json`; `X-GitHub-Api-Version: 2022-11-28` for discovery/activity/settings and `2026-03-10` for billing. This is GitHub.com, not a configurable Enterprise Server host.                                                                                          | [API versions](https://docs.github.com/en/rest/about-the-rest-api/api-versions), [authentication](https://docs.github.com/en/rest/authentication/authenticating-to-the-rest-api)                                                                                    |
-| Application update metadata             | Public `GET /repos/ninjapaw/committer-insights/releases`, followed by the selected executable/checksum assets. Publication time determines selection, including prereleases. This collects app version/asset metadata, not customer reports.                                                                              | [List releases](https://docs.github.com/en/rest/releases/releases#list-releases), [release assets](https://docs.github.com/en/rest/releases/assets)                                                                                                                 |
+| Purpose                                 | Mechanism Used                                                                                                                                                                                                                                                                                                                                                                                                       | Official Verification                                                                                                                                                                                                                                               |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Microsoft browser sign-in and tokens    | Windows packages use a bundled Azure CLI in an isolated session; macOS/Linux packages use the installed `az` command in an isolated session. Both request tokens for Azure DevOps resource `499b84ac-1321-427f-aa17-267ca6975798`; selected tenant and expiry are retained API-side. CLI login also performs its normal Azure account discovery, not a report inventory of Azure resources.                          | [Interactive login](https://learn.microsoft.com/en-us/cli/azure/authenticate-azure-cli-interactively), [Azure DevOps Entra tokens](https://learn.microsoft.com/en-us/azure/devops/cli/entra-tokens?view=azure-devops)                                               |
+| Explicit Microsoft device code          | `@azure/identity` `DeviceCodeCredential`, using `https://app.vssps.visualstudio.com/.default` and the publisher public-client registration. No automatic SDK fallback from CLI failure.                                                                                                                                                                                                                              | [DeviceCodeCredential](https://learn.microsoft.com/en-us/javascript/api/@azure/identity/devicecodecredential), [Entra authentication for Azure DevOps](https://learn.microsoft.com/en-us/azure/devops/integrate/get-started/authentication/entra?view=azure-devops) |
+| GitHub login, saved accounts and tokens | Windows packages use a bundled verified `gh`; macOS/Linux packages require `gh` on `PATH`. The app runs `gh auth login --hostname github.com --web --skip-ssh-key`, reads saved account metadata from `gh auth status --json hosts`, and gets tokens from `gh auth token --hostname github.com`. Inherited GitHub token environment variables are removed from child processes. Tokens never enter the UI or report. | [GitHub CLI login](https://cli.github.com/manual/gh_auth_login), [status](https://cli.github.com/manual/gh_auth_status), [token](https://cli.github.com/manual/gh_auth_token)                                                                                       |
+| GitHub data reads                       | `https://api.github.com`, `Accept: application/vnd.github+json`; `X-GitHub-Api-Version: 2022-11-28` for discovery/activity/settings and `2026-03-10` for billing. This is GitHub.com, not a configurable Enterprise Server host.                                                                                                                                                                                     | [API versions](https://docs.github.com/en/rest/about-the-rest-api/api-versions), [authentication](https://docs.github.com/en/rest/authentication/authenticating-to-the-rest-api)                                                                                    |
+| Application update metadata             | Public `GET /repos/ninjapaw/committer-insights/releases`, followed by the selected executable/checksum assets. Publication time determines selection, including prereleases. This collects app version/asset metadata, not customer reports.                                                                                                                                                                         | [List releases](https://docs.github.com/en/rest/releases/releases#list-releases), [release assets](https://docs.github.com/en/rest/releases/assets)                                                                                                                 |
 
 Implementation: [Microsoft credential handling](api/src/auth/local-credential.ts), [GitHub credential handling](api/src/auth/github-cli.ts), [GitHub HTTP client](api/src/adapters/github/http-client.ts), [provider configuration](api/src/shared/config.ts), and [updater](api/src/release-updater.ts).
 
@@ -322,7 +326,7 @@ See the [contribution guide](CONTRIBUTING.md) and [maintenance guidance](#mainte
 
 ### Development and Architecture
 
-Use Node.js **24.19.0** and npm **11.17.0**. Source runs need an installed GitHub CLI; Windows x64 packages include it. Default Microsoft CLI sign-in requires the Windows package; source/non-Windows runs do not silently substitute a system Azure CLI. The explicit SDK device-code option requires publisher configuration.
+Use Node.js **24.19.0** and npm **11.17.0**. Source runs and macOS/Linux packages need installed GitHub CLI and Azure CLI tools available on `PATH`; Windows x64 packages include verified private copies. The explicit SDK device-code option requires publisher configuration.
 
 ```powershell
 npm ci
@@ -338,15 +342,15 @@ The React/Vite UI lives in [app](app), the loopback Node/TypeScript API, authent
 
 The [publisher manifest](infra/publisher/public-client.json) defines generic registration requirements for the explicit Azure Identity device-code option: organizational accounts, a multitenant public client, mobile/desktop loopback redirect `http://localhost:8400`, public-client flows, and delegated Azure DevOps access. No client secret, certificate, application permission, or Azure RBAC assignment is required. Use Microsoft's [public-client registration guidance](https://learn.microsoft.com/en-us/entra/identity-platform/scenario-desktop-app-registration) and [Azure DevOps Entra authentication guidance](https://learn.microsoft.com/en-us/azure/devops/integrate/get-started/authentication/entra?view=azure-devops). Do not weaken tenant consent, MFA, or Conditional Access.
 
-Set the public application ID in the repository Actions variable `COMMITTER_INSIGHTS_CLIENT_ID`, or the environment for a local build. Keep actual tenant identifiers and ownership records outside Git. The ID is public configuration, not a secret. Release CI requires it for the explicit SDK option; default bundled CLI sign-in does not use this publisher ID. Publisher verification is a separate maintainer decision; the current publisher is unverified.
+Set the public application ID in the repository Actions variable `DEVELOPER_USAGE_INSIGHTS_CLIENT_ID`, or the environment for a local build. Keep actual tenant identifiers and ownership records outside Git. The ID is public configuration, not a secret. Release CI requires it for the explicit SDK option; default bundled CLI sign-in does not use this publisher ID. Publisher verification is a separate maintainer decision; the current publisher is unverified.
 
 ```powershell
-$env:COMMITTER_INSIGHTS_CLIENT_ID = '<public-application-id>'
+$env:DEVELOPER_USAGE_INSIGHTS_CLIENT_ID = '<public-application-id>'
 npm run build:exe
-.\release\committer-insights.exe --skip-update-check
+.\release\developer-usage-insights.exe --skip-update-check
 ```
 
-Default CLI sign-in uses an isolated temporary `AZURE_CONFIG_DIR`, `AZURE_CORE_ENABLE_BROKER_ON_WINDOWS=false`, and `AZURE_CORE_LOGIN_EXPERIENCE_V2=off`. These affect only the child session, not global CLI settings. The CLI requests browser account selection, with no supplied username/password or forced device flow; browser-launch fallback belongs to the CLI, not an automatic SDK retry. Interactive login is visible, background version/token requests are hidden, and sign-in has a ten-minute deadline and cancellation. Multi-tenant operators can set `COMMITTER_INSIGHTS_TENANT_ID` before launch. Tokens and renewal use the selected tenant and CLI expiry. See [interactive CLI authentication](https://learn.microsoft.com/en-us/cli/azure/authenticate-azure-cli-interactively) and [CLI-issued Azure DevOps tokens](https://learn.microsoft.com/en-us/azure/devops/cli/entra-tokens?view=azure-devops).
+Default CLI sign-in uses an isolated temporary `AZURE_CONFIG_DIR`, `AZURE_CORE_ENABLE_BROKER_ON_WINDOWS=false`, and `AZURE_CORE_LOGIN_EXPERIENCE_V2=off`. These affect only the child session, not global CLI settings. The CLI requests browser account selection, with no supplied username/password or forced device flow; browser-launch fallback belongs to the CLI, not an automatic SDK retry. Interactive login is visible, background version/token requests are hidden, and sign-in has a ten-minute deadline and cancellation. Multi-tenant operators can set `DEVELOPER_USAGE_INSIGHTS_TENANT_ID` before launch. Tokens and renewal use the selected tenant and CLI expiry. See [interactive CLI authentication](https://learn.microsoft.com/en-us/cli/azure/authenticate-azure-cli-interactively) and [CLI-issued Azure DevOps tokens](https://learn.microsoft.com/en-us/azure/devops/cli/entra-tokens?view=azure-devops).
 
 ### Runtime Packaging and Integrity
 

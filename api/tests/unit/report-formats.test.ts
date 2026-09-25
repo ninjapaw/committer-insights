@@ -226,10 +226,10 @@ describe('standalone report formats', () => {
         },
       };
       const pdf = await PDFDocument.load(await generateExecutivePdf(input));
-      expect(pdf.getTitle()).toBe('Committer Insights - Executive report');
+      expect(pdf.getTitle()).toBe('Developer Usage Insights - Executive report');
       expect(pdf.getPageCount()).toBeGreaterThan(4);
       const text = draw.mock.calls.map(([value]) => value);
-      expect(text.filter((value) => value === 'COMMITTER INSIGHTS')).toHaveLength(
+      expect(text.filter((value) => value === 'DEVELOPER USAGE INSIGHTS')).toHaveLength(
         pdf.getPageCount(),
       );
       expect(text.filter((value) => value === 'Date UTC').length).toBeGreaterThan(1);

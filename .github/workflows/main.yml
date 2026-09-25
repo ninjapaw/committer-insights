@@ -40,15 +40,15 @@ jobs:
     runs-on: windows-latest
     env:
       # Public app identity embedded in the binary, not a secret or verification badge.
-      COMMITTER_INSIGHTS_CLIENT_ID: ${{ vars.COMMITTER_INSIGHTS_CLIENT_ID }}
+      DEVELOPER_USAGE_INSIGHTS_CLIENT_ID: ${{ vars.DEVELOPER_USAGE_INSIGHTS_CLIENT_ID }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Require publisher browser sign-in configuration
         shell: pwsh
         run: |
           $clientId = [guid]::Empty
-          if (-not [guid]::TryParse($env:COMMITTER_INSIGHTS_CLIENT_ID, [ref]$clientId) -or $clientId -eq [guid]::Empty) {
-            throw 'Set the repository variable COMMITTER_INSIGHTS_CLIENT_ID to the publisher Entra public-client application ID before packaging a release.'
+          if (-not [guid]::TryParse($env:DEVELOPER_USAGE_INSIGHTS_CLIENT_ID, [ref]$clientId) -or $clientId -eq [guid]::Empty) {
+            throw 'Set the repository variable DEVELOPER_USAGE_INSIGHTS_CLIENT_ID to the publisher Entra public-client application ID before packaging a release.'
           }
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -64,6 +64,34 @@ jobs:
         run: npm run test:exe
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: committer-insights-windows-unsigned
+          name: developer-usage-insights-windows-unsigned
+          path: release/
+          retention-days: 30
+
+  package-posix:
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      DEVELOPER_USAGE_INSIGHTS_CLIENT_ID: ${{ vars.DEVELOPER_USAGE_INSIGHTS_CLIENT_ID }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .node-version
+          cache: 'npm'
+      - run: npm ci
+      - name: Build native executable
+        run: npm run build:exe
+      - name: Package Unix release
+        run: npm run package:posix
+      - name: Smoke test executable
+        run: npm run test:exe
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: developer-usage-insights-${{ matrix.os }}
           path: release/
           retention-days: 30

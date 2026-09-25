@@ -67,6 +67,7 @@ export function azureAdoptionTables(
   estimates: AzureAdoptionEstimate[],
   snapshots: AzureBillingSnapshot[] = [],
   repositories: RepositoryInsight[] = [],
+  estimatedUsers: import('./azure-devops.js').AzureDevOpsCommitter[] = [],
 ): InsightTable[] {
   if (!estimates.length) return [];
   const priceSource =
@@ -213,6 +214,81 @@ export function azureAdoptionTables(
       ]),
     },
   ];
+  const licensedUsers = snapshots.flatMap((snapshot) =>
+    snapshot.identities.map((identity) => ({
+      ...identity,
+      organization: snapshot.organization,
+      plan: snapshot.plan,
+    })),
+  );
+  const estimatedEvidence = estimatedUsers.map((user) => ({
+    ...user,
+    identity: user.cuid ?? user.identityId ?? user.displayName ?? 'unknown',
+  }));
+  const licensedEvidence = licensedUsers.map((user) => ({
+    ...user,
+    identity: user.cuid ?? user.identityId ?? user.displayName ?? 'unknown',
+  }));
+  const productLabel = (plan: AzureBillingPlan | 'all') =>
+    plan === 'codeSecurity'
+      ? 'Code Security'
+      : plan === 'secretProtection'
+        ? 'Secret Protection'
+        : 'Advanced Security';
+  const userKeys = new Set<string>();
+  const userRows = [...estimatedEvidence, ...licensedEvidence]
+    .map((user) => {
+      const organization = user.organization;
+      const plan = user.plan;
+      const identity = user.identity;
+      const key = `${organization.toLowerCase()}:${plan}:${identity.toLowerCase()}`;
+      if (userKeys.has(key)) return undefined;
+      userKeys.add(key);
+      const estimated = estimatedEvidence.some(
+        (item) =>
+          item.organization.toLowerCase() === organization.toLowerCase() &&
+          item.plan === plan &&
+          item.identity.toLowerCase() === identity.toLowerCase(),
+      );
+      const licensed = licensedEvidence.some(
+        (item) =>
+          item.organization.toLowerCase() === organization.toLowerCase() &&
+          item.plan === plan &&
+          item.identity.toLowerCase() === identity.toLowerCase(),
+      );
+      return [
+        'azure-devops',
+        organization,
+        productLabel(plan),
+        user.cuid ?? '',
+        user.displayName ?? '',
+        user.userPrincipalName ?? '',
+        estimated ? 'Estimated for enablement' : 'Not in estimate response',
+        licensed ? 'Currently licensed in snapshot' : 'Not currently licensed in snapshot',
+        estimated && licensed
+          ? 'Estimated and licensed'
+          : estimated
+            ? 'Estimated only'
+            : 'Licensed only',
+      ];
+    })
+    .filter((row): row is string[] => Boolean(row));
+  if (userRows.length)
+    tables.push({
+      title: 'Azure estimated and licensed users',
+      columns: [
+        'Provider',
+        'Organization',
+        'Product',
+        'CUID',
+        'Display name',
+        'User principal name',
+        'Estimate evidence',
+        'Billing snapshot evidence',
+        'Classification',
+      ],
+      rows: userRows,
+    });
   const scenario = tables[0]!;
   const columns = [
     'Provider',

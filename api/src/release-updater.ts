@@ -5,9 +5,11 @@ import { lstat, mkdir, mkdtemp, open, rename, rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { isSea } from 'node:sea';
+import { PRODUCT } from '@ninjapaw/developer-usage-insights-metadata';
 
-const repository = 'ninjapaw/committer-insights';
-const executableName = 'committer-insights.exe';
+const repository = PRODUCT.repository;
+const executableName =
+  process.platform === 'win32' ? `${PRODUCT.executableName}.exe` : PRODUCT.executableName;
 const maximumExecutableBytes = 256 * 1024 * 1024;
 
 interface ReleaseAsset {
@@ -61,9 +63,13 @@ export function latestRelease(releases: PublishedRelease[]) {
 }
 
 export function executableChecksum(manifest: string): string {
+  const escapedExecutableName = executableName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const matches = manifest
     .split(/\r?\n/)
-    .map((line) => line.match(/^([a-fA-F0-9]{64})[ \t]+\*?committer-insights\.exe$/)?.[1])
+    .map(
+      (line) =>
+        line.match(new RegExp(`^([a-fA-F0-9]{64})[ \\t]+\\*?${escapedExecutableName}$`))?.[1],
+    )
     .filter((value): value is string => Boolean(value));
   if (matches.length !== 1) throw new Error('Release checksum is missing or ambiguous.');
   return matches[0]!.toLowerCase();
@@ -91,7 +97,10 @@ async function request(url: string, timeout: number): Promise<Response> {
     const response = await fetch(destination, {
       signal,
       redirect: 'manual',
-      headers: { 'User-Agent': 'Committer-Insights-Updater', 'X-GitHub-Api-Version': '2022-11-28' },
+      headers: {
+        'User-Agent': `${PRODUCT.shortName}-Updater`,
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
     });
     if ([301, 302, 303, 307, 308].includes(response.status)) {
       await response.body?.cancel();
@@ -222,8 +231,8 @@ export async function prepareLatestRelease(executablePath: string, cacheRoot: st
 }
 
 export async function consumeUpdateHandoff(executablePath: string): Promise<boolean> {
-  const handoff = process.env.COMMITTER_INSIGHTS_UPDATE_HANDOFF;
-  delete process.env.COMMITTER_INSIGHTS_UPDATE_HANDOFF;
+  const handoff = process.env.DEVELOPER_USAGE_INSIGHTS_UPDATE_HANDOFF;
+  delete process.env.DEVELOPER_USAGE_INSIGHTS_UPDATE_HANDOFF;
   return Boolean(
     handoff && /^[a-f0-9]{64}$/.test(handoff) && (await fileChecksum(executablePath)) === handoff,
   );
@@ -239,7 +248,10 @@ export async function startVerifiedRelease(
     detached: false,
     windowsHide: false,
     stdio: 'inherit',
-    env: { ...process.env, COMMITTER_INSIGHTS_UPDATE_HANDOFF: release.checksum },
+    env: {
+      ...process.env,
+      DEVELOPER_USAGE_INSIGHTS_UPDATE_HANDOFF: release.checksum,
+    },
   });
   await new Promise<void>((resolve, reject) => {
     child.once('error', reject);
@@ -256,13 +268,15 @@ export async function startVerifiedRelease(
 }
 
 export async function launchLatestRelease(args: string[]): Promise<boolean> {
-  if (!isSea() || process.platform !== 'win32') return false;
+  if (!isSea()) return false;
   if (await consumeUpdateHandoff(process.execPath)) return false;
-  process.stdout.write('Checking for the newest Committer Insights release...\n');
+  process.stdout.write(`Checking for the newest ${PRODUCT.displayName} release...\n`);
   try {
     const cacheRoot = join(
-      process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'),
-      'CommitterInsights',
+      process.platform === 'win32'
+        ? process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local')
+        : process.env.XDG_CACHE_HOME || join(homedir(), '.cache'),
+      PRODUCT.cacheDirectory,
       'releases',
     );
     const release = await prepareLatestRelease(process.execPath, cacheRoot);

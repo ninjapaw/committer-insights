@@ -13,12 +13,14 @@ let preparation: Promise<string> | undefined;
 let preparedExecutable: string | undefined;
 
 export async function prepareAzureCli(onProgress?: (message: string) => void): Promise<void> {
+  if (process.platform !== 'win32' || !isSea()) return;
   preparation ??= resolveAzureCli(AbortSignal.timeout(600000), onProgress);
   preparedExecutable = await preparation;
 }
 
 export function getPreparedAzureCli(): string {
-  if (process.platform !== 'win32' || !isSea())
+  if (process.platform !== 'win32') return 'az';
+  if (!isSea())
     throw new Error('Bundled Azure CLI sign-in requires the Windows x64 packaged application.');
   if (!preparedExecutable)
     throw new Error('Microsoft sign-in runtime is unavailable. Restart the app to prepare it.');
@@ -88,9 +90,9 @@ export async function resolveAzureCli(
   onProgress?: (message: string) => void,
 ): Promise<string> {
   signal?.throwIfAborted();
-  if (process.platform !== 'win32' || !isSea()) {
+  if (process.platform !== 'win32') return 'az';
+  if (!isSea())
     throw new Error('Bundled Azure CLI sign-in requires the Windows x64 packaged application.');
-  }
   const manifest = JSON.parse(getAsset('azure-cli/manifest.json', 'utf8')) as {
     version: string;
     sha256: string;

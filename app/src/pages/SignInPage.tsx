@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { MicrosoftSignIn } from '../components/MicrosoftSignIn';
+import { PRODUCT } from '@ninjapaw/developer-usage-insights-metadata';
 
 export function SignInPage(): JSX.Element {
   const navigate = useNavigate();
@@ -20,7 +21,7 @@ export function SignInPage(): JSX.Element {
           <h1 id="sign-in-title">Local session expired</h1>
           <p>
             This browser tab no longer has the active local session for the running application.
-            Close stale Committer Insights tabs and use the window opened by the executable, or
+            Close stale {PRODUCT.displayName} tabs and use the window opened by the executable, or
             restart the application to create a fresh local session.
           </p>
           <p>

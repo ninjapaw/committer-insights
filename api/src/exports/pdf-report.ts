@@ -21,6 +21,7 @@ import {
   reportOverviewTables,
   reportOverviewNote,
 } from '@ninjapaw/contracts';
+import { PRODUCT } from '@ninjapaw/developer-usage-insights-metadata';
 
 function wrap(
   text: string,
@@ -80,7 +81,7 @@ async function generateProviderPdf(report: StoredReport): Promise<PDFDocument> {
   const newPage = () => {
     page = document.addPage([612, 792]);
     page.drawRectangle({ x: 0, y: 786, width: 612, height: 6, color: palette.blue });
-    page.drawText('COMMITTER INSIGHTS', {
+    page.drawText(PRODUCT.displayName.toUpperCase(), {
       x: 46,
       y: 752,
       font: bold,
@@ -525,10 +526,10 @@ export async function generateExecutivePdf(report: StoredReport): Promise<Uint8A
         document.addPage(page);
     }
   } else document = await generateProviderPdf(report);
-  document.setTitle('Committer Insights - Executive report');
-  document.setAuthor('Committer Insights');
+  document.setTitle(`${PRODUCT.displayName} - Executive report`);
+  document.setAuthor(PRODUCT.displayName);
   document.setSubject(report.subject);
-  document.setCreator('Committer Insights');
+  document.setCreator(PRODUCT.displayName);
   const font = await document.embedFont(StandardFonts.Helvetica);
   for (const [index, page] of document.getPages().entries()) {
     page.drawLine({

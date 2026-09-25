@@ -18,6 +18,7 @@ import { ReportTable } from '../components/ReportTable';
 import { RepositoryLink } from '../components/RepositoryLink';
 import { ReportInsightsPanel } from '../components/ReportInsightsPanel';
 import { CioBriefPanel } from '../components/CioBriefPanel';
+import { PRODUCT } from '@ninjapaw/developer-usage-insights-metadata';
 import { AzureBillingPanel, GitHubBillingPanel } from '../components/AzureBillingPanel';
 import { ReportOverview } from '../components/ReportOverview';
 import { AzureServicePricing } from '../components/AzureServicePricing';
@@ -36,8 +37,7 @@ async function downloadExport(
     : await localRequest(`/api/reports/${reportId}/export.${extension}`);
   if (!response.ok) throw new Error(`Unable to download ${extension.toUpperCase()} report`);
   const disposition = response.headers.get('Content-Disposition') ?? '';
-  const filename =
-    disposition.match(/filename="([^"]+)"/)?.[1] ?? `committer-insights.${extension}`;
+  const filename = disposition.match(/filename="([^"]+)"/)?.[1] ?? `${PRODUCT.slug}.${extension}`;
   let blob: Blob;
   if (extension === 'html') {
     const exported = new DOMParser().parseFromString(await response.text(), 'text/html');

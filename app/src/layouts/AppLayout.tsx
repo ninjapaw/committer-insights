@@ -1,5 +1,6 @@
 import type { PropsWithChildren } from 'react';
 import { Link, NavLink } from 'react-router-dom';
+import { PRODUCT } from '@ninjapaw/developer-usage-insights-metadata';
 
 export function AppLayout({ children }: PropsWithChildren): JSX.Element {
   return (
@@ -9,14 +10,14 @@ export function AppLayout({ children }: PropsWithChildren): JSX.Element {
       </a>
       <header className="navbar" role="banner">
         <div className="container navbar__inner">
-          <Link className="navbar__brand" to="/" aria-label="Committer Insights home">
+          <Link className="navbar__brand" to="/" aria-label={`${PRODUCT.displayName} home`}>
             <span className="navbar__logo" aria-hidden="true">
               <span />
               <span />
               <span />
               <span />
             </span>
-            <span className="navbar__title">Committer Insights</span>
+            <span className="navbar__title">{PRODUCT.displayName}</span>
           </Link>
           <nav className="navbar__nav" aria-label="Primary navigation">
             <NavLink
@@ -53,7 +54,7 @@ export function AppLayout({ children }: PropsWithChildren): JSX.Element {
       <footer className="footer" role="contentinfo">
         <div className="container footer__inner">
           <div className="footer__summary">
-            <strong>Committer Insights</strong>
+            <strong>{PRODUCT.displayName}</strong>
             <p>Independent community reporting for Azure DevOps and GitHub.</p>
             <p>
               <strong>

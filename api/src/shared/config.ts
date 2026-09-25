@@ -14,19 +14,21 @@ function readEnv(name: string, fallback?: string): string {
   return value;
 }
 
-declare const __COMMITTER_INSIGHTS_CLIENT_ID__: string | undefined;
+declare const __DEVELOPER_USAGE_INSIGHTS_CLIENT_ID__: string | undefined;
 // The public client ID is embedded for releases; the environment override supports local testing.
 const embeddedClientId =
-  typeof __COMMITTER_INSIGHTS_CLIENT_ID__ === 'string' ? __COMMITTER_INSIGHTS_CLIENT_ID__ : '';
+  typeof __DEVELOPER_USAGE_INSIGHTS_CLIENT_ID__ === 'string'
+    ? __DEVELOPER_USAGE_INSIGHTS_CLIENT_ID__
+    : '';
 
 export const config = {
   report: {
-    timeZone: () => resolveReportTimeZone(process.env.COMMITTER_INSIGHTS_TIMEZONE),
+    timeZone: () => resolveReportTimeZone(process.env.DEVELOPER_USAGE_INSIGHTS_TIMEZONE),
   },
   entra: {
-    clientId: () => process.env.COMMITTER_INSIGHTS_CLIENT_ID ?? embeddedClientId,
-    tenantId: () => readEnv('COMMITTER_INSIGHTS_TENANT_ID', 'organizations'),
-    redirectUri: () => readEnv('COMMITTER_INSIGHTS_REDIRECT_URI', 'http://localhost:8400'),
+    clientId: () => process.env.DEVELOPER_USAGE_INSIGHTS_CLIENT_ID ?? embeddedClientId,
+    tenantId: () => readEnv('DEVELOPER_USAGE_INSIGHTS_TENANT_ID', 'organizations'),
+    redirectUri: () => readEnv('DEVELOPER_USAGE_INSIGHTS_REDIRECT_URI', 'http://localhost:8400'),
   },
   azureDevOps: {
     // Trusted constant host. Adapter code must never accept a host from

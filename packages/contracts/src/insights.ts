@@ -1,4 +1,5 @@
 import type { DailyActivity } from './github.js';
+import type { AzureDevOpsCommitter } from './azure-devops.js';
 import { azureServicePricingTables, type AzureServiceEstimate } from './azure-service-pricing.js';
 import {
   azureBillingTables,
@@ -31,6 +32,8 @@ export interface RepositoryInsight {
     from: string;
     to: string;
     daily: DailyActivity[];
+    branches?: string[];
+    truncated?: boolean;
     reason?: string;
   };
 }
@@ -55,6 +58,7 @@ export interface BillingUsage {
   netUsd: number;
 }
 export interface ReportInsights {
+  azureEstimatedCommitters?: AzureDevOpsCommitter[];
   azureServiceEstimates?: AzureServiceEstimate[];
   azureEstimates?: AzureAdoptionEstimate[];
   githubBilling?: GitHubBillingSnapshot[];
@@ -186,6 +190,7 @@ export function insightTables(
       insights.azureEstimates ?? [],
       insights.azureBilling,
       insights.repositories,
+      insights.azureEstimatedCommitters ?? [],
     ),
     ...azureBillingTables(insights.azureBilling ?? [], options),
     ...azureServicePricingTables(insights.azureServiceEstimates ?? []),
@@ -204,6 +209,8 @@ export function insightTables(
         'Activity status',
         `From ${timeZone}`,
         `To ${timeZone}`,
+        'Branches scanned',
+        'Coverage',
         'Commits',
         'Reason',
       ],
@@ -218,6 +225,8 @@ export function insightTables(
         row.activity.status,
         displayDate(row.activity.from),
         displayDate(row.activity.to),
+        row.activity.branches?.length ?? 'Unknown',
+        row.activity.truncated ? 'Lower bound: pagination cap reached' : row.activity.status,
         row.activity.status === 'complete'
           ? row.activity.daily.reduce((total, point) => total + point.commits, 0)
           : 'Unavailable',

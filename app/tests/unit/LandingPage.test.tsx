@@ -11,7 +11,7 @@ describe('LandingPage', () => {
         <LandingPage />
       </MemoryRouter>,
     );
-    expect(screen.getByRole('heading', { name: 'Active Committer Portal' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Developer Usage Insights' })).toBeInTheDocument();
     expect(
       screen.getByText(/does not ask for an Azure DevOps personal access token/i),
     ).toBeInTheDocument();

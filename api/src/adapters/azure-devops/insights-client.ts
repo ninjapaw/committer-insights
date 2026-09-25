@@ -46,9 +46,13 @@ const enabledSchema = z.object({
 const commitsSchema = z.object({
   value: z.array(
     z.object({
+      commitId: z.string().optional(),
       committer: z.object({ date: z.string().datetime({ offset: true }) }),
     }),
   ),
+});
+const refsSchema = z.object({
+  value: z.array(z.object({ name: z.string().startsWith('refs/heads/') })),
 });
 const state = (value: boolean | null | undefined): SettingState =>
   value === true ? 'enabled' : value === false ? 'disabled' : 'unknown';
@@ -132,6 +136,7 @@ export async function collectAzureRepositoryInsights(
   token: string,
   insights: ReportInsights,
   fetchImpl: typeof fetch = fetch,
+  branchScope: 'all' | 'default' = 'default',
 ): Promise<void> {
   const source = azureDevOpsOrganizationSchema.parse(organization);
   const check = { provider: 'azure-devops' as const, source };
@@ -209,38 +214,63 @@ export async function collectAzureRepositoryInsights(
                 'No default branch is available; history access was not verified.',
               );
             const daily: RepositoryInsight['activity']['daily'] = [];
-            for (let page = 0; ; page += 1) {
-              if (page >= 100)
-                throw new AzureReadError(
-                  'History exceeds the 10,000 commit cap; not a permission failure.',
-                );
-              const url = new URL(
-                `https://dev.azure.com/${source}/${repository.project.id}/_apis/git/repositories/${repository.id}/commits`,
+            let branches = [repository.defaultBranch.replace(/^refs\/heads\//, '')];
+            if (branchScope === 'all') {
+              const refsUrl = new URL(
+                `https://dev.azure.com/${source}/${repository.project.id}/_apis/git/repositories/${repository.id}/refs`,
               );
-              for (const [key, value] of Object.entries({
-                'api-version': '7.1',
-                'searchCriteria.fromDate': window.from,
-                'searchCriteria.toDate': window.to,
-                'searchCriteria.$top': '100',
-                'searchCriteria.$skip': String(page * 100),
-                'searchCriteria.itemVersion.versionType': 'branch',
-                'searchCriteria.itemVersion.version': repository.defaultBranch.replace(
-                  /^refs\/heads\//,
-                  '',
-                ),
-              }))
-                url.searchParams.set(key, value);
-              const commits = commitsSchema.parse(await read(url, token, fetchImpl)).value;
-              for (const commit of commits) {
-                const timestamp = new Date(commit.committer.date).toISOString();
-                if (timestamp >= window.from && timestamp <= window.to)
-                  daily.push({ date: timestamp.slice(0, 10), commits: 1 });
-              }
-              if (commits.length < 100) break;
+              refsUrl.searchParams.set('filter', 'heads/');
+              refsUrl.searchParams.set('api-version', '7.1');
+              const refs = refsSchema.parse(await read(refsUrl, token, fetchImpl)).value;
+              if (refs.length) branches = refs.map((ref) => ref.name.replace(/^refs\/heads\//, ''));
             }
-            row.activity = { ...window, status: 'complete', daily: mergeDailyActivity(daily) };
+            const seenCommits = new Set<string>();
+            let truncated = false;
+            for (const branch of branches) {
+              for (let page = 0; ; page += 1) {
+                if (page >= 100) {
+                  truncated = true;
+                  break;
+                }
+                const url = new URL(
+                  `https://dev.azure.com/${source}/${repository.project.id}/_apis/git/repositories/${repository.id}/commits`,
+                );
+                for (const [key, value] of Object.entries({
+                  'api-version': '7.1',
+                  'searchCriteria.fromDate': window.from,
+                  'searchCriteria.toDate': window.to,
+                  'searchCriteria.$top': '100',
+                  'searchCriteria.$skip': String(page * 100),
+                  'searchCriteria.itemVersion.versionType': 'branch',
+                  'searchCriteria.itemVersion.version': branch,
+                }))
+                  url.searchParams.set(key, value);
+                const commits = commitsSchema.parse(await read(url, token, fetchImpl)).value;
+                for (const commit of commits) {
+                  if (commit.commitId && seenCommits.has(commit.commitId)) continue;
+                  if (commit.commitId) seenCommits.add(commit.commitId);
+                  const timestamp = new Date(commit.committer.date).toISOString();
+                  if (timestamp >= window.from && timestamp <= window.to)
+                    daily.push({ date: timestamp.slice(0, 10), commits: 1 });
+                }
+                if (commits.length < 100) break;
+              }
+            }
+            row.activity = {
+              ...window,
+              status: 'complete',
+              branches,
+              truncated,
+              daily: mergeDailyActivity(daily),
+              ...(truncated
+                ? {
+                    reason:
+                      'At least one branch reached the 10,000-commit pagination limit. Counts are lower bounds for the affected repository.',
+                  }
+                : {}),
+            };
           } catch (error) {
-            row.activity.reason = `${readFailure(error)} Default-branch history is unavailable, not zero activity. Repository Read is required.`;
+            row.activity.reason = `${readFailure(error)} ${branchScope === 'all' ? 'Branch history' : 'Default-branch history'} is unavailable, not zero activity. Repository Read is required.`;
           }
           rows.push(row);
         }
@@ -276,7 +306,7 @@ export async function collectAzureRepositoryInsights(
             ? 'partial'
             : 'complete',
       detail:
-        `${readable}/${rows.length} visible repositories with readable history. ${!rows.length ? 'No visible repositories; history access was not verified. ' : ''}Default-branch committer-date counts, including automation; not billable identities. Hidden or denied repositories may be absent. ${failures.join(' ')}`.trim(),
+        `${readable}/${rows.length} visible repositories with readable history. ${!rows.length ? 'No visible repositories; history access was not verified. ' : ''}${branchScope === 'all' ? 'All discovered branches are scanned and commits are deduplicated by commit ID.' : 'Default-branch committer-date counts are selected.'} Counts include automation and are not billable identities. Hidden or denied repositories may be absent. ${failures.join(' ')}`.trim(),
     });
   } catch (error) {
     insights.repositories.push(

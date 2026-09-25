@@ -1,6 +1,7 @@
 ---
 import '../../../app/src/styles.css';
 import '../styles.css';
+import { PRODUCT } from '@ninjapaw/developer-usage-insights-metadata';
 const { title } = Astro.props;
 const base = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/`;
 ---
@@ -9,14 +10,14 @@ const base = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/`;
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Synthetic Committer Insights report examples. Fictional data only; no sign-in or customer data." />
+    <meta name="description" content={`Synthetic ${PRODUCT.displayName} report examples. Fictional data only; no sign-in or customer data.`} />
     <meta name="referrer" content="no-referrer" />
-    <title>{title} | Committer Insights Demo</title>
+    <title>{title} | {PRODUCT.displayName} Demo</title>
   </head>
   <body>
     <a class="skip-link" href="#main-content">Skip to report</a>
     <header class="demo-header">
-      <a class="demo-brand" href={base}>Committer Insights</a>
+      <a class="demo-brand" href={base}>{PRODUCT.displayName}</a>
       <nav aria-label="Demo navigation">
         <a href={base}>Demo reports</a>
         <a href="https://github.com/ninjapaw/committer-insights/releases">Releases</a>

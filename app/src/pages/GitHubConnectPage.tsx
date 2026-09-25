@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { GitHubSignIn } from '../components/GitHubSignIn';
+import { PRODUCT } from '@ninjapaw/developer-usage-insights-metadata';
 
 export function GitHubConnectPage(): JSX.Element {
   const [acknowledged, setAcknowledged] = useState(false);
@@ -33,8 +34,8 @@ export function GitHubConnectPage(): JSX.Element {
           access
         </li>
         <li>
-          Committer Insights makes read-only reporting requests; it does not narrow the CLI token's
-          permissions
+          {PRODUCT.displayName} makes read-only reporting requests; it does not narrow the CLI
+          token's permissions
         </li>
         <li>Access is limited by your existing GitHub organization and enterprise permissions</li>
         <li>Organization and enterprise source discovery visible to your GitHub account</li>

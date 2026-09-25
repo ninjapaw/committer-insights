@@ -76,6 +76,9 @@ export function providerReport(report: Report, provider: MultiSource['provider']
           ...(provider === 'azure-devops' && report.insights.azureEstimates
             ? { azureEstimates: report.insights.azureEstimates }
             : {}),
+          ...(provider === 'azure-devops' && report.insights.azureEstimatedCommitters
+            ? { azureEstimatedCommitters: report.insights.azureEstimatedCommitters }
+            : {}),
           ...(provider === 'github' && report.insights.githubBilling
             ? { githubBilling: report.insights.githubBilling }
             : {}),

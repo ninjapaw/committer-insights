@@ -19,13 +19,13 @@ afterEach(() => {
 });
 describe('read-only reporting evidence', () => {
   it('accepts launch timezone options with precedence over environment and UTC defaults', () => {
-    vi.stubEnv('COMMITTER_INSIGHTS_TIMEZONE', undefined);
+    vi.stubEnv('DEVELOPER_USAGE_INSIGHTS_TIMEZONE', undefined);
     expect(parseLaunchOptions([])).toEqual({
       help: false,
       timeZone: 'UTC',
       skipUpdateCheck: false,
     });
-    vi.stubEnv('COMMITTER_INSIGHTS_TIMEZONE', 'Europe/London');
+    vi.stubEnv('DEVELOPER_USAGE_INSIGHTS_TIMEZONE', 'Europe/London');
     expect(parseLaunchOptions([]).timeZone).toBe('Europe/London');
     expect(parseLaunchOptions(['--timezone', 'America/Toronto']).timeZone).toBe('America/Toronto');
     expect(parseLaunchOptions(['--timezone=UTC']).timeZone).toBe('UTC');
@@ -40,7 +40,7 @@ describe('read-only reporting evidence', () => {
     ]) {
       expect(() => parseLaunchOptions(args)).toThrow();
     }
-    expect(process.env.COMMITTER_INSIGHTS_TIMEZONE).toBe('Europe/London');
+    expect(process.env.DEVELOPER_USAGE_INSIGHTS_TIMEZONE).toBe('Europe/London');
   });
   it('captures the runtime timezone per report and defaults invalid or missing settings to UTC', () => {
     const input = {
@@ -53,13 +53,13 @@ describe('read-only reporting evidence', () => {
       gitHubCommitters: [],
       warnings: [],
     };
-    vi.stubEnv('COMMITTER_INSIGHTS_TIMEZONE', undefined);
+    vi.stubEnv('DEVELOPER_USAGE_INSIGHTS_TIMEZONE', undefined);
     expect(saveReport(input).timeZone).toBe('UTC');
-    vi.stubEnv('COMMITTER_INSIGHTS_TIMEZONE', 'America/Toronto');
+    vi.stubEnv('DEVELOPER_USAGE_INSIGHTS_TIMEZONE', 'America/Toronto');
     const report = saveReport(input);
     expect(report.timeZone).toBe('America/Toronto');
     expect(report.generatedAt).toMatch(/Z$/);
-    vi.stubEnv('COMMITTER_INSIGHTS_TIMEZONE', 'Invalid/Zone');
+    vi.stubEnv('DEVELOPER_USAGE_INSIGHTS_TIMEZONE', 'Invalid/Zone');
     expect(saveReport(input).timeZone).toBe('UTC');
     expect(report.timeZone).toBe('America/Toronto');
   });

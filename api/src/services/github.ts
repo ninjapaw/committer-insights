@@ -233,6 +233,7 @@ export async function collectGitHub(
   source: GitHubSource,
   insights?: ReportInsights,
 ): Promise<GitHubCommitter[]> {
+  const branchScope = source.branchScope ?? 'all';
   const accessToken = await acquireGitHubToken();
   if (insights) await collectGitHubBilling(source, accessToken, insights);
   const hasBilling = insights?.githubBilling?.some(
@@ -290,6 +291,18 @@ export async function collectGitHub(
             repository,
             sinceDays: source.sinceDays,
             accessToken,
+            branchScope,
+            onCoverage: ({ branches, truncated }) => {
+              if (insights && truncated) {
+                insights.checks.push({
+                  provider: 'github',
+                  source: repository,
+                  dataset: 'Repository activity coverage',
+                  status: 'partial',
+                  detail: `Activity covered ${branches.length} branch${branches.length === 1 ? '' : 'es'} but reached the GitHub 10,000-commit pagination limit on at least one branch. Counts are lower bounds for the affected repository.`,
+                });
+              }
+            },
           });
           committers.push(...rows);
           successfulReads += 1;
@@ -297,6 +310,7 @@ export async function collectGitHub(
             const activity = {
               ...reportingWindow(source.sinceDays),
               status: 'complete' as const,
+              branches: branchScope === 'all' ? undefined : ['default'],
               daily: mergeDailyActivity(
                 ...rows
                   .filter((row) => !isExcludedGitHubCommitter(row))
@@ -367,8 +381,7 @@ export async function collectGitHub(
       )
         ? 'partial'
         : 'complete',
-      detail:
-        'Visible repositories only. Default-branch authored-date activity excludes Dependabot and GitHub Actions bots. Missing history is not zero activity.',
+      detail: `Visible repositories only. ${branchScope === 'all' ? 'All discovered branches are scanned and commits are deduplicated by SHA.' : 'Default-branch authored-date activity is selected.'} Dependabot and GitHub Actions bots are excluded. Missing history is not zero activity.`,
     });
     insights.checks.push({
       provider: 'github',

@@ -248,7 +248,14 @@ it('keeps a count-only Azure enablement estimate when the other product is denie
   };
   const access = emptyInsights();
   await expect(preflightAzureDevOps(source, access)).resolves.toBeUndefined();
-  expect(collectAzureRepositoryInsights).toHaveBeenCalledWith('example', 90, 'azure-token', access);
+  expect(collectAzureRepositoryInsights).toHaveBeenCalledWith(
+    'example',
+    90,
+    'azure-token',
+    access,
+    fetch,
+    'all',
+  );
   expect(access.checks).toContainEqual(
     expect.objectContaining({ dataset: 'Security estimates', status: 'partial' }),
   );
@@ -416,6 +423,8 @@ describe('GitHub report service', () => {
       repository: 'octocat/example',
       sinceDays: 30,
       accessToken: 'github-token',
+      branchScope: 'all',
+      onCoverage: expect.any(Function),
     });
     expect(acquireAzureDevOpsToken).not.toHaveBeenCalled();
     expect(report).toMatchObject({

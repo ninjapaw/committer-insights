@@ -34,6 +34,7 @@ import {
   discoverAzureDevOpsSources,
 } from './services/azure-devops.js';
 import { connectGitHub, createGitHubReport, discoverGitHubSources } from './services/github.js';
+import { PRODUCT } from '@ninjapaw/developer-usage-insights-metadata';
 
 const HOST = '127.0.0.1';
 const appRoot = resolve(process.cwd(), 'app/dist');
@@ -372,11 +373,11 @@ export async function startLocalServer(): Promise<Server> {
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('Unable to start local server.');
   const url = `http://${HOST}:${address.port}/#session=${encodeURIComponent(capability)}`;
-  if (process.env.COMMITTER_INSIGHTS_NO_BROWSER === 'true') {
-    process.stdout.write(`Committer Insights is running at ${url}\n`);
+  if (process.env.DEVELOPER_USAGE_INSIGHTS_NO_BROWSER === 'true') {
+    process.stdout.write(`${PRODUCT.displayName} is running at ${url}\n`);
   } else {
     openBrowser(url);
-    process.stdout.write(`Committer Insights opened at http://${HOST}:${address.port}/\n`);
+    process.stdout.write(`${PRODUCT.displayName} opened at http://${HOST}:${address.port}/\n`);
   }
 
   let closing = false;

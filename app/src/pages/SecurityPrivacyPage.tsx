@@ -1,3 +1,4 @@
+import { PRODUCT } from '@ninjapaw/developer-usage-insights-metadata';
 export function SecurityPrivacyPage(): JSX.Element {
   return (
     <section aria-labelledby="privacy-title">
@@ -22,7 +23,7 @@ export function SecurityPrivacyPage(): JSX.Element {
         sharing policies; missing billing access is not zero usage.
       </p>
       <p>
-        Committer Insights is an independent community tool. It is not a Microsoft or GitHub
+        {PRODUCT.displayName} is an independent community tool. It is not a Microsoft or GitHub
         product, assessment, endorsement, or official licensing source. Validate estimates,
         permissions, licensing implications, and generated output against official documentation
         before using them for business decisions.

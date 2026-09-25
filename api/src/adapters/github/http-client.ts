@@ -1,3 +1,5 @@
+import { PRODUCT } from '@ninjapaw/developer-usage-insights-metadata';
+
 export const API_ORIGIN = 'https://api.github.com';
 export const API_VERSION = '2022-11-28';
 export const MAX_PAGES = 100;
@@ -18,7 +20,7 @@ function headers(token: string, apiVersion: string): Record<string, string> {
     Authorization: `Bearer ${token}`,
     Accept: 'application/vnd.github+json',
     'X-GitHub-Api-Version': apiVersion,
-    'User-Agent': 'committer-insights',
+    'User-Agent': PRODUCT.slug,
   };
 }
 

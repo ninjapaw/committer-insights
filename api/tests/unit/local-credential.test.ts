@@ -75,7 +75,7 @@ describe('Explicit Azure CLI sign-in', () => {
     auth.disconnectMicrosoftAccount();
   });
   it('works without a publisher client ID, renews through CLI, and disposes on disconnect', async () => {
-    vi.stubEnv('COMMITTER_INSIGHTS_CLIENT_ID', '');
+    vi.stubEnv('DEVELOPER_USAGE_INSIGHTS_CLIENT_ID', '');
     bundled.authenticate.mockResolvedValue({
       username: 'cli@example.test',
       tenantId: 'test-tenant',
@@ -125,7 +125,7 @@ describe('Explicit Azure CLI sign-in', () => {
 
 describe('Microsoft device sign-in', () => {
   async function begin() {
-    vi.stubEnv('COMMITTER_INSIGHTS_CLIENT_ID', 'publisher-client');
+    vi.stubEnv('DEVELOPER_USAGE_INSIGHTS_CLIENT_ID', 'publisher-client');
     let complete!: (record: unknown) => void;
     let fail!: (error: Error) => void;
     credentials.authenticate.mockImplementation(
@@ -206,18 +206,20 @@ describe('Microsoft device sign-in', () => {
   });
 
   it('requires publisher configuration for device codes too', async () => {
-    vi.stubEnv('COMMITTER_INSIGHTS_CLIENT_ID', '');
+    vi.stubEnv('DEVELOPER_USAGE_INSIGHTS_CLIENT_ID', '');
     const { startDeviceSignIn } = await import('../../src/auth/local-credential.js');
-    expect(startDeviceSignIn).toThrow('publisher must configure COMMITTER_INSIGHTS_CLIENT_ID');
+    expect(startDeviceSignIn).toThrow(
+      'publisher must configure DEVELOPER_USAGE_INSIGHTS_CLIENT_ID',
+    );
     expect(credentials.device).not.toHaveBeenCalled();
   });
 });
 
 describe('Microsoft browser sign-in', () => {
   it('requests an account picker and connects directly using the selected account', async () => {
-    vi.stubEnv('COMMITTER_INSIGHTS_CLIENT_ID', 'publisher-client');
-    vi.stubEnv('COMMITTER_INSIGHTS_TENANT_ID', 'organizations');
-    vi.stubEnv('COMMITTER_INSIGHTS_REDIRECT_URI', 'http://localhost:8400');
+    vi.stubEnv('DEVELOPER_USAGE_INSIGHTS_CLIENT_ID', 'publisher-client');
+    vi.stubEnv('DEVELOPER_USAGE_INSIGHTS_TENANT_ID', 'organizations');
+    vi.stubEnv('DEVELOPER_USAGE_INSIGHTS_REDIRECT_URI', 'http://localhost:8400');
     credentials.getToken.mockResolvedValue({ token: 'test-token' });
     credentials.authenticate.mockResolvedValue({
       username: 'selected@example.test',
@@ -253,17 +255,17 @@ describe('Microsoft browser sign-in', () => {
   });
 
   it('reports missing publisher configuration rather than instructing users to run az login', async () => {
-    vi.stubEnv('COMMITTER_INSIGHTS_CLIENT_ID', '');
+    vi.stubEnv('DEVELOPER_USAGE_INSIGHTS_CLIENT_ID', '');
     const { signInWithBrowser } = await import('../../src/auth/local-credential.js');
     await expect(signInWithBrowser()).rejects.toThrow(
-      'publisher must configure COMMITTER_INSIGHTS_CLIENT_ID',
+      'publisher must configure DEVELOPER_USAGE_INSIGHTS_CLIENT_ID',
     );
     expect(credentials.browser).not.toHaveBeenCalled();
     expect(credentials.cli).not.toHaveBeenCalled();
   });
 
   it('preserves browser errors and rejects empty tokens without falling back to CLI', async () => {
-    vi.stubEnv('COMMITTER_INSIGHTS_CLIENT_ID', 'publisher-client');
+    vi.stubEnv('DEVELOPER_USAGE_INSIGHTS_CLIENT_ID', 'publisher-client');
     credentials.authenticate
       .mockRejectedValueOnce(new Error('Consent denied'))
       .mockResolvedValueOnce({ username: 'selected@example.test', tenantId: 'test-tenant' });
@@ -278,7 +280,7 @@ describe('Microsoft browser sign-in', () => {
 
   it('clears the previous account during a change and ignores completion after timeout', async () => {
     vi.useFakeTimers();
-    vi.stubEnv('COMMITTER_INSIGHTS_CLIENT_ID', 'publisher-client');
+    vi.stubEnv('DEVELOPER_USAGE_INSIGHTS_CLIENT_ID', 'publisher-client');
     credentials.authenticate.mockResolvedValue({
       username: 'wrong@example.test',
       tenantId: 'wrong-tenant',

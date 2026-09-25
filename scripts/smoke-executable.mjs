@@ -4,11 +4,12 @@ import { once } from 'node:events';
 import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
+import { PRODUCT } from '../packages/metadata/dist/index.js';
 
 const executable = join(
   resolve('.'),
   'release',
-  process.platform === 'win32' ? 'committer-insights.exe' : 'committer-insights',
+  process.platform === 'win32' ? `${PRODUCT.executableName}.exe` : PRODUCT.executableName,
 );
 for (const args of [
   ['--help'],
@@ -20,7 +21,7 @@ for (const args of [
   const result = spawnSync(executable, args, {
     encoding: 'utf8',
     timeout: 15_000,
-    env: { ...process.env, COMMITTER_INSIGHTS_NO_BROWSER: 'true' },
+    env: { ...process.env, DEVELOPER_USAGE_INSIGHTS_NO_BROWSER: 'true' },
   });
   const help = args[0] === '--help' || args[0] === '-h';
   if (
@@ -42,7 +43,7 @@ async function smokeStartup(args) {
       'committer-smoke-',
     ),
   );
-  const environment = { ...process.env, COMMITTER_INSIGHTS_NO_BROWSER: 'true' };
+  const environment = { ...process.env, DEVELOPER_USAGE_INSIGHTS_NO_BROWSER: 'true' };
   if (process.platform === 'win32') {
     for (const name of Object.keys(environment)) {
       if (
