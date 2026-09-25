@@ -74,9 +74,9 @@ if (process.platform === 'win32') {
   }
 }
 
-// macOS requires the copied Node binary to be signed before postject injection and resigned afterward.
+// postject must inject into an unsigned host; macOS then requires the injected binary to be signed.
 if (process.platform === 'darwin') {
-  execFileSync('codesign', ['--force', '--sign', '-', '--timestamp=none', executablePath], {
+  execFileSync('codesign', ['--remove-signature', executablePath], {
     stdio: 'inherit',
   });
 }
