@@ -55,6 +55,8 @@ CLI updates are a publisher responsibility: review upstream changes, verify the 
 
 ## Bundled Azure CLI
 
+Interactive `login` must use `windowsHide: false`. The pinned CLI passes MSAL's `CONSOLE_WINDOW_HANDLE` as the WAM dialog parent; Node's hidden piped subprocess has no console handle on Windows. Version checks and token requests remain hidden. The Windows packaging regression checks native console-handle availability without initiating authentication, and authentication unit tests enforce command-specific visibility. Beta.12 includes this correction; a live account-picker check is still required on the affected workstation.
+
 CLI login enables Windows Web Account Manager through `AZURE_CORE_ENABLE_BROKER_ON_WINDOWS=true`, with no `--use-device-code`, username or password arguments. Azure CLI 2.90.0's interactive flow requests `prompt=select_account`, opening Microsoft's account picker. User credentials remain in Microsoft's UI. `AZURE_CORE_LOGIN_EXPERIENCE_V2=off` disables only the terminal subscription selector, not modern authentication. Any browser/device fallback belongs to the CLI; the existing challenge parser still handles supported device messages. Sign-in retains the ten-minute deadline and cancellation; the SDK's explicit device-code option remains unchanged. See [Microsoft's interactive login guidance](https://learn.microsoft.com/cli/azure/authenticate-azure-cli-interactively).
 
 [config/azure-cli.json](../config/azure-cli.json) pins the official Windows x64 ZIP, version 2.90.0, and the SHA-256 measured from its Microsoft-hosted HTTPS download. The portable ZIP is documented by Microsoft as preview. Preserve the entire distribution, including Python and all dependency licenses. The build verifies the pin, bounds archive entries and expanded size, rejects unsafe/duplicate/link paths, inventories every runtime file, and checks the CLI version. No global installation or PATH change is performed.
@@ -110,7 +112,7 @@ Missing quantities stay unavailable; explicit zero is valid. Basic has a separat
 
 ### Acceptance Notes (2026-09-24)
 
-- Run `npm run ci` for formatting, lint, typechecks, all 266 current automated tests, executable packaging, the upgrade-handoff regression and isolated bundled-CLI smoke checks.
+- Run `npm run ci` for formatting, lint, typechecks, all 267 current automated tests, executable packaging, the Windows console-parent and upgrade-handoff regressions and isolated bundled-CLI smoke checks.
 - Run `npm run demo:test` for deterministic synthetic CSV/HTML/PDF generation, desktop/mobile results, downloads, partial/empty reports and network isolation. Fixture version 5 includes other-service what-if calculations.
 - Account selection is configured through the pinned CLI's WAM flow; automated tests do not approve a real account or establish customer Conditional Access compatibility. App cache cleanup does not remove Windows broker credentials.
 - Billing tests use synthetic responses. No invoice reconciliation, tenant-wide entitlement inventory or future-charge guarantee is implied. The additional service quantities are manual planning inputs, not collected usage.

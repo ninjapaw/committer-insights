@@ -112,6 +112,13 @@ Reports can contain organization and repository identifiers, project metadata, c
 
 The local server binds to loopback and requires a per-launch session credential. It is not designed to protect against a compromised computer, same-user malware, or privileged browser extensions. Do not share local session URLs or device codes. Report vulnerabilities privately through [SECURITY.md](SECURITY.md), not public issues.
 
+## What's New in Beta.12
+
+- Microsoft sign-in no longer hides the interactive CLI console that Windows Web Account Manager uses to parent its account picker. Background version and token requests remain hidden.
+- Added authentication regressions and a native Windows check confirming the console handle is available for interactive subprocesses. WAM, tenant policy, credential isolation and cancellation remain unchanged.
+
+All 267 automated tests and Windows packaging checks pass. Live account selection on the affected workstation remains unverified. Cancel any pending sign-in, close the old app and open the new executable before retrying. See [beta.12 release notes](https://github.com/ninjapaw/committer-insights/releases/tag/v0.1.0-beta.12). This remains an unsigned evaluation prerelease.
+
 ## What's New in Beta.11
 
 - Upgrade handoffs keep the launcher and upgraded application attached to the same console instead of detaching a hidden child and exiting immediately.

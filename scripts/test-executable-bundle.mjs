@@ -74,6 +74,24 @@ process.stdout.write(
 );
 
 if (process.platform === 'win32') {
+  const powershell = join(process.env.SystemRoot, 'System32/WindowsPowerShell/v1.0/powershell.exe');
+  const consoleProbe = `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class ConsoleProbe { [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow(); }'; [ConsoleProbe]::GetConsoleWindow().ToInt64()`;
+  for (const windowsHide of [true, false]) {
+    const handle = Number(
+      require('node:child_process')
+        .execFileSync(powershell, ['-NoProfile', '-NonInteractive', '-Command', consoleProbe], {
+          windowsHide,
+          encoding: 'utf8',
+          timeout: 20000,
+        })
+        .trim(),
+    );
+    assert.equal(Number.isSafeInteger(handle), true);
+    assert.equal(handle !== 0, !windowsHide);
+  }
+  process.stdout.write(
+    'Windows console-parent regression passed: hidden piped children lack the console handle required by CLI WAM; interactive children retain it. No login requested.\n',
+  );
   const sandbox = await mkdtemp(join(tmpdir(), 'committer-upgrade-handoff-'));
   let upgraded;
   let running;

@@ -72,7 +72,7 @@ export function createAzureCliSignIn(signal: AbortSignal) {
         {
           env: environment,
           cwd: directory,
-          windowsHide: true,
+          windowsHide: args[0] !== 'login',
           timeout: onOutput ? 600000 : 60000,
           maxBuffer: 4 * 1024 * 1024,
           encoding: 'utf8',

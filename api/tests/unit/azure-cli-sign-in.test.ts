@@ -59,6 +59,8 @@ describe('isolated Azure CLI authentication', () => {
       tenantId: tenant,
     });
     expect(challenge).not.toHaveBeenCalled();
+    expect(mocks.execute.mock.calls[0]![2].windowsHide).toBe(false);
+    expect(mocks.execute.mock.calls[1]![2].windowsHide).toBe(true);
     expect(mocks.execute.mock.calls[0]![2].env.AZURE_CORE_ENABLE_BROKER_ON_WINDOWS).toBe('true');
     expect(mocks.execute.mock.calls[0]![2].env.AZURE_CORE_LOGIN_EXPERIENCE_V2).toBe('off');
     expect(mocks.execute.mock.calls[0]![1]).not.toContain('--use-device-code');
@@ -73,6 +75,11 @@ describe('isolated Azure CLI authentication', () => {
     expect(
       parseAzureCliChallenge('https://microsoft.com/devicelogin enter the code ABCD1234'),
     ).toEqual({ userCode: 'ABCD1234', verificationUri: 'https://microsoft.com/devicelogin' });
+  });
+  it('keeps read-only version checks hidden', async () => {
+    const session = setup([JSON.stringify({ 'azure-cli': '2.90.0' })]);
+    expect(await session.version()).toBe('2.90.0');
+    expect(mocks.execute.mock.calls[0]![2].windowsHide).toBe(true);
   });
   it('uses the exact runtime, isolated environment and tenant-bound token renewal, then removes its cache', async () => {
     vi.stubEnv('AZURE_CONFIG_DIR', 'do-not-use');
