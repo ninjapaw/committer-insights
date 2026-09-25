@@ -61,6 +61,24 @@ function release(tag: string, date: string): PublishedRelease {
 }
 
 describe('release update metadata', () => {
+  it.each([
+    [undefined, false],
+    ['', false],
+    ['true', false],
+    ['false', true],
+    [' FALSE ', true],
+  ] as const)('resolves automatic updates from environment %s', (value, skipped) => {
+    vi.stubEnv('COMMITTER_INSIGHTS_AUTO_UPDATE', value);
+    expect(parseLaunchOptions([]).skipUpdateCheck).toBe(skipped);
+    expect(parseLaunchOptions(['--skip-update-check']).skipUpdateCheck).toBe(true);
+  });
+
+  it('rejects ambiguous updater values without preventing help', () => {
+    vi.stubEnv('COMMITTER_INSIGHTS_AUTO_UPDATE', 'off');
+    expect(() => parseLaunchOptions([])).toThrow('Use true or false');
+    expect(parseLaunchOptions(['--help']).help).toBe(true);
+  });
+
   it('checks releases by default and requires an explicit offline override', () => {
     expect(parseLaunchOptions([]).skipUpdateCheck).toBe(false);
     expect(parseLaunchOptions(['--skip-update-check', '--timezone', 'UTC'])).toMatchObject({

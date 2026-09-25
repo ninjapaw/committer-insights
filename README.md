@@ -149,6 +149,15 @@ Startup stops if the newest release cannot be confirmed or verified. To delibera
 .\committer-insights.exe --skip-update-check
 ```
 
+Alternatively, control automatic updates through the launch environment:
+
+```powershell
+$env:COMMITTER_INSIGHTS_AUTO_UPDATE = 'false'
+.\committer-insights.exe
+```
+
+`COMMITTER_INSIGHTS_AUTO_UPDATE` defaults to `true` when unset or blank. It accepts `true` or `false` (case-insensitive, surrounding whitespace ignored); other values stop startup with an error. Set it back to `true` or remove the variable to restore checks. The PowerShell example affects this shell and its child processes only. `--skip-update-check` always disables checks for that launch, even when the variable is `true`. This controls the packaged Windows startup updater, not a background Windows service; it does not change download verification or provider collection.
+
 This does not make provider sign-in or collection available offline. Use `--help` to view options without contacting GitHub. For changes and previous versions, see [release notes](https://github.com/ninjapaw/committer-insights/releases).
 
 ## Troubleshooting

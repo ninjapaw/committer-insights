@@ -6,6 +6,7 @@ const startup = vi.hoisted(() => ({
   update: vi.fn(),
   sea: true,
   help: false,
+  skipUpdateCheck: false,
 }));
 vi.mock('node:sea', () => ({ isSea: () => startup.sea }));
 vi.mock('../../src/auth/azure-cli-binary.js', () => ({ prepareAzureCli: startup.prepare }));
@@ -13,7 +14,11 @@ vi.mock('../../src/local-server.js', () => ({ startLocalServer: startup.server }
 vi.mock('../../src/release-updater.js', () => ({ launchLatestRelease: startup.update }));
 vi.mock('../../src/cli.js', () => ({
   launchHelp: 'help',
-  parseLaunchOptions: () => ({ help: startup.help, timeZone: 'UTC', skipUpdateCheck: false }),
+  parseLaunchOptions: () => ({
+    help: startup.help,
+    timeZone: 'UTC',
+    skipUpdateCheck: startup.skipUpdateCheck,
+  }),
 }));
 
 afterEach(() => {
@@ -22,9 +27,17 @@ afterEach(() => {
   vi.resetModules();
   startup.sea = true;
   startup.help = false;
+  startup.skipUpdateCheck = false;
 });
 
 describe('application startup preparation', () => {
+  it('starts the installed application without calling the updater when disabled', async () => {
+    startup.skipUpdateCheck = true;
+    startup.sea = false;
+    await import('../../src/index.js');
+    await vi.waitFor(() => expect(startup.server).toHaveBeenCalledOnce());
+    expect(startup.update).not.toHaveBeenCalled();
+  });
   it.skipIf(process.platform !== 'win32')(
     'prepares before opening the app without signing in',
     async () => {

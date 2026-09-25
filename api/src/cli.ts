@@ -11,6 +11,11 @@ export const launchHelp = `Usage: committer-insights [--timezone <IANA timezone>
                      Run this installed copy without checking GitHub releases.
                      Use only for offline access, recovery, or local testing.
 
+Environment:
+  COMMITTER_INSIGHTS_AUTO_UPDATE=true|false
+                     Default: true. Set false to disable startup update checks.
+                     --skip-update-check always skips checks for this launch.
+
 CSV timestamps and collection windows remain UTC.
 Windows executables check for the newest published release, including betas, before startup.
 `;
@@ -31,6 +36,10 @@ export function parseLaunchOptions(args: string[]): {
     allowPositionals: false,
   });
   let timeZone = config.report.timeZone();
+  const autoUpdate = process.env.COMMITTER_INSIGHTS_AUTO_UPDATE?.trim().toLowerCase() || 'true';
+  if (!values.help && !['true', 'false'].includes(autoUpdate)) {
+    throw new Error('Invalid COMMITTER_INSIGHTS_AUTO_UPDATE. Use true or false.');
+  }
   if (values.timezone !== undefined) {
     const requested = values.timezone.trim();
     try {
@@ -44,6 +53,6 @@ export function parseLaunchOptions(args: string[]): {
   return {
     help: values.help ?? false,
     timeZone,
-    skipUpdateCheck: values['skip-update-check'] ?? false,
+    skipUpdateCheck: values['skip-update-check'] === true || autoUpdate === 'false',
   };
 }
