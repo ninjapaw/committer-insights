@@ -125,16 +125,11 @@ describe('isolated Azure CLI authentication', () => {
     expect(challenge).toHaveBeenCalledWith(expect.objectContaining({ userCode: 'TEST12345' }));
     const call = mocks.execute.mock.calls[0]!;
     expect(call[0]).toBe('C:/private-tools/python.exe');
-    expect(call[1]).toEqual([
-      '-I',
-      '-B',
-      '-m',
-      'azure.cli',
-      'login',
-      '--allow-no-subscriptions',
-      '--output',
-      'json',
-    ]);
+    expect(call[1]).toEqual(
+      process.platform === 'win32'
+        ? ['-I', '-B', '-m', 'azure.cli', 'login', '--allow-no-subscriptions', '--output', 'json']
+        : ['login', '--allow-no-subscriptions', '--output', 'json'],
+    );
     expect(call[2].env.AZURE_CONFIG_DIR).not.toBe('do-not-use');
     expect(call[1]).not.toContain('--username');
     expect(call[1]).not.toContain('--password');

@@ -117,7 +117,9 @@ describe('Explicit Azure CLI sign-in', () => {
     const state = auth.startAzureCliSignIn();
     await vi.waitFor(() => expect(auth.getDeviceSignIn(state.id)?.status).toBe('failed'));
     expect(JSON.stringify(auth.getDeviceSignIn(state.id))).not.toContain('private token');
-    expect(auth.getDeviceSignIn(state.id)?.message).toContain('Restart the app to prepare it');
+    expect(auth.getDeviceSignIn(state.id)?.message).toContain(
+      process.platform === 'win32' ? 'Restart the app to prepare it' : 'Install Azure CLI',
+    );
     expect(bundled.dispose).toHaveBeenCalled();
     expect(credentials.browser).not.toHaveBeenCalled();
   });

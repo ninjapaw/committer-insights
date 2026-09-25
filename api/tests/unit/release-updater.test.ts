@@ -13,6 +13,10 @@ import {
   type PublishedRelease,
 } from '../../src/release-updater.js';
 import { parseLaunchOptions } from '../../src/cli.js';
+import { PRODUCT } from '@ninjapaw/developer-usage-insights-metadata';
+
+const testExecutableName =
+  process.platform === 'win32' ? `${PRODUCT.executableName}.exe` : PRODUCT.executableName;
 
 const temporaryDirectories: string[] = [];
 const launch = vi.hoisted(() => vi.fn());
@@ -39,7 +43,7 @@ async function setupDownload() {
   const fetchMock = vi.fn(async (url: URL) => {
     if (url.hostname === 'api.github.com') return Response.json([candidate]);
     if (url.pathname.endsWith('SHA256SUMS.txt'))
-      return new Response(`${checksum}  developer-usage-insights.exe\n`);
+      return new Response(`${checksum}  ${testExecutableName}\n`);
     return new Response(content);
   });
   vi.stubGlobal('fetch', fetchMock);
@@ -51,7 +55,7 @@ function release(tag: string, date: string): PublishedRelease {
     tag_name: tag,
     published_at: date,
     draft: false,
-    assets: ['developer-usage-insights.exe', 'SHA256SUMS.txt'].map((name) => ({
+    assets: [testExecutableName, 'SHA256SUMS.txt'].map((name) => ({
       name,
       state: 'uploaded',
       size: 100,
@@ -107,7 +111,7 @@ describe('release update metadata', () => {
 
   it('rejects untrusted download URLs, duplicate assets, unsafe tags and oversized binaries', () => {
     const candidate = release('v0.1.0-beta.7', '2026-09-24');
-    candidate.assets[0]!.browser_download_url = 'https://example.test/developer-usage-insights.exe';
+    candidate.assets[0]!.browser_download_url = `https://example.test/${testExecutableName}`;
     expect(() => latestRelease([candidate])).toThrow('no valid');
     const duplicate = release('v0.1.0', '2026-09-24');
     duplicate.assets.push(duplicate.assets[0]!);
@@ -120,12 +124,12 @@ describe('release update metadata', () => {
 
   it('requires exactly one checksum for the Windows executable', () => {
     const checksum = 'a'.repeat(64);
-    expect(executableChecksum(`${checksum}  developer-usage-insights.exe\r\n`)).toBe(checksum);
+    expect(executableChecksum(`${checksum}  ${testExecutableName}\r\n`)).toBe(checksum);
     expect(() => executableChecksum(`${checksum}  different.exe`)).toThrow('missing');
     expect(() =>
-      executableChecksum(`${checksum}  developer-usage-insights.exe\n`.repeat(2)),
+      executableChecksum(`${checksum}  ${testExecutableName}\n`.repeat(2)),
     ).toThrow('ambiguous');
-    expect(() => executableChecksum('not-a-hash  developer-usage-insights.exe')).toThrow('missing');
+    expect(() => executableChecksum(`not-a-hash  ${testExecutableName}`)).toThrow('missing');
   });
 });
 
@@ -235,7 +239,7 @@ describe('verified release cache', () => {
     fixture.fetchMock.mockImplementation(async (url: URL) => {
       if (url.hostname === 'api.github.com') return Response.json([fixture.candidate]);
       if (url.pathname.endsWith('SHA256SUMS.txt'))
-        return new Response(`${fixture.checksum}  developer-usage-insights.exe\n`);
+        return new Response(`${fixture.checksum}  ${testExecutableName}\n`);
       return new Response(Buffer.alloc(fixture.content.length));
     });
     await expect(prepareLatestRelease(fixture.executable, fixture.cache)).rejects.toThrow(
