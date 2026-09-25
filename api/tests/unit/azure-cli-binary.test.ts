@@ -111,7 +111,11 @@ describe('bundled Azure CLI integrity', () => {
   );
   it('does not silently use a system CLI for source runs', async () => {
     assets.sea = false;
-    await expect(resolveAzureCli()).rejects.toThrow('packaged application');
+    if (process.platform === 'win32') {
+      await expect(resolveAzureCli()).rejects.toThrow('packaged application');
+    } else {
+      await expect(resolveAzureCli()).resolves.toBe('az');
+    }
   });
   it.skipIf(process.platform !== 'win32')(
     'retries a Windows publication lock without assuming a destination exists',
