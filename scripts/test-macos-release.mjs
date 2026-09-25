@@ -37,6 +37,9 @@ if (
       throw new Error(`macOS app metadata is missing ${value}.`);
   }
   await access(join(app, 'Contents', 'Resources', `${PRODUCT.iconName}.icns`), constants.R_OK);
+  const appHelp = execFileSync(appExecutable, ['--help'], { encoding: 'utf8' });
+  if (!appHelp.includes('--timezone <IANA timezone>'))
+    throw new Error('macOS app bundle launcher did not start the application.');
   try {
     execFileSync('codesign', ['--verify', '--deep', '--strict', app], { stdio: 'inherit' });
   } catch {

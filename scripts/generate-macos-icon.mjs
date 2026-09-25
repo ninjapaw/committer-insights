@@ -39,9 +39,11 @@ function png(size) {
   // Generate deterministic branded artwork from shared product metadata for every icon scale.
   const pixels = Buffer.alloc(size * size * 4);
   const radius = size * 0.2;
-  const center = size / 2;
-  const maxDistance = size * 0.44;
-  const barWidth = size * 0.12;
+  const chartLeft = size * 0.23;
+  const chartBottom = size * 0.75;
+  const barWidth = size * 0.13;
+  const barGap = size * 0.08;
+  const barHeights = [0.28, 0.48, 0.68];
 
   for (let y = 0; y < size; y += 1) {
     for (let x = 0; x < size; x += 1) {
@@ -56,9 +58,21 @@ function png(size) {
       pixels[pixel + 2] = Math.round(colors[0][2] * (1 - blend) + colors[1][2] * blend);
       pixels[pixel + 3] = rounded ? 255 : 0;
 
-      const distance = Math.hypot(x - center, y - center);
-      const diagonal = Math.abs(x - y) < barWidth || Math.abs(x + y - size) < barWidth;
-      if (rounded && distance < maxDistance && diagonal) {
+      const barIndex = Math.floor((x - chartLeft) / (barWidth + barGap));
+      const barStart = chartLeft + barIndex * (barWidth + barGap);
+      const isBar =
+        barIndex >= 0 &&
+        barIndex < barHeights.length &&
+        x >= barStart &&
+        x <= barStart + barWidth &&
+        y >= chartBottom - size * barHeights[barIndex] &&
+        y <= chartBottom;
+      const isBaseline =
+        x >= chartLeft &&
+        x <= chartLeft + barHeights.length * barWidth + (barHeights.length - 1) * barGap &&
+        y >= chartBottom &&
+        y <= chartBottom + size * 0.06;
+      if (rounded && (isBar || isBaseline)) {
         pixels[pixel] = 255;
         pixels[pixel + 1] = 255;
         pixels[pixel + 2] = 255;

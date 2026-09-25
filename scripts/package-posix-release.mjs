@@ -47,7 +47,28 @@ if (platform === 'darwin') {
   const launcher = join(appRoot, 'Contents', 'MacOS', PRODUCT.executableName);
   await writeFile(
     launcher,
-    `#!/bin/sh\nset -eu\nRESOURCE_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/../Resources" && pwd)"\ncd "$RESOURCE_DIR"\nexec /usr/bin/env node "$RESOURCE_DIR/${PRODUCT.executableName}.cjs" "$@"\n`,
+    `#!/bin/sh
+set -eu
+RESOURCE_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/../Resources" && pwd)"
+NODE_BIN=""
+if command -v node >/dev/null 2>&1; then
+  NODE_BIN="$(command -v node)"
+else
+  for candidate in /opt/homebrew/bin/node /usr/local/bin/node /usr/bin/node "$HOME"/.nvm/versions/node/*/bin/node "$HOME"/.local/share/mise/installs/node/*/bin/node; do
+    if [ -x "$candidate" ]; then
+      NODE_BIN="$candidate"
+      break
+    fi
+  done
+fi
+if [ -z "$NODE_BIN" ]; then
+  /usr/bin/osascript -e 'display dialog "Node.js is required to launch Developer Usage Insights. Install Node.js 24.19.0, then try again." with title "Developer Usage Insights" buttons {"OK"} default button "OK"'
+  exit 1
+fi
+export PATH="$(dirname "$NODE_BIN"):/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+cd "$RESOURCE_DIR"
+exec "$NODE_BIN" "$RESOURCE_DIR/${PRODUCT.executableName}.cjs" "$@"
+`,
   );
   await chmod(launcher, 0o755);
   await writeFile(
