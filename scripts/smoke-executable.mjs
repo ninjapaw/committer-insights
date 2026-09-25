@@ -32,7 +32,9 @@ for (const args of [
       : !result.stderr.includes('--timezone')) ||
     result.stdout.includes('http://127.0.0.1:')
   ) {
-    throw new Error('Executable launch-option validation failed.');
+    throw new Error(
+      `Executable launch-option validation failed for ${args.join(' ')}: status=${result.status}, error=${result.error?.message ?? 'none'}, stdout=${result.stdout}, stderr=${result.stderr}`,
+    );
   }
 }
 
