@@ -74,6 +74,13 @@ if (process.platform === 'win32') {
   }
 }
 
+// macOS requires the copied Node binary to be signed before postject injection and resigned afterward.
+if (process.platform === 'darwin') {
+  execFileSync('codesign', ['--force', '--sign', '-', '--timestamp=none', executablePath], {
+    stdio: 'inherit',
+  });
+}
+
 const postjectCli = join(root, 'node_modules/postject/dist/cli.js');
 execFileSync(
   process.execPath,
