@@ -5,6 +5,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { getAsset, isSea } from 'node:sea';
 import { promisify } from 'node:util';
+import { setTimeout as delay } from 'node:timers/promises';
 
 const execute = promisify(execFile);
 const digest = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
@@ -119,12 +120,26 @@ export async function resolveAzureCli(signal?: AbortSignal): Promise<string> {
         },
       );
       await verify(runtime, manifest.files);
-      try {
-        await rename(runtime, directory);
-      } catch (error) {
-        if (!['EEXIST', 'ENOTEMPTY', 'EPERM'].includes((error as NodeJS.ErrnoException).code ?? ''))
-          throw error;
-        await verify(directory, manifest.files);
+      for (let attempt = 0; ; attempt++) {
+        signal?.throwIfAborted();
+        try {
+          await rename(runtime, directory);
+          break;
+        } catch (error) {
+          const code = (error as NodeJS.ErrnoException).code;
+          if (!['EEXIST', 'ENOTEMPTY', 'EPERM', 'EACCES', 'EBUSY'].includes(code ?? ''))
+            throw error;
+          const destination = await lstat(directory).catch((lookupError: NodeJS.ErrnoException) => {
+            if (lookupError.code !== 'ENOENT') throw lookupError;
+            return undefined;
+          });
+          if (destination) {
+            await verify(directory, manifest.files);
+            break;
+          }
+          if (attempt >= 9) throw error;
+          await delay(500, undefined, { signal });
+        }
       }
     } finally {
       await rm(staging, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });

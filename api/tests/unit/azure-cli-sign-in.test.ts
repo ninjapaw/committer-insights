@@ -13,7 +13,7 @@ afterEach(() => {
   vi.resetAllMocks();
   vi.unstubAllEnvs();
 });
-function setup(outputs: Array<string | Error>, browserPrompt = false) {
+function setup(outputs: Array<string | Error>, browserPrompt = false, onReady?: () => void) {
   mocks.resolve.mockResolvedValue('C:/private-tools/python.exe');
   mocks.execute.mockImplementation((_path, _args, _options, callback) => {
     const child = new EventEmitter() as EventEmitter & {
@@ -36,12 +36,21 @@ function setup(outputs: Array<string | Error>, browserPrompt = false) {
     });
     return child;
   });
-  const session = createAzureCliSignIn(new AbortController().signal);
+  const session = createAzureCliSignIn(new AbortController().signal, onReady);
   sessions.push(session);
   return session;
 }
 describe('isolated Azure CLI authentication', () => {
+  it('does not report account selection or launch login when runtime preparation fails', async () => {
+    const ready = vi.fn();
+    const session = setup([], false, ready);
+    mocks.resolve.mockRejectedValue(new Error('runtime unavailable'));
+    await expect(session.authenticate(vi.fn())).rejects.toThrow('runtime unavailable');
+    expect(ready).not.toHaveBeenCalled();
+    expect(mocks.execute).not.toHaveBeenCalled();
+  });
   it('uses modern Windows account selection without forcing a device challenge', async () => {
+    const ready = vi.fn();
     const session = setup(
       [
         JSON.stringify([{ tenantId: tenant, user: { type: 'user', name: 'person@example.test' } }]),
@@ -52,6 +61,7 @@ describe('isolated Azure CLI authentication', () => {
         }),
       ],
       true,
+      ready,
     );
     const challenge = vi.fn();
     expect(await session.authenticate(challenge)).toEqual({
@@ -59,6 +69,7 @@ describe('isolated Azure CLI authentication', () => {
       tenantId: tenant,
     });
     expect(challenge).not.toHaveBeenCalled();
+    expect(ready).toHaveBeenCalledOnce();
     expect(mocks.execute.mock.calls[0]![2].windowsHide).toBe(false);
     expect(mocks.execute.mock.calls[1]![2].windowsHide).toBe(true);
     expect(mocks.execute.mock.calls[0]![2].env.AZURE_CORE_ENABLE_BROKER_ON_WINDOWS).toBe('true');

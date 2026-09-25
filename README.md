@@ -26,6 +26,8 @@ Beta.10 Windows builds include Node.js, GitHub CLI, and Azure CLI. No separate r
 
 ## Sign In
 
+Beta.13 fixes runtime-cache publication failures that could prevent Microsoft login from starting. Temporary Windows file locks receive bounded retries without weakening integrity checks. The app now distinguishes runtime preparation from account selection and reports preparation failures explicitly. Cancel any pending sign-in and restart with [beta.13](https://github.com/ninjapaw/committer-insights/releases/tag/v0.1.0-beta.13). Live account-picker confirmation on the affected workstation remains pending.
+
 This section describes beta.10. Beta.9 exposed Azure CLI as a separate option; upgrade to beta.10 for the default modern Microsoft account picker.
 
 **Microsoft (Windows package):** **Sign in with Microsoft** and **Change account** use bundled Azure CLI 2.90.0 with Windows Web Account Manager (WAM) enabled. Microsoft's modern account picker lets you choose a Windows account or sign in with another account; the application never requests your password. The CLI requests account selection rather than supplying a username. Device-code authentication is not forced; any browser or device fallback is controlled by the CLI, not an automatic SDK retry. There is no separate Azure CLI button and no publisher application ID is required for this default path. First use extracts and verifies the runtime; allow additional startup time and about 275 MB of tool-cache space.

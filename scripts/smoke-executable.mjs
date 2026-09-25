@@ -36,7 +36,12 @@ for (const args of [
 }
 
 async function smokeStartup(args) {
-  const sandbox = await mkdtemp(join(tmpdir(), 'committer-smoke-'));
+  const sandbox = await mkdtemp(
+    join(
+      process.platform === 'win32' ? process.env.LOCALAPPDATA || tmpdir() : tmpdir(),
+      'committer-smoke-',
+    ),
+  );
   const environment = { ...process.env, COMMITTER_INSIGHTS_NO_BROWSER: 'true' };
   if (process.platform === 'win32') {
     for (const name of Object.keys(environment)) {

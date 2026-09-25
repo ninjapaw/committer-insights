@@ -99,7 +99,17 @@ export function disconnectMicrosoftAccount(): void {
 
 export function startAzureCliSignIn(): DeviceSignInState {
   const { attempt, expiresOnTimestamp } = createSignInAttempt();
-  const session = createAzureCliSignIn(attempt.controller.signal);
+  let preparing = true;
+  attempt.state.message = 'Preparing Microsoft sign-in runtime...';
+  const session = createAzureCliSignIn(attempt.controller.signal, () => {
+    if (deviceAttempt !== attempt || attempt.state.status !== 'pending') return;
+    preparing = false;
+    attempt.state = {
+      id: attempt.id,
+      status: 'pending',
+      message: 'Waiting for Microsoft account selection...',
+    };
+  });
   attempt.dispose = () => session.dispose();
   void session
     .authenticate((challenge) => {
@@ -117,8 +127,9 @@ export function startAzureCliSignIn(): DeviceSignInState {
       attempt.state = {
         id: attempt.id,
         status: 'failed',
-        message:
-          'Azure CLI sign-in failed. Use the Windows x64 package and retry, or ask your administrator to review CLI access and interactive sign-in policy. No SDK fallback was attempted.',
+        message: preparing
+          ? 'Microsoft sign-in could not prepare its bundled runtime. Retry; if this persists, ask your administrator to review local file access and endpoint protection. No account sign-in was started.'
+          : 'Azure CLI sign-in failed. Use the Windows x64 package and retry, or ask your administrator to review CLI access and interactive sign-in policy. No SDK fallback was attempted.',
       };
     })
     .finally(() => clearTimeout(attempt.timer));

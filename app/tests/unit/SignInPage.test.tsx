@@ -73,14 +73,30 @@ function renderPage(initialEntry: string) {
 
 describe('SignInPage', () => {
   it('uses the default Microsoft action for CLI account selection and preserves cancellation', async () => {
-    vi.mocked(connectAzure).mockResolvedValue({ id: pending.id, status: 'pending' });
-    vi.mocked(getDeviceSignIn).mockResolvedValue({ id: pending.id, status: 'pending' });
+    const preparing = {
+      id: pending.id,
+      status: 'pending' as const,
+      message: 'Preparing Microsoft sign-in runtime...',
+    };
+    vi.mocked(connectAzure).mockResolvedValue(preparing);
+    vi.mocked(getDeviceSignIn).mockResolvedValue(preparing);
     vi.mocked(cancelDeviceSignIn).mockResolvedValue({ id: pending.id, status: 'canceled' });
-    renderPage('/sign-in');
+    const { client } = renderPage('/sign-in');
     expect(
       screen.queryByRole('button', { name: 'Sign in with Azure CLI' }),
     ).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Sign in with Microsoft' }));
+    await screen.findByText(preparing.message);
+    expect(
+      screen.queryByText('Waiting for Microsoft account selection...'),
+    ).not.toBeInTheDocument();
+    vi.mocked(getDeviceSignIn).mockResolvedValue({
+      ...preparing,
+      message: 'Waiting for Microsoft account selection...',
+    });
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: ['microsoft-device-sign-in'] });
+    });
     await screen.findByText('Waiting for Microsoft account selection...');
     expect(screen.queryByLabelText('Device sign-in code')).not.toBeInTheDocument();
     expect(connectAzure).toHaveBeenCalledOnce();

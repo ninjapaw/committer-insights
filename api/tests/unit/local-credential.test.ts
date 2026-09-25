@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createAzureCliSignIn } from '../../src/auth/azure-cli-sign-in.js';
 
 const credentials = vi.hoisted(() => ({
   getToken: vi.fn(),
@@ -45,6 +46,21 @@ afterEach(() => {
 });
 
 describe('Explicit Azure CLI sign-in', () => {
+  it('reports preparation before account selection and ignores late progress after cancellation', async () => {
+    bundled.authenticate.mockImplementation(() => new Promise(() => undefined));
+    const auth = await import('../../src/auth/local-credential.js');
+    const state = auth.startAzureCliSignIn();
+    expect(state.message).toBe('Preparing Microsoft sign-in runtime...');
+    const ready = vi.mocked(createAzureCliSignIn).mock.calls[0]![1]!;
+    ready();
+    expect(auth.getDeviceSignIn(state.id)?.message).toBe(
+      'Waiting for Microsoft account selection...',
+    );
+    auth.cancelDeviceSignIn(state.id);
+    ready();
+    expect(auth.getDeviceSignIn(state.id)?.status).toBe('canceled');
+    auth.disconnectMicrosoftAccount();
+  });
   it('works without a publisher client ID, renews through CLI, and disposes on disconnect', async () => {
     vi.stubEnv('COMMITTER_INSIGHTS_CLIENT_ID', '');
     bundled.authenticate.mockResolvedValue({
@@ -88,6 +104,9 @@ describe('Explicit Azure CLI sign-in', () => {
     const state = auth.startAzureCliSignIn();
     await vi.waitFor(() => expect(auth.getDeviceSignIn(state.id)?.status).toBe('failed'));
     expect(JSON.stringify(auth.getDeviceSignIn(state.id))).not.toContain('private token');
+    expect(auth.getDeviceSignIn(state.id)?.message).toContain(
+      'could not prepare its bundled runtime',
+    );
     expect(bundled.dispose).toHaveBeenCalled();
     expect(credentials.browser).not.toHaveBeenCalled();
   });

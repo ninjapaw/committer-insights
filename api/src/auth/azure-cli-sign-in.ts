@@ -21,7 +21,7 @@ export function parseAzureCliChallenge(
   return { userCode: code, verificationUri: 'https://microsoft.com/devicelogin' };
 }
 
-export function createAzureCliSignIn(signal: AbortSignal) {
+export function createAzureCliSignIn(signal: AbortSignal, onReady?: () => void) {
   const directory = mkdtempSync(join(tmpdir(), 'committer-azure-sign-in-'));
   const environment: NodeJS.ProcessEnv = {};
   for (const [name, value] of Object.entries(process.env)) {
@@ -65,6 +65,7 @@ export function createAzureCliSignIn(signal: AbortSignal) {
     const executable = await resolveAzureCli(signal);
     signal.throwIfAborted();
     if (disposed) throw new Error('Azure CLI session is closed.');
+    if (args[0] === 'login') onReady?.();
     return new Promise((resolve, reject) => {
       const child = execFile(
         executable,

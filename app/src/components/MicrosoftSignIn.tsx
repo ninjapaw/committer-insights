@@ -151,7 +151,8 @@ export function MicrosoftSignIn({
             </>
           ) : (
             <span>
-              {cliFlow ? 'Waiting for Microsoft account selection...' : 'Requesting device code...'}
+              {current?.message ??
+                (cliFlow ? 'Preparing Microsoft sign-in...' : 'Requesting device code...')}
             </span>
           )}
           <button
