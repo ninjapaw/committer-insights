@@ -24,8 +24,7 @@ function chunk(type, data) {
   for (const byte of content) {
     checksumValue ^= byte;
     for (let bit = 0; bit < 8; bit += 1)
-      checksumValue =
-        (checksumValue >>> 1) ^ (0xedb88320 & -(checksumValue & 1));
+      checksumValue = (checksumValue >>> 1) ^ (0xedb88320 & -(checksumValue & 1));
   }
   const checksum = Buffer.alloc(4);
   checksum.writeUInt32BE((checksumValue ^ 0xffffffff) >>> 0);
@@ -46,9 +45,7 @@ function png(size) {
       const edgeX = Math.min(x, size - 1 - x);
       const edgeY = Math.min(y, size - 1 - y);
       const rounded =
-        edgeX >= radius ||
-        edgeY >= radius ||
-        Math.hypot(radius - edgeX, radius - edgeY) <= radius;
+        edgeX >= radius || edgeY >= radius || Math.hypot(radius - edgeX, radius - edgeY) <= radius;
       const pixel = (y * size + x) * 4;
       const blend = Math.max(0, Math.min(1, (x + y) / (size * 1.5)));
       pixels[pixel] = Math.round(colors[0][0] * (1 - blend) + colors[1][0] * blend);
@@ -57,8 +54,7 @@ function png(size) {
       pixels[pixel + 3] = rounded ? 255 : 0;
 
       const distance = Math.hypot(x - center, y - center);
-      const diagonal =
-        Math.abs(x - y) < barWidth || Math.abs(x + y - size) < barWidth;
+      const diagonal = Math.abs(x - y) < barWidth || Math.abs(x + y - size) < barWidth;
       if (rounded && distance < maxDistance && diagonal) {
         pixels[pixel] = 255;
         pixels[pixel + 1] = 255;
@@ -90,10 +86,7 @@ await rm(outputDirectory, { recursive: true, force: true });
 await mkdir(outputDirectory, { recursive: true });
 for (const baseSize of iconSizes) {
   await writeFile(join(outputDirectory, `icon_${baseSize}x${baseSize}.png`), png(baseSize));
-  await writeFile(
-    join(outputDirectory, `icon_${baseSize}x${baseSize}@2x.png`),
-    png(baseSize * 2),
-  );
+  await writeFile(join(outputDirectory, `icon_${baseSize}x${baseSize}@2x.png`), png(baseSize * 2));
 }
 process.stdout.write(
   `Generated ${PRODUCT.iconName}.icns source for ${initials.join('')} from ${PRODUCT.displayName} ${PRODUCT.version}.\n`,
