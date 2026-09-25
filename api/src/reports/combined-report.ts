@@ -128,15 +128,27 @@ function sourceStatus(source: MultiSource, result: number | SourceStatus): Sourc
 export async function preflightSources(sources: MultiSource[]): Promise<SourceStatus[]> {
   const statuses: SourceStatus[] = [];
   for (const source of sources) {
+    const access = emptyInsights();
     try {
       if (source.provider === 'azure-devops') {
-        await preflightAzureDevOps(source);
+        await preflightAzureDevOps(source, access);
       } else {
         await preflightGitHub(source);
       }
-      statuses.push(sourceStatus(source, 0));
+      const status = sourceStatus(source, 0);
+      if (source.provider === 'azure-devops') {
+        status.accessChecks = access.checks;
+        status.reason = access.checks.some(
+          (check) => check.status === 'partial' || check.status === 'unavailable',
+        )
+          ? 'Partial data access'
+          : 'Selected data reads succeeded';
+      }
+      statuses.push(status);
     } catch (error) {
-      statuses.push(sourceStatus(source, remediation(source.provider, error)));
+      const status = sourceStatus(source, remediation(source.provider, error));
+      if (source.provider === 'azure-devops') status.accessChecks = access.checks;
+      statuses.push(status);
     }
   }
   return statuses;

@@ -107,7 +107,7 @@ export function ReportInsightsPanel({ report }: { report: Report }): JSX.Element
     ...insights.billing.map((row) => row.date),
   ].reduce((first, date) => (date < first ? date : first), latest);
   const availableDays = Math.round((Date.parse(latest) - Date.parse(earliest)) / 86400000) + 1;
-  const [days, setDays] = useState(String(Math.min(30, availableDays)));
+  const [days, setDays] = useState(String(Math.min(90, availableDays)));
   const [customFrom, setCustomFrom] = useState(earliest);
   const [customTo, setCustomTo] = useState(latest);
   const [provider, setProvider] = useState('all');

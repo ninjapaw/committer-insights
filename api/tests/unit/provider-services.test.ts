@@ -15,6 +15,8 @@ import {
   preflightGitHub,
 } from '../../src/services/github.js';
 import type { AzureDevOpsCommitter, GitHubCommitter, SourceStatus } from '@ninjapaw/contracts';
+import { emptyInsights } from '@ninjapaw/contracts';
+import { collectAzureRepositoryInsights } from '../../src/adapters/azure-devops/insights-client.js';
 import { reportStore } from '../../src/reports/report-store.js';
 import { buildAzureDevOpsCostEstimates } from '../../src/reports/billing-estimates.js';
 import {
@@ -244,7 +246,12 @@ it('keeps a count-only Azure enablement estimate when the other product is denie
     organization: 'example',
     plans: ['all' as const],
   };
-  await expect(preflightAzureDevOps(source)).resolves.toBeUndefined();
+  const access = emptyInsights();
+  await expect(preflightAzureDevOps(source, access)).resolves.toBeUndefined();
+  expect(collectAzureRepositoryInsights).toHaveBeenCalledWith('example', 90, 'azure-token', access);
+  expect(access.checks).toContainEqual(
+    expect.objectContaining({ dataset: 'Security estimates', status: 'partial' }),
+  );
   const report = await createAzureReport(source);
   expect(report.insights?.azureEstimates).toEqual([
     expect.objectContaining({ plan: 'codeSecurity', providerCount: 12, status: 'partial' }),

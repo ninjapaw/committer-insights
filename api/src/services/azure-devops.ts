@@ -10,6 +10,7 @@ import {
 import {
   fetchAzureDevOpsEstimate,
   buildMeterUsageEstimateUrl,
+  AzureDevOpsAdapterError,
 } from '../adapters/azure-devops/estimate-client.js';
 import { collectAzureBilling } from '../adapters/azure-devops/billing-client.js';
 import { discoverAzureDevOpsOrganizations } from '../adapters/azure-devops/organizations-client.js';
@@ -18,10 +19,7 @@ import { saveReport } from '../reports/report-store.js';
 import { config } from '../shared/config.js';
 import { buildProviderSummary } from '../reports/provider-summary.js';
 import { buildAzureDevOpsCostEstimates } from '../reports/billing-estimates.js';
-import {
-  collectAzureRepositoryInsights,
-  preflightAzureRepositoryAccess,
-} from '../adapters/azure-devops/insights-client.js';
+import { collectAzureRepositoryInsights } from '../adapters/azure-devops/insights-client.js';
 
 type AzureSource = Extract<MultiSource, { provider: 'azure-devops' }>;
 
@@ -135,7 +133,9 @@ export async function collectAzureDevOps(
           status: 'unavailable',
           returnedIdentities: 0,
           warnings: [
-            'Provider enablement estimate unavailable. No Git activity count or zero-cost value was substituted.',
+            error instanceof AzureDevOpsAdapterError
+              ? error.message
+              : 'Provider enablement estimate unavailable: network failure, timeout, or unsupported response. No Git activity count or zero-cost value was substituted.',
           ],
         });
       }
@@ -146,6 +146,17 @@ export async function collectAzureDevOps(
     const complete =
       estimates.length === plans.length &&
       estimates.every((estimate) => estimate.status === 'complete');
+    for (const estimate of estimates) {
+      insights.checks.push({
+        provider: 'azure-devops',
+        source: source.organization,
+        dataset: `Security estimate: ${azurePlanLabels[estimate.plan]}`,
+        status: estimate.status,
+        detail:
+          estimate.warnings.join(' ') ||
+          'Selected product estimate returned with identity details. Not a billing access check.',
+      });
+    }
     insights.checks.push({
       provider: 'azure-devops',
       source: source.organization,
@@ -181,41 +192,11 @@ export async function collectAzureDevOps(
   ).flat();
 }
 
-export async function preflightAzureDevOps(source: AzureSource): Promise<void> {
-  try {
-    const accessToken = await acquireAzureDevOpsToken();
-    const plans = source.plans.includes('all')
-      ? (['codeSecurity', 'secretProtection'] as const)
-      : source.plans;
-    const results = await Promise.allSettled(
-      plans.map((plan) =>
-        fetchAzureDevOpsEstimate({
-          organization: source.organization,
-          plan,
-          resultType: 'estimated',
-          accessToken,
-          onEstimate: () => undefined,
-        }),
-      ),
-    );
-    if (results.some((result) => result.status === 'fulfilled')) return;
-    throw new Error('No selected product estimate could be read.');
-  } catch {
-    try {
-      await preflightAzureRepositoryAccess(source.organization, await acquireAzureDevOpsToken());
-    } catch (error) {
-      if (source.includeAzureBilling) {
-        const insights = emptyInsights();
-        await collectAzureBilling(
-          { ...source, includeAzureBillingDetails: false },
-          insights,
-          acquireAzureDevOpsToken,
-        );
-        if (insights.azureBilling?.some((snapshot) => snapshot.status !== 'unavailable')) return;
-      }
-      throw error;
-    }
-  }
+export async function preflightAzureDevOps(
+  source: AzureSource,
+  insights: ReportInsights = emptyInsights(),
+): Promise<void> {
+  await collectAzureDevOps(source, insights);
 }
 
 export function azureIdentityKey(committer: AzureDevOpsCommitter): string {
@@ -228,5 +209,5 @@ export function azureIdentityKey(committer: AzureDevOpsCommitter): string {
 export function azureRemediation(authentication: boolean): string {
   return authentication
     ? 'Use Sign in with Microsoft with an account in the organization, then reconnect.'
-    : 'Ask an Azure DevOps administrator for organization membership and Advanced Security read access (vso.advsec equivalent).';
+    : 'Review the dataset results with your Azure DevOps administrator: organization/project visibility, repository Read, Advanced Security read, and billing access are separate. Explicit Deny and access-level restrictions can still block reads. No permissions were changed.';
 }

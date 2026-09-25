@@ -275,7 +275,9 @@ export async function collectAzureBilling(
         dataset: `Billing diagnostic details: ${plan}`,
         status: snapshot.detailsStatus,
         detail: snapshot.detailsUrl
-          ? 'Details requested for the snapshot billing date. Pusher and committer identities remain separate; unmatched evidence is never added to billing totals.'
+          ? snapshot.detailsStatus === 'complete'
+            ? 'Details requested for the snapshot billing date. Pusher and committer identities remain separate; unmatched evidence is never added to billing totals.'
+            : snapshot.warnings.join(' ')
           : 'Diagnostic request not attempted because no valid matching billing snapshot date was available. Resolve the snapshot failure first.',
       });
   }

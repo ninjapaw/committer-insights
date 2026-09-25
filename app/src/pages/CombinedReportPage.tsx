@@ -41,8 +41,8 @@ const emptyDraft: ReportDraft = {
   githubTargetTypes: {},
   plans: ['all'],
   sinceDays: 90,
-  includeBilling: false,
-  includeAzureBilling: false,
+  includeBilling: true,
+  includeAzureBilling: true,
   includeAzureBillingDetails: false,
   billingDate: '',
 };
@@ -365,7 +365,27 @@ export function CombinedReportPage(): JSX.Element {
               className={`permission-result permission-result--${status.status}`}
             >
               <strong>{status.subject}</strong>
-              <span>{status.status === 'included' ? 'Ready' : status.reason}</span>
+              <span>
+                {status.reason ??
+                  (status.status === 'included' ? 'Minimum access verified' : 'Unavailable')}
+              </span>
+              {status.accessChecks && (
+                <>
+                  <p>
+                    Selected data only. Hidden or denied projects and repositories may be absent.
+                  </p>
+                  <dl>
+                    {status.accessChecks.map((check) => (
+                      <div key={check.dataset}>
+                        <dt>
+                          {check.dataset}: {check.status.replace('-', ' ')}
+                        </dt>
+                        <dd>{check.detail}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </>
+              )}
               {status.remediation && <p>{status.remediation}</p>}
             </article>
           ))}

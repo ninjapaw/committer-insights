@@ -71,6 +71,17 @@ function securityFeatures(
   ];
 }
 
+class AzureReadError extends Error {}
+
+function readFailure(error: unknown): string {
+  if (error instanceof AzureReadError) return error.message;
+  if (error instanceof z.ZodError || error instanceof SyntaxError)
+    return 'Unsupported provider response; this does not establish a permission failure.';
+  if (error instanceof Error && ['AbortError', 'TimeoutError'].includes(error.name))
+    return 'Request timed out; retry before changing permissions.';
+  return 'Network or provider failure; retry and verify connectivity.';
+}
+
 async function read(url: URL, token: string, fetchImpl: typeof fetch): Promise<unknown> {
   const response = await fetchImpl(url, {
     method: 'GET',
@@ -78,9 +89,23 @@ async function read(url: URL, token: string, fetchImpl: typeof fetch): Promise<u
     signal: AbortSignal.timeout(20_000),
     headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
   });
-  if (!response.ok) throw new Error(`Azure DevOps read failed (${response.status}).`);
+  if (!response.ok) {
+    await response.body?.cancel();
+    const reasons: Record<number, string> = {
+      401: 'Authentication rejected (HTTP 401); sign in with the intended account and tenant.',
+      403: 'Access denied (HTTP 403); check effective permissions, access level and explicit Deny with the organization administrator.',
+      404: 'Not found or not visible (HTTP 404); check organization/project scope and endpoint availability.',
+      429: 'Provider rate limit (HTTP 429); retry later.',
+    };
+    throw new AzureReadError(
+      reasons[response.status] ??
+        `Provider returned HTTP ${response.status}; retry or check service health.`,
+    );
+  }
   if (response.headers.get('x-ms-continuationtoken'))
-    throw new Error('Azure DevOps returned a truncated inventory.');
+    throw new AzureReadError(
+      'Azure DevOps returned a truncated inventory; coverage is not verified.',
+    );
   return response.json();
 }
 
@@ -125,17 +150,22 @@ export async function collectAzureRepositoryInsights(
     insights.checks.push({
       ...check,
       dataset: 'Security settings',
-      status: 'complete',
+      status:
+        settings.length &&
+        settings.every((setting) =>
+          securityFeatures(setting).every((feature) => feature.state !== 'unknown'),
+        )
+          ? 'complete'
+          : 'partial',
       detail:
         'Current settings returned by Advanced Security. Missing repository or feature values remain unknown; settings do not prove recent scans or payment.',
     });
-  } catch {
+  } catch (error) {
     insights.checks.push({
       ...check,
       dataset: 'Security settings',
       status: 'unavailable',
-      detail:
-        'Advanced Security read failed or the preview response is unsupported. vso.advsec-equivalent read access is needed; no permissions were changed.',
+      detail: `${readFailure(error)} Security settings require Advanced Security read access. No permissions were changed.`,
     });
   }
   try {
@@ -174,10 +204,16 @@ export async function collectAzureRepositoryInsights(
             activity: { ...window, status: 'unavailable', daily: [] },
           };
           try {
-            if (!repository.defaultBranch) throw new Error('No default branch is available.');
+            if (!repository.defaultBranch)
+              throw new AzureReadError(
+                'No default branch is available; history access was not verified.',
+              );
             const daily: RepositoryInsight['activity']['daily'] = [];
             for (let page = 0; ; page += 1) {
-              if (page >= 100) throw new Error('History exceeds the 10,000 commit cap.');
+              if (page >= 100)
+                throw new AzureReadError(
+                  'History exceeds the 10,000 commit cap; not a permission failure.',
+                );
               const url = new URL(
                 `https://dev.azure.com/${source}/${repository.project.id}/_apis/git/repositories/${repository.id}/commits`,
               );
@@ -203,22 +239,46 @@ export async function collectAzureRepositoryInsights(
               if (commits.length < 100) break;
             }
             row.activity = { ...window, status: 'complete', daily: mergeDailyActivity(daily) };
-          } catch {
-            row.activity.reason =
-              'Default-branch history unavailable: missing branch, denied read, request failure, or 10,000 commit cap. Not zero activity.';
+          } catch (error) {
+            row.activity.reason = `${readFailure(error)} Default-branch history is unavailable, not zero activity. Repository Read is required.`;
           }
           rows.push(row);
         }
       }),
     );
     insights.repositories.push(...rows);
+    const settingsCheck = insights.checks.find(
+      (item) =>
+        item.provider === check.provider &&
+        item.source === source &&
+        item.dataset === 'Security settings',
+    );
+    if (
+      settingsCheck?.status === 'complete' &&
+      rows.some((row) => row.features.some((feature) => feature.state === 'unknown'))
+    ) {
+      settingsCheck.status = 'partial';
+      settingsCheck.detail +=
+        ' Some visible repositories have missing settings; their feature states are unknown.';
+    }
+    const readable = rows.filter((row) => row.activity.status === 'complete').length;
+    const failures = [
+      ...new Set(rows.flatMap((row) => (row.activity.reason ? [row.activity.reason] : []))),
+    ];
     insights.checks.push({
       ...check,
       dataset: 'Repository activity',
-      status: rows.some((row) => row.activity.status !== 'complete') ? 'partial' : 'complete',
-      detail: `${rows.length} visible repositories. Default-branch committer-date counts, including automation; not billable identities. Hidden or denied repositories may be absent.`,
+      status: !rows.length
+        ? 'partial'
+        : !readable
+          ? 'unavailable'
+          : readable < rows.length
+            ? 'partial'
+            : 'complete',
+      detail:
+        `${readable}/${rows.length} visible repositories with readable history. ${!rows.length ? 'No visible repositories; history access was not verified. ' : ''}Default-branch committer-date counts, including automation; not billable identities. Hidden or denied repositories may be absent. ${failures.join(' ')}`.trim(),
     });
-  } catch {
+  } catch (error) {
     insights.repositories.push(
       ...settings.map((setting): RepositoryInsight => ({
         ...check,
@@ -240,14 +300,13 @@ export async function collectAzureRepositoryInsights(
       ...check,
       dataset: 'Repository activity',
       status: 'unavailable',
-      detail:
-        'Repository inventory unavailable or truncated. Existing Git read access (vso.code equivalent) is needed; no permissions were changed.',
+      detail: `${readFailure(error)} Repository inventory requires project visibility and repository Read. No permissions were changed.`,
     });
   }
   insights.checks.push({
     ...check,
-    dataset: 'Billing usage',
-    status: 'unavailable',
+    dataset: 'Azure invoice and service meters',
+    status: 'not-requested',
     detail:
       'Azure charges, Basic/Test Plans seats, Pipelines and Artifacts meters are not collected. Verify actual charges with your Azure DevOps billing owner; security settings and estimates are not invoices.',
   });

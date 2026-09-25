@@ -75,6 +75,42 @@ async function selectGitHubSource() {
 }
 
 describe('CombinedReportPage', () => {
+  it('defaults billing and activity to reported billing and 90 days while keeping partial access visible', async () => {
+    renderGitHubFlow(async () =>
+      Response.json({
+        statuses: [
+          {
+            ...ready,
+            provider: 'azure-devops',
+            reason: 'Partial data access',
+            accessChecks: [
+              {
+                dataset: 'Security settings',
+                status: 'unavailable',
+                detail: 'Access denied (HTTP 403); check Advanced Security read.',
+              },
+              {
+                dataset: 'Repository activity',
+                status: 'complete',
+                detail: '1/1 visible repositories with readable history.',
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    await selectGitHubSource();
+    fireEvent.click(screen.getByRole('button', { name: 'Review report' }));
+    expect(await screen.findByText('Partial data access')).toBeInTheDocument();
+    expect(screen.getByLabelText('Activity window (UTC)')).toHaveValue('90');
+    expect(screen.getByRole('checkbox', { name: /GitHub.*billing/i })).toBeChecked();
+    expect(
+      screen.getByText('Access denied (HTTP 403); check Advanced Security read.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Ready')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Generate report' })).toBeEnabled();
+  });
+
   it('previews service scenarios and sends validated quantities without enabling billing collection', async () => {
     const fetchMock = vi.fn(async (input: string | URL | Request) => {
       if (String(input) === '/api/reports/combined/preflight')
@@ -453,6 +489,7 @@ describe('CombinedReportPage', () => {
           targetType: 'enterprise',
           target: 'octo-enterprise',
           sinceDays: 90,
+          includeBilling: true,
         },
       ],
     });
@@ -564,7 +601,13 @@ describe('CombinedReportPage', () => {
     const requests = fetchMock.mock.calls as unknown as Array<[string, RequestInit]>;
     const sourceRequest = {
       sources: [
-        { provider: 'github', targetType: 'organization', target: 'octocat', sinceDays: 90 },
+        {
+          provider: 'github',
+          targetType: 'organization',
+          target: 'octocat',
+          sinceDays: 90,
+          includeBilling: true,
+        },
       ],
     };
     for (const path of ['/api/reports/combined/preflight', '/api/reports/combined']) {
@@ -585,7 +628,7 @@ describe('CombinedReportPage', () => {
     await waitFor(() => expect(generate).toBeEnabled());
     fireEvent.change(screen.getByLabelText('Activity window (UTC)'), { target: { value: '30' } });
     expect(generate).toBeDisabled();
-    expect(screen.queryByText('Ready')).not.toBeInTheDocument();
+    expect(screen.queryByText('Minimum access verified')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Check access' }));
     await waitFor(() => expect(generate).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Back to sources' }));
@@ -630,7 +673,7 @@ describe('CombinedReportPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Check access' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Permission check unavailable.');
     expect(generate).toBeDisabled();
-    expect(screen.queryByText('Ready')).not.toBeInTheDocument();
+    expect(screen.queryByText('Minimum access verified')).not.toBeInTheDocument();
   });
 
   it('requires preflight and keeps skipped-source remediation visible', async () => {
@@ -703,6 +746,14 @@ describe('CombinedReportPage', () => {
 
     expect(await screen.findByText('Grant repository read access.')).toBeInTheDocument();
     await waitFor(() => expect(generate).toBeEnabled());
+    expect(
+      screen.getByRole('checkbox', {
+        name: 'Include provider-reported billing snapshots and identities',
+      }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole('checkbox', { name: /Include billing diagnostic details/ }),
+    ).not.toBeChecked();
     expect(screen.getByRole('checkbox', { name: 'All plans' })).toBeChecked();
     expect(screen.getByRole('checkbox', { name: 'Code Security' })).toBeDisabled();
     expect(screen.getByRole('checkbox', { name: 'Secret Protection' })).toBeChecked();

@@ -224,7 +224,68 @@ describe('read-only reporting evidence', () => {
       vi.fn().mockResolvedValue(new Response('', { status: 403 })),
     );
     expect(insights.repositories).toEqual([]);
-    expect(insights.checks.every((check) => check.status === 'unavailable')).toBe(true);
+    expect(
+      insights.checks
+        .filter((check) => check.status !== 'not-requested')
+        .every((check) => check.status === 'unavailable' && check.detail.includes('HTTP 403')),
+    ).toBe(true);
+    expect(insights.checks).toContainEqual(
+      expect.objectContaining({
+        dataset: 'Azure invoice and service meters',
+        status: 'not-requested',
+      }),
+    );
+  });
+
+  it.each([401, 404, 429, 503])(
+    'retains safe HTTP %s diagnostics without provider bodies',
+    async (status) => {
+      const insights = emptyInsights();
+      await collectAzureRepositoryInsights(
+        'example',
+        90,
+        'token',
+        insights,
+        vi
+          .fn()
+          .mockImplementation(async () => new Response('private-provider-response', { status })),
+      );
+      expect(insights.checks[0]?.detail).toContain(`HTTP ${status}`);
+      expect(JSON.stringify(insights)).not.toContain('private-provider-response');
+    },
+  );
+
+  it('does not classify an unsupported response as denied access', async () => {
+    const insights = emptyInsights();
+    await collectAzureRepositoryInsights(
+      'example',
+      90,
+      'token',
+      insights,
+      vi.fn().mockImplementation(async () => Response.json({ unexpected: true })),
+    );
+    expect(insights.checks[0]?.detail).toContain('Unsupported provider response');
+    expect(insights.checks[1]?.status).toBe('unavailable');
+  });
+
+  it('does not claim history access from an empty visible inventory', async () => {
+    const insights = emptyInsights();
+    await collectAzureRepositoryInsights(
+      'example',
+      90,
+      'token',
+      insights,
+      vi
+        .fn()
+        .mockImplementation(async () => Response.json({ value: [], reposEnablementStatus: [] })),
+    );
+    expect(insights.checks).toContainEqual(
+      expect.objectContaining({
+        dataset: 'Repository activity',
+        status: 'partial',
+        detail: expect.stringContaining('history access was not verified'),
+      }),
+    );
   });
 
   it('retains readable Azure enablement when Git inventory is denied', async () => {

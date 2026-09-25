@@ -6,6 +6,9 @@
 - Reduce Azure CLI 2.90.0 at build time while preserving single-executable delivery, shared authentication dependencies, certificates and detected legal notices. The smaller runtime still extracts into the per-user cache; no global installation or elevation is required.
 - Verify all runtime files on each application launch. Keep separate source and reduced-payload checksums, deterministic ZIP packaging, and companion SBOM provenance.
 - Report startup preparation progress. A preparation failure leaves GitHub available and requires an application restart before Microsoft sign-in.
+- Default new report drafts to Azure DevOps and GitHub reported billing, with opt-out controls. Azure billing diagnostic details remain off unless selected; no provider permissions or billing settings are changed.
+- Default activity collection and the results view to 90 days, capped to available data. Provider snapshots and monthly billing periods keep their actual dates.
+- Check Azure DevOps datasets independently during source review using the report collectors. Show partial access, per-product estimates, repository history, settings and requested billing results instead of a blanket Ready status. Preserve safe HTTP/schema/timeout explanations and distinguish uncollected invoice meters from denied billing access. Successful reads do not prove visibility of hidden projects or repositories.
 
 ## Measured Reduction
 
@@ -22,7 +25,7 @@ The published executable is rebuilt by CI; use its attached checksum rather than
 
 ## Validation and Acceptance
 
-- Full local validation passed: 286 automated tests, executable packaging, isolated offline authentication checks, upgrade handoff and fresh-user startup smoke checks. Two initial Windows test timeouts passed on an unchanged rerun.
+- The runtime-reduction candidate passed 286 automated tests, executable packaging, isolated offline authentication checks, upgrade handoff and fresh-user startup smoke checks. Two initial Windows test timeouts passed on an unchanged rerun. The access/defaults update passes 295 automated tests, including partial and all-denied access, safe HTTP diagnostics, billing defaults and 90-day display coverage.
 - On 2026-09-25, the maintainer reported successful live Microsoft sign-in with the reduced candidate and explicitly cleared the publication gate. This is user-reported acceptance; automated checks do not sign in.
 - Publication requires build and CodeQL success for the exact release commit and checksum verification and packaged smoke checks of the downloaded CI artifact.
 

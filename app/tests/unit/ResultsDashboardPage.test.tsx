@@ -147,9 +147,12 @@ describe('Results dashboard', () => {
       writeText.mock.calls[0]?.[0],
     );
   });
-  it.each([undefined, 'America/Toronto'])(
+  it.each([
+    [undefined, '2026-08-26T00:00:00Z', '30'],
+    ['America/Toronto', '2026-06-27T00:00:00Z', '90'],
+  ] as const)(
     'filters UTC activity while displaying observations in timezone %s',
-    async (timeZone) => {
+    async (timeZone, from, expectedDays) => {
       const report: Report = {
         reportId: 'insights',
         timeZone,
@@ -175,7 +178,7 @@ describe('Results dashboard', () => {
               features: [{ name: 'Code Security', state: 'unknown' }],
               activity: {
                 status: 'complete',
-                from: '2026-08-26T00:00:00Z',
+                from,
                 to: '2026-09-24T12:00:00Z',
                 daily: [
                   { date: '2026-09-01', commits: 5 },
@@ -197,6 +200,7 @@ describe('Results dashboard', () => {
         },
       };
       render(<ReportInsightsPanel report={report} />);
+      expect(screen.getByLabelText('Reporting period')).toHaveValue(expectedDays);
       expect(screen.getByText('Observed window commits').previousSibling).toHaveTextContent('7');
       fireEvent.change(screen.getByLabelText('Reporting period'), { target: { value: '7' } });
       expect(screen.getByText('Observed window commits').previousSibling).toHaveTextContent('2');

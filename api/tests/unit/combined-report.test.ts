@@ -8,7 +8,10 @@ import {
 import { reportStore } from '../../src/reports/report-store.js';
 import { acquireAzureDevOpsToken } from '../../src/auth/local-credential.js';
 import { acquireGitHubToken } from '../../src/auth/github-cli.js';
-import { preflightAzureRepositoryAccess } from '../../src/adapters/azure-devops/insights-client.js';
+import {
+  preflightAzureRepositoryAccess,
+  collectAzureRepositoryInsights,
+} from '../../src/adapters/azure-devops/insights-client.js';
 import { fetchAzureDevOpsEstimate } from '../../src/adapters/azure-devops/estimate-client.js';
 import {
   fetchGitHubCommitters,
@@ -53,7 +56,10 @@ beforeEach(() => {
   vi.mocked(listGitHubRepositoriesForTarget).mockReset();
   vi.mocked(listGitHubRepositoriesForTarget).mockResolvedValue(['octocat/example']);
 });
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 const azureRecord: AzureDevOpsCommitter = {
   provider: 'azure-devops',
@@ -78,6 +84,69 @@ const githubRecord: GitHubCommitter = {
 };
 
 describe('combined reports', () => {
+  it.each([true, false])(
+    'reports all Azure dataset failures when estimate access is %s',
+    async (estimateReadable) => {
+      const actual = await vi.importActual<
+        typeof import('../../src/adapters/azure-devops/insights-client.js')
+      >('../../src/adapters/azure-devops/insights-client.js');
+      vi.mocked(collectAzureRepositoryInsights).mockImplementation(
+        actual.collectAzureRepositoryInsights,
+      );
+      const reads = vi.fn(async () => new Response('private error', { status: 403 }));
+      vi.stubGlobal('fetch', reads);
+      vi.mocked(fetchAzureDevOpsEstimate).mockImplementation(
+        async ({ organization, plan, onEstimate }) => {
+          if (!estimateReadable) throw new Error('Permission denied');
+          onEstimate?.({
+            organization,
+            plan: plan === 'all' ? 'codeSecurity' : plan,
+            providerCount: 0,
+            returnedIdentities: 0,
+            status: 'complete',
+            collectedAt: new Date().toISOString(),
+            sourceUrl: 'https://example.invalid',
+            apiVersion: 'test',
+            warnings: [],
+          });
+          return [];
+        },
+      );
+      const [status] = await preflightSources([
+        {
+          provider: 'azure-devops',
+          organization: 'example',
+          plans: ['all'],
+          includeAzureBilling: true,
+        },
+      ]);
+      expect(status?.status).toBe(estimateReadable ? 'included' : 'skipped');
+      if (estimateReadable) expect(status?.reason).toBe('Partial data access');
+      expect(reads).toHaveBeenCalledTimes(4);
+      for (const dataset of [
+        'Security settings',
+        'Repository activity',
+        'Provider billing snapshot: codeSecurity',
+        'Provider billing snapshot: secretProtection',
+      ]) {
+        expect(status?.accessChecks).toContainEqual(
+          expect.objectContaining({
+            dataset,
+            status: 'unavailable',
+            detail: expect.stringContaining('HTTP 403'),
+          }),
+        );
+      }
+      expect(status?.accessChecks).toContainEqual(
+        expect.objectContaining({
+          dataset: 'Security estimate: Code Security',
+          status: estimateReadable ? 'complete' : 'unavailable',
+        }),
+      );
+      expect(JSON.stringify(status)).not.toContain('private error');
+    },
+  );
+
   it('checks every selected Azure plan and retains access when one succeeds', async () => {
     vi.mocked(fetchAzureDevOpsEstimate).mockImplementation(async ({ plan }) => {
       if (plan === 'secretProtection') throw new Error('Permission denied');

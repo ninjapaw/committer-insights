@@ -87,6 +87,15 @@ export const sourceStatusSchema = z.object({
   committerCount: z.number().int().nonnegative().default(0),
   reason: z.string().optional(),
   remediation: z.string().optional(),
+  accessChecks: z
+    .array(
+      z.object({
+        dataset: z.string(),
+        status: z.enum(['complete', 'partial', 'unavailable', 'not-requested']),
+        detail: z.string(),
+      }),
+    )
+    .optional(),
 });
 export type SourceStatus = z.infer<typeof sourceStatusSchema>;
 
