@@ -4,6 +4,7 @@ import { once } from 'node:events';
 import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
+import { execFileSync } from 'node:child_process';
 import { PRODUCT } from '../packages/metadata/dist/index.js';
 
 const executable = join(
@@ -12,6 +13,21 @@ const executable = join(
   process.platform === 'win32' ? `${PRODUCT.executableName}.exe` : PRODUCT.executableName,
 );
 const launchOptionTimeout = process.platform === 'darwin' ? 60_000 : 15_000;
+function macOsDiagnostics() {
+  if (process.platform !== 'darwin') return '';
+  const run = (command, args) => {
+    try {
+      return `${command} ${args.join(' ')}:\n${execFileSync(command, args, { encoding: 'utf8' })}`;
+    } catch (error) {
+      return `${command} ${args.join(' ')} failed:\n${error instanceof Error ? error.message : String(error)}`;
+    }
+  };
+  return [
+    run('file', [executable]),
+    run('codesign', ['--display', '--verbose=4', executable]),
+    run('codesign', ['--verify', '--verbose=4', executable]),
+  ].join('\n');
+}
 for (const args of [
   ['--help'],
   ['-h'],
@@ -34,7 +50,7 @@ for (const args of [
     result.stdout.includes('http://127.0.0.1:')
   ) {
     throw new Error(
-      `Executable launch-option validation failed for ${args.join(' ')}: status=${result.status}, error=${result.error?.message ?? 'none'}, stdout=${result.stdout}, stderr=${result.stderr}`,
+      `Executable launch-option validation failed for ${args.join(' ')}: status=${result.status}, signal=${result.signal ?? 'none'}, error=${result.error?.message ?? 'none'}, stdout=${result.stdout}, stderr=${result.stderr}\n${macOsDiagnostics()}`,
     );
   }
 }
