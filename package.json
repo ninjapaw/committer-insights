@@ -37,7 +37,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "npm run build --workspace packages/contracts && npm run typecheck --workspace app && npm run typecheck --workspace api",
+    "typecheck": "npm run build --workspace packages/metadata && npm run build --workspace packages/contracts && npm run typecheck --workspace app && npm run typecheck --workspace api",
     "test": "npm run test:unit && npm run test:integration",
     "test:unit": "npm run test:unit --workspace app && npm run test:unit --workspace api",
     "test:integration": "npm run test:integration --workspace api",
