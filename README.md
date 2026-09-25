@@ -336,7 +336,7 @@ npm run ci
 
 The React/Vite UI lives in [app](app), the loopback Node/TypeScript API, authentication and exports in [api](api), and shared Zod schemas and calculations in [packages/contracts](packages/contracts). The Astro [demo](demo) reuses the production dashboard with deterministic fictional reports. Provider tokens remain API-side; reports remain in memory and exports require an explicit user action.
 
-`npm run ci` checks formatting, lint, types, unit/integration tests, executable packaging, and packaged smoke tests. Close candidate executables before rebuilding. Generated `build/` and `release/` directories are disposable; never commit credentials, personal configuration, customer reports, or environment files. Branch and pull-request requirements are in the [contribution guide](CONTRIBUTING.md).
+`npm run ci` checks formatting, lint, types, unit/integration tests, executable packaging, and packaged smoke tests. The prebuild cleanup removes disposable `build/`, `release/`, workspace `dist/`, and demo `.astro/` output before each build, so stale generated files cannot enter a fresh package. Close candidate executables before rebuilding; never commit credentials, personal configuration, customer reports, or environment files. Branch and pull-request requirements are in the [contribution guide](CONTRIBUTING.md).
 
 ### Publisher Authentication Configuration
 
