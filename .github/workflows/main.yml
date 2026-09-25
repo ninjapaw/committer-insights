@@ -86,6 +86,10 @@ jobs:
       - name: Package Unix release
         run: npm run package:posix
       - name: Smoke test executable
+        if: matrix.os == 'macos-latest'
+        run: npm run test:macos
+      - name: Smoke test executable
+        if: matrix.os != 'macos-latest'
         run: npm run test:exe
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
