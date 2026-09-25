@@ -75,9 +75,10 @@ process.stdout.write(
 
 if (process.platform === 'win32') {
   const powershell = join(process.env.SystemRoot, 'System32/WindowsPowerShell/v1.0/powershell.exe');
-  const consoleProbe = `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class ConsoleProbe { [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow(); }'; [ConsoleProbe]::GetConsoleWindow().ToInt64()`;
+  const consoleProbe = `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class ConsoleProbe { [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow(); }'; @{ handle = [ConsoleProbe]::GetConsoleWindow().ToInt64(); interactive = [Environment]::UserInteractive } | ConvertTo-Json -Compress`;
+  let interactiveDesktop = false;
   for (const windowsHide of [true, false]) {
-    const handle = Number(
+    const probe = JSON.parse(
       require('node:child_process')
         .execFileSync(powershell, ['-NoProfile', '-NonInteractive', '-Command', consoleProbe], {
           windowsHide,
@@ -86,11 +87,15 @@ if (process.platform === 'win32') {
         })
         .trim(),
     );
-    assert.equal(Number.isSafeInteger(handle), true);
-    assert.equal(handle !== 0, !windowsHide);
+    assert.equal(Number.isSafeInteger(probe.handle), true);
+    assert.equal(typeof probe.interactive, 'boolean');
+    interactiveDesktop = probe.interactive;
+    if (probe.interactive) assert.equal(probe.handle !== 0, !windowsHide);
   }
   process.stdout.write(
-    'Windows console-parent regression passed: hidden piped children lack the console handle required by CLI WAM; interactive children retain it. No login requested.\n',
+    interactiveDesktop
+      ? 'Windows console-parent regression passed: hidden piped children lack the console handle required by CLI WAM; interactive children retain it. No login requested.\n'
+      : 'Windows console-parent UI assertion unavailable in a noninteractive service session; command visibility remains covered by unit tests. No login requested.\n',
   );
   const sandbox = await mkdtemp(join(tmpdir(), 'committer-upgrade-handoff-'));
   let upgraded;
