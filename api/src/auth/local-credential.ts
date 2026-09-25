@@ -99,25 +99,17 @@ export function disconnectMicrosoftAccount(): void {
 
 export function startAzureCliSignIn(): DeviceSignInState {
   const { attempt, expiresOnTimestamp } = createSignInAttempt();
-  let preparing = true;
-  attempt.state.message = 'Preparing Microsoft sign-in runtime...';
-  const session = createAzureCliSignIn(
-    attempt.controller.signal,
-    () => {
-      if (deviceAttempt !== attempt || attempt.state.status !== 'pending') return;
-      preparing = false;
-      attempt.state = {
-        id: attempt.id,
-        status: 'pending',
-        message: 'Waiting for Microsoft sign-in in your browser...',
-      };
-    },
-    (message) => {
-      // Cleanup can finish after cancellation or a newer sign-in attempt.
-      if (!preparing || deviceAttempt !== attempt || attempt.state.status !== 'pending') return;
-      attempt.state = { id: attempt.id, status: 'pending', message };
-    },
-  );
+  let launching = true;
+  attempt.state.message = 'Opening Microsoft sign-in...';
+  const session = createAzureCliSignIn(attempt.controller.signal, () => {
+    if (deviceAttempt !== attempt || attempt.state.status !== 'pending') return;
+    launching = false;
+    attempt.state = {
+      id: attempt.id,
+      status: 'pending',
+      message: 'Waiting for Microsoft sign-in in your browser...',
+    };
+  });
   attempt.dispose = () => session.dispose();
   void session
     .authenticate((challenge) => {
@@ -135,8 +127,8 @@ export function startAzureCliSignIn(): DeviceSignInState {
       attempt.state = {
         id: attempt.id,
         status: 'failed',
-        message: preparing
-          ? 'Microsoft sign-in could not prepare its bundled runtime. Retry; if this persists, ask your administrator to review local file access and endpoint protection. No account sign-in was started.'
+        message: launching
+          ? 'Microsoft sign-in runtime is unavailable. Restart the app to prepare it; if this persists, ask your administrator to review local file access and endpoint protection. No account sign-in was started.'
           : 'Azure CLI sign-in failed. Use the Windows x64 package and retry, or ask your administrator to review CLI access and interactive sign-in policy. No SDK fallback was attempted.',
       };
     })

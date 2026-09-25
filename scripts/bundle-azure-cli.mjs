@@ -3,12 +3,22 @@ import { Buffer } from 'node:buffer';
 import { execFileSync } from 'node:child_process';
 import { mkdir, readFile, readdir, writeFile, appendFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import {
+  reduceAzureCli,
+  reducedAzureCliVersion,
+  validateReducedAzureCli,
+  packReducedAzureCli,
+} from './reduce-azure-cli.mjs';
 
 const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
 
 export async function bundleAzureCli(root, buildDir, releaseDir) {
   if (process.platform !== 'win32') return {};
   const pin = JSON.parse(await readFile(join(root, 'config/azure-cli.json'), 'utf8'));
+  if (pin.version !== reducedAzureCliVersion)
+    throw new Error(
+      'Review the Azure CLI reduction policy and authentication checks before changing versions.',
+    );
   if (
     !/^\d+\.\d+\.\d+$/.test(pin.version) ||
     !/^[a-f0-9]{64}$/.test(pin.sha256) ||
@@ -49,38 +59,34 @@ export async function bundleAzureCli(root, buildDir, releaseDir) {
       timeout: 180000,
     },
   );
+  const reduced = join(directory, 'reduced');
+  const reduction = await reduceAzureCli(extracted, reduced);
+  await validateReducedAzureCli(root, reduced, pin.version);
+  const reducedArchivePath = join(directory, 'runtime-reduced.zip');
+  packReducedAzureCli(reduced, reducedArchivePath);
+  const reducedArchive = await readFile(reducedArchivePath);
+  const reducedSha256 = digest(reducedArchive);
   const files = {};
   async function inventory(relative = '') {
-    for (const entry of await readdir(join(extracted, relative), { withFileTypes: true })) {
+    for (const entry of await readdir(join(reduced, relative), { withFileTypes: true })) {
       const name = relative ? `${relative}/${entry.name}` : entry.name;
       if (entry.isDirectory()) await inventory(name);
-      else if (entry.isFile()) files[name] = digest(await readFile(join(extracted, name)));
+      else if (entry.isFile()) files[name] = digest(await readFile(join(reduced, name)));
       else throw new Error('Unexpected Azure CLI runtime entry.');
     }
   }
   await inventory();
   if (!files['python.exe'] || !files['bin/az.cmd'])
     throw new Error('Incomplete Azure CLI runtime.');
-  const version = execFileSync(
-    join(extracted, 'python.exe'),
-    ['-I', '-B', '-m', 'azure.cli', 'version', '--output', 'json'],
-    {
-      env: {
-        ...process.env,
-        AZURE_CONFIG_DIR: join(directory, 'build-config'),
-        AZURE_CORE_COLLECT_TELEMETRY: 'no',
-        AZURE_EXTENSION_USE_DYNAMIC_INSTALL: 'no',
-      },
-      encoding: 'utf8',
-      windowsHide: true,
-      timeout: 60000,
-    },
-  );
-  if (JSON.parse(version)['azure-cli'] !== pin.version)
-    throw new Error('Unexpected Azure CLI runtime version.');
   const manifestPath = join(directory, 'manifest.json');
-  await writeFile(manifestPath, JSON.stringify({ ...pin, files }));
-  const notices = `\nAzure CLI ${pin.version}\nhttps://github.com/Azure/azure-cli\nOfficial ZIP: ${pin.url}\nArchive SHA-256: ${pin.sha256}\nThe full distribution, including Python and dependency license/notice files, is preserved in the bundled runtime.\n`;
+  await writeFile(
+    manifestPath,
+    JSON.stringify({ ...pin, upstreamSha256: pin.sha256, sha256: reducedSha256, reduction, files }),
+  );
+  process.stdout.write(
+    `Azure CLI reduced at build time: ${reduction.originalFiles} -> ${reduction.retainedFiles} files; ${reduction.originalBytes} -> ${reduction.retainedBytes} unpacked bytes; ${archive.length} -> ${reducedArchive.length} archive bytes.\n`,
+  );
+  const notices = `\nAzure CLI ${pin.version}\nhttps://github.com/Azure/azure-cli\nOfficial source ZIP: ${pin.url}\nSource archive SHA-256: ${pin.sha256}\nReduced archive SHA-256: ${reducedSha256}\nCommitter Insights removes unrelated command modules and Azure service SDKs at build time. Python, shared third-party dependencies, certificates and all detected license/notice trees are preserved unchanged. This reduced runtime is not the complete official distribution or a general-purpose Azure CLI installation.\n`;
   await appendFile(join(releaseDir, 'THIRD-PARTY-NOTICES.txt'), notices);
   const spdxPath = join(releaseDir, 'azure-cli.spdx.json');
   await writeFile(
@@ -91,7 +97,7 @@ export async function bundleAzureCli(root, buildDir, releaseDir) {
         dataLicense: 'CC0-1.0',
         SPDXID: 'SPDXRef-DOCUMENT',
         name: 'Committer Insights bundled Azure CLI',
-        documentNamespace: `https://github.com/ninjapaw/committer-insights/sbom/azure-cli/${pin.version}/${pin.sha256}`,
+        documentNamespace: `https://github.com/ninjapaw/committer-insights/sbom/azure-cli/${pin.version}/${reducedSha256}`,
         creationInfo: {
           created: new Date().toISOString(),
           creators: ['Tool: Committer-Insights-Build'],
@@ -110,11 +116,28 @@ export async function bundleAzureCli(root, buildDir, releaseDir) {
             comment:
               'Distribution inventory only; consult bundled licenses for Python and individual dependencies.',
           },
+          {
+            name: 'Committer Insights reduced Azure CLI runtime',
+            SPDXID: 'SPDXRef-ReducedAzureCLI',
+            versionInfo: pin.version,
+            downloadLocation: 'NOASSERTION',
+            filesAnalyzed: false,
+            licenseConcluded: 'NOASSERTION',
+            licenseDeclared: 'NOASSERTION',
+            copyrightText: 'NOASSERTION',
+            checksums: [{ algorithm: 'SHA256', checksumValue: reducedSha256 }],
+            comment: `Derived payload, not the full upstream distribution. ${JSON.stringify(reduction)}. Offline synthetic authentication checks do not establish live tenant compatibility.`,
+          },
         ],
         relationships: [
           {
             spdxElementId: 'SPDXRef-DOCUMENT',
             relationshipType: 'DESCRIBES',
+            relatedSpdxElement: 'SPDXRef-ReducedAzureCLI',
+          },
+          {
+            spdxElementId: 'SPDXRef-ReducedAzureCLI',
+            relationshipType: 'GENERATED_FROM',
             relatedSpdxElement: 'SPDXRef-AzureCLI',
           },
         ],
@@ -124,7 +147,7 @@ export async function bundleAzureCli(root, buildDir, releaseDir) {
     ) + '\n',
   );
   return {
-    'azure-cli/runtime.zip': archivePath,
+    'azure-cli/runtime.zip': reducedArchivePath,
     'azure-cli/manifest.json': manifestPath,
     'azure-cli/extract.ps1': extractor,
     'azure-cli/sbom.spdx.json': spdxPath,

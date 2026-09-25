@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import type { TokenCredential } from '@azure/identity';
 import type { DeviceSignInState } from '@ninjapaw/contracts';
 import { config } from '../shared/config.js';
-import { resolveAzureCli } from './azure-cli-binary.js';
+import { getPreparedAzureCli } from './azure-cli-binary.js';
 
 export function parseAzureCliChallenge(
   output: string,
@@ -21,11 +21,7 @@ export function parseAzureCliChallenge(
   return { userCode: code, verificationUri: 'https://microsoft.com/devicelogin' };
 }
 
-export function createAzureCliSignIn(
-  signal: AbortSignal,
-  onReady?: () => void,
-  onProgress?: (message: string) => void,
-) {
+export function createAzureCliSignIn(signal: AbortSignal, onReady?: () => void) {
   const directory = mkdtempSync(join(tmpdir(), 'committer-azure-sign-in-'));
   const environment: NodeJS.ProcessEnv = {};
   for (const [name, value] of Object.entries(process.env)) {
@@ -65,7 +61,7 @@ export function createAzureCliSignIn(
   const run = async (args: string[], onOutput?: (text: string) => void): Promise<string> => {
     signal.throwIfAborted();
     if (disposed) throw new Error('Azure CLI session is closed.');
-    const executable = await resolveAzureCli(signal, args[0] === 'login' ? onProgress : undefined);
+    const executable = getPreparedAzureCli();
     signal.throwIfAborted();
     if (disposed) throw new Error('Azure CLI session is closed.');
     if (args[0] === 'login') onReady?.();

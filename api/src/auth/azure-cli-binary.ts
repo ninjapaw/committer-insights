@@ -9,6 +9,21 @@ import { setTimeout as delay } from 'node:timers/promises';
 
 const execute = promisify(execFile);
 const digest = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
+let preparation: Promise<string> | undefined;
+let preparedExecutable: string | undefined;
+
+export async function prepareAzureCli(onProgress?: (message: string) => void): Promise<void> {
+  preparation ??= resolveAzureCli(AbortSignal.timeout(600000), onProgress);
+  preparedExecutable = await preparation;
+}
+
+export function getPreparedAzureCli(): string {
+  if (process.platform !== 'win32' || !isSea())
+    throw new Error('Bundled Azure CLI sign-in requires the Windows x64 packaged application.');
+  if (!preparedExecutable)
+    throw new Error('Microsoft sign-in runtime is unavailable. Restart the app to prepare it.');
+  return preparedExecutable;
+}
 
 function safePath(name: string): boolean {
   return (

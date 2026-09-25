@@ -1,6 +1,8 @@
 import { startLocalServer } from './local-server.js';
 import { launchHelp, parseLaunchOptions } from './cli.js';
 import { launchLatestRelease } from './release-updater.js';
+import { isSea } from 'node:sea';
+import { prepareAzureCli } from './auth/azure-cli-binary.js';
 
 async function main(): Promise<void> {
   const options = parseLaunchOptions(process.argv.slice(2));
@@ -10,6 +12,16 @@ async function main(): Promise<void> {
   }
   process.env.COMMITTER_INSIGHTS_TIMEZONE = options.timeZone;
   if (!options.skipUpdateCheck && (await launchLatestRelease(process.argv.slice(2)))) return;
+  if (process.platform === 'win32' && isSea()) {
+    try {
+      await prepareAzureCli((message) => process.stdout.write(`${message}\n`));
+      process.stdout.write('Microsoft sign-in runtime ready.\n');
+    } catch {
+      process.stderr.write(
+        'Microsoft sign-in runtime preparation failed. Restart the app to retry; GitHub remains available.\n',
+      );
+    }
+  }
   await startLocalServer();
 }
 

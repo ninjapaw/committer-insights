@@ -5,7 +5,7 @@ import { createAzureCliSignIn, parseAzureCliChallenge } from '../../src/auth/azu
 
 const mocks = vi.hoisted(() => ({ execute: vi.fn(), resolve: vi.fn() }));
 vi.mock('node:child_process', () => ({ execFile: mocks.execute }));
-vi.mock('../../src/auth/azure-cli-binary.js', () => ({ resolveAzureCli: mocks.resolve }));
+vi.mock('../../src/auth/azure-cli-binary.js', () => ({ getPreparedAzureCli: mocks.resolve }));
 const sessions: ReturnType<typeof createAzureCliSignIn>[] = [];
 const tenant = '11111111-1111-4111-8111-111111111111';
 afterEach(() => {
@@ -13,13 +13,8 @@ afterEach(() => {
   vi.resetAllMocks();
   vi.unstubAllEnvs();
 });
-function setup(
-  outputs: Array<string | Error>,
-  browserPrompt = false,
-  onReady?: () => void,
-  onProgress?: (message: string) => void,
-) {
-  mocks.resolve.mockResolvedValue('C:/private-tools/python.exe');
+function setup(outputs: Array<string | Error>, browserPrompt = false, onReady?: () => void) {
+  mocks.resolve.mockReturnValue('C:/private-tools/python.exe');
   mocks.execute.mockImplementation((_path, _args, _options, callback) => {
     const child = new EventEmitter() as EventEmitter & {
       stderr: EventEmitter;
@@ -41,21 +36,18 @@ function setup(
     });
     return child;
   });
-  const session = createAzureCliSignIn(new AbortController().signal, onReady, onProgress);
+  const session = createAzureCliSignIn(new AbortController().signal, onReady);
   sessions.push(session);
   return session;
 }
 describe('isolated Azure CLI authentication', () => {
   it('does not report account selection or launch login when runtime preparation fails', async () => {
     const ready = vi.fn();
-    const progress = vi.fn();
-    const session = setup([], false, ready, progress);
-    mocks.resolve.mockImplementation(async (_signal, report) => {
-      report('Verifying Microsoft sign-in runtime: 0 of 2 files...');
+    const session = setup([], false, ready);
+    mocks.resolve.mockImplementation(() => {
       throw new Error('runtime unavailable');
     });
     await expect(session.authenticate(vi.fn())).rejects.toThrow('runtime unavailable');
-    expect(progress).toHaveBeenCalledWith('Verifying Microsoft sign-in runtime: 0 of 2 files...');
     expect(ready).not.toHaveBeenCalled();
     expect(mocks.execute).not.toHaveBeenCalled();
   });
@@ -81,6 +73,7 @@ describe('isolated Azure CLI authentication', () => {
       tenantId: tenant,
     });
     expect(challenge).not.toHaveBeenCalled();
+    expect(mocks.resolve.mock.calls).toEqual([[], []]);
     expect(ready).toHaveBeenCalledOnce();
     expect(mocks.execute.mock.calls[0]![2].windowsHide).toBe(false);
     expect(mocks.execute.mock.calls[1]![2].windowsHide).toBe(true);

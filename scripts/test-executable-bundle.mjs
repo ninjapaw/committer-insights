@@ -144,7 +144,7 @@ if (process.platform === 'win32') {
                 ready = new Promise((resolveReady, reject) => {
                   const timer = setTimeout(
                     () => reject(new Error('Upgrade startup timed out.')),
-                    20000,
+                    660000,
                   );
                   let output = '';
                   upgraded.once('error', (error) => {
@@ -162,6 +162,14 @@ if (process.platform === 'win32') {
                     );
                     if (match) {
                       clearTimeout(timer);
+                      if (
+                        !output.slice(0, match.index).includes('Microsoft sign-in runtime ready.')
+                      ) {
+                        reject(
+                          new Error('Upgraded app opened before Microsoft runtime readiness.'),
+                        );
+                        return;
+                      }
                       resolveReady(new URL(match[0]));
                     }
                   });

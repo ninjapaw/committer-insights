@@ -62,13 +62,22 @@ async function smokeStartup(args) {
 
   try {
     const launchUrl = await new Promise((resolveUrl, reject) => {
-      const timeout = setTimeout(() => reject(new Error('Executable startup timed out.')), 15_000);
+      const timeout = setTimeout(() => reject(new Error('Executable startup timed out.')), 660_000);
       child.once('exit', (code) => reject(new Error(`Executable exited early with code ${code}.`)));
       child.stdout.setEncoding('utf8');
+      let startupOutput = '';
       child.stdout.on('data', (output) => {
-        const match = output.match(/http:\/\/127\.0\.0\.1:\d+\/#session=[A-Za-z0-9_-]+/);
+        startupOutput += output;
+        const match = startupOutput.match(/http:\/\/127\.0\.0\.1:\d+\/#session=[A-Za-z0-9_-]+/);
         if (match) {
           clearTimeout(timeout);
+          if (
+            process.platform === 'win32' &&
+            !startupOutput.slice(0, match.index).includes('Microsoft sign-in runtime ready.')
+          ) {
+            reject(new Error('Microsoft runtime was not prepared before the app opened.'));
+            return;
+          }
           resolveUrl(match[0]);
         }
       });

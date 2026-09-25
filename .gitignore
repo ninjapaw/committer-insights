@@ -20,6 +20,9 @@ local.settings.json
 /exports/
 .DS_Store
 *.tsbuildinfo
+.mypy_cache/
+__pycache__/
+*.pyc
 demo/public/generated/
 demo/.astro/
 .vscode/*

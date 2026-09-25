@@ -35,6 +35,34 @@ afterEach(() => {
 });
 describe('bundled Azure CLI integrity', () => {
   it.skipIf(process.platform !== 'win32')(
+    'prepares once before sign-in and reuses the verified runtime for the app session',
+    async () => {
+      vi.resetModules();
+      const { prepareAzureCli, getPreparedAzureCli } =
+        await import('../../src/auth/azure-cli-binary.js');
+      expect(() => getPreparedAzureCli()).toThrow('Restart the app');
+      root = mkdtempSync(join(tmpdir(), 'azure-runtime-test-'));
+      vi.stubEnv('LOCALAPPDATA', root);
+      const hash = createHash('sha256').update('verified').digest('hex');
+      const directory = join(root, 'CommitterInsights/tools/azure-cli', `2.90.0-${hash}`);
+      mkdirSync(join(directory, 'bin'), { recursive: true });
+      writeFileSync(join(directory, 'python.exe'), 'verified');
+      writeFileSync(join(directory, 'bin/az.cmd'), 'verified');
+      assets.manifest = JSON.stringify({
+        version: '2.90.0',
+        sha256: hash,
+        architecture: process.arch,
+        files: { 'python.exe': hash, 'bin/az.cmd': hash },
+      });
+      const progress = vi.fn();
+      await Promise.all([prepareAzureCli(progress), prepareAzureCli(progress)]);
+      expect(progress).toHaveBeenCalledTimes(2);
+      expect(getPreparedAzureCli()).toBe(join(directory, 'python.exe'));
+      await prepareAzureCli(progress);
+      expect(progress).toHaveBeenCalledTimes(2);
+    },
+  );
+  it.skipIf(process.platform !== 'win32')(
     'extracts runtime files beyond the legacy Windows path limit',
     () => {
       root = mkdtempSync(join(tmpdir(), 'azure-runtime-test-'));
@@ -173,6 +201,11 @@ describe('bundled Azure CLI integrity', () => {
       writeFileSync(join(directory, 'python.exe'), 'verified');
       writeFileSync(join(directory, 'injected.py'), 'untrusted');
       await expect(resolveAzureCli()).rejects.toThrow('integrity');
+      vi.resetModules();
+      const startup = await import('../../src/auth/azure-cli-binary.js');
+      await expect(startup.prepareAzureCli()).rejects.toThrow('integrity');
+      expect(() => startup.getPreparedAzureCli()).toThrow('Restart the app');
+      await expect(startup.prepareAzureCli()).rejects.toThrow('integrity');
     },
   );
   it.skipIf(process.platform !== 'win32')(
