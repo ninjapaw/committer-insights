@@ -8,23 +8,27 @@ import { PRODUCT } from '../packages/metadata/dist/index.js';
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 
 export async function bundleGitHubCli(root, buildDir, releaseDir) {
-  if (process.platform !== 'win32') return {};
   const pin = JSON.parse(await readFile(join(root, 'config/github-cli.json'), 'utf8'));
-  const expectedUrl = `https://github.com/cli/cli/releases/download/v${pin.version}/gh_${pin.version}_windows_amd64.zip`;
+  const target =
+    process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'macOS' : undefined;
+  const architecture =
+    process.arch === 'arm64' ? 'arm64' : process.arch === 'x64' ? 'amd64' : undefined;
+  if (!target || !architecture) return {};
+  const platformPin = process.platform === 'darwin' ? pin.macOS?.[process.arch] : pin;
+  const expectedUrl = `https://github.com/cli/cli/releases/download/v${pin.version}/gh_${pin.version}_${target}_${architecture}.zip`;
   if (
     !/^\d+\.\d+\.\d+$/.test(pin.version) ||
-    !/^[a-f0-9]{64}$/.test(pin.sha256) ||
-    pin.url !== expectedUrl ||
-    pin.platform !== process.platform ||
-    pin.architecture !== process.arch ||
-    process.arch !== 'x64'
+    !/^[a-f0-9]{64}$/.test(platformPin?.sha256) ||
+    platformPin.url !== expectedUrl ||
+    (process.platform === 'win32' &&
+      (pin.platform !== process.platform || pin.architecture !== process.arch))
   ) {
     throw new Error('No verified GitHub CLI package is pinned for this build target.');
   }
   const destination = join(buildDir, 'github-cli');
   await mkdir(destination, { recursive: true });
   const archivePath = join(destination, 'github-cli.zip');
-  let url = new URL(pin.url);
+  let url = new URL(platformPin.url);
   let response;
   const signal = globalThis.AbortSignal.timeout(120000);
   for (let redirects = 0; redirects < 5; redirects++) {
@@ -63,7 +67,7 @@ export async function bundleGitHubCli(root, buildDir, releaseDir) {
     chunks.push(chunk);
   }
   const archive = Buffer.concat(chunks);
-  if (sha256(archive) !== pin.sha256)
+  if (sha256(archive) !== platformPin.sha256)
     throw new Error('Pinned GitHub CLI archive checksum mismatch.');
   await writeFile(archivePath, archive);
   const powershell = join(
@@ -73,13 +77,18 @@ export async function bundleGitHubCli(root, buildDir, releaseDir) {
     'v1.0',
     'powershell.exe',
   );
-  execFileSync(
-    powershell,
-    [
-      '-NoProfile',
-      '-NonInteractive',
-      '-Command',
-      `
+  if (process.platform === 'darwin') {
+    execFileSync('ditto', ['-x', '-k', archivePath, destination], { stdio: 'pipe' });
+    const extracted = join(destination, `gh_${pin.version}_${target}_${architecture}`, 'bin', 'gh');
+    await writeFile(join(destination, 'gh'), await readFile(extracted));
+  } else
+    execFileSync(
+      powershell,
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        `
     $ErrorActionPreference = 'Stop'
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $zip = [System.IO.Compression.ZipFile]::OpenRead($env:COMMITTER_GH_ARCHIVE)
@@ -92,20 +101,23 @@ export async function bundleGitHubCli(root, buildDir, releaseDir) {
       }
     } finally { $zip.Dispose() }
   `,
-    ],
-    {
-      env: { ...process.env, COMMITTER_GH_ARCHIVE: archivePath, COMMITTER_GH_OUTPUT: destination },
-      windowsHide: true,
-      stdio: 'pipe',
-    },
-  );
-  const binaryPath = join(destination, 'gh.exe');
+      ],
+      {
+        env: {
+          ...process.env,
+          COMMITTER_GH_ARCHIVE: archivePath,
+          COMMITTER_GH_OUTPUT: destination,
+        },
+        windowsHide: true,
+        stdio: 'pipe',
+      },
+    );
+  const binaryPath = join(destination, process.platform === 'win32' ? 'gh.exe' : 'gh');
   const licensePath = join(destination, 'LICENSE');
   const binary = await readFile(binaryPath);
   const license = await readFile(licensePath);
   if (
-    binary[0] !== 0x4d ||
-    binary[1] !== 0x5a ||
+    (process.platform === 'win32' && (binary[0] !== 0x4d || binary[1] !== 0x5a)) ||
     !license.toString('utf8').includes('MIT License')
   ) {
     throw new Error('Invalid GitHub CLI executable or license in pinned archive.');
@@ -116,7 +128,7 @@ export async function bundleGitHubCli(root, buildDir, releaseDir) {
     manifestPath,
     JSON.stringify({ version: pin.version, architecture: pin.architecture, sha256: binaryHash }),
   );
-  const notices = `GitHub CLI ${pin.version}\nhttps://github.com/cli/cli\nOfficial archive: ${pin.url}\nArchive SHA-256: ${pin.sha256}\n\n${license.toString('utf8')}`;
+  const notices = `GitHub CLI ${pin.version}\nhttps://github.com/cli/cli\nOfficial archive: ${platformPin.url}\nArchive SHA-256: ${platformPin.sha256}\n\n${license.toString('utf8')}`;
   await writeFile(join(releaseDir, 'THIRD-PARTY-NOTICES.txt'), notices);
   const sbom = {
     spdxVersion: 'SPDX-2.3',
@@ -133,12 +145,12 @@ export async function bundleGitHubCli(root, buildDir, releaseDir) {
         name: 'GitHub CLI',
         SPDXID: 'SPDXRef-GitHubCLI',
         versionInfo: pin.version,
-        downloadLocation: pin.url,
+        downloadLocation: platformPin.url,
         filesAnalyzed: false,
         licenseConcluded: 'NOASSERTION',
         licenseDeclared: 'MIT',
         copyrightText: 'Copyright (c) 2019 GitHub Inc.',
-        checksums: [{ algorithm: 'SHA256', checksumValue: pin.sha256 }],
+        checksums: [{ algorithm: 'SHA256', checksumValue: platformPin.sha256 }],
         externalRefs: [
           {
             referenceCategory: 'PACKAGE-MANAGER',
@@ -175,7 +187,7 @@ export async function bundleGitHubCli(root, buildDir, releaseDir) {
   const sbomPath = join(releaseDir, 'github-cli.spdx.json');
   await writeFile(sbomPath, JSON.stringify(sbom, null, 2) + '\n');
   return {
-    'github-cli/gh.exe': binaryPath,
+    [`github-cli/${process.platform === 'win32' ? 'gh.exe' : 'gh'}`]: binaryPath,
     'github-cli/LICENSE': licensePath,
     'github-cli/manifest.json': manifestPath,
     'github-cli/sbom.spdx.json': sbomPath,

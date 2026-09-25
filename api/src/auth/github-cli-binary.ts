@@ -26,6 +26,9 @@ function matches(path: string, sha256: string): boolean {
 }
 
 export function resolveGitHubCli(): string {
+  if (process.env.DEVELOPER_USAGE_INSIGHTS_GH_PATH) {
+    return process.env.DEVELOPER_USAGE_INSIGHTS_GH_PATH;
+  }
   if (!isSea() || process.platform !== 'win32') return 'gh';
   const manifest = JSON.parse(getAsset('github-cli/manifest.json', 'utf8')) as {
     version: string;

@@ -35,6 +35,11 @@ if (platform === 'darwin') {
     join(root, 'build', `${PRODUCT.executableName}.cjs`),
     join(appRoot, 'Contents', 'Resources', `${PRODUCT.executableName}.cjs`),
   );
+  await cp(process.execPath, join(appRoot, 'Contents', 'Resources', 'node'));
+  await chmod(join(appRoot, 'Contents', 'Resources', 'node'), 0o755);
+  const bundledGitHubCli = join(root, 'build', 'github-cli', 'gh');
+  await cp(bundledGitHubCli, join(appRoot, 'Contents', 'Resources', 'gh'));
+  await chmod(join(appRoot, 'Contents', 'Resources', 'gh'), 0o755);
   const iconset = join(root, 'build', `${PRODUCT.iconName}.iconset`);
   const iconPath = join(appRoot, 'Contents', 'Resources', `${PRODUCT.iconName}.icns`);
   execFileSync(process.execPath, [join(root, 'scripts', 'generate-macos-icon.mjs'), iconset], {
@@ -50,24 +55,11 @@ if (platform === 'darwin') {
     `#!/bin/sh
 set -eu
 RESOURCE_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/../Resources" && pwd)"
-NODE_BIN=""
-if command -v node >/dev/null 2>&1; then
-  NODE_BIN="$(command -v node)"
-else
-  for candidate in /opt/homebrew/bin/node /usr/local/bin/node /usr/bin/node "$HOME"/.nvm/versions/node/*/bin/node "$HOME"/.local/share/mise/installs/node/*/bin/node; do
-    if [ -x "$candidate" ]; then
-      NODE_BIN="$candidate"
-      break
-    fi
-  done
-fi
-if [ -z "$NODE_BIN" ]; then
-  /usr/bin/osascript -e 'display dialog "Node.js is required to launch Developer Usage Insights. Install Node.js 24.19.0, then try again." with title "Developer Usage Insights" buttons {"OK"} default button "OK"'
-  exit 1
-fi
-export PATH="$(dirname "$NODE_BIN"):/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+export DEVELOPER_USAGE_INSIGHTS_GH_PATH="$RESOURCE_DIR/gh"
+export DEVELOPER_USAGE_INSIGHTS_BUNDLED_NODE=true
+export PATH="$RESOURCE_DIR:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 cd "$RESOURCE_DIR"
-exec "$NODE_BIN" "$RESOURCE_DIR/${PRODUCT.executableName}.cjs" "$@"
+exec "$RESOURCE_DIR/node" "$RESOURCE_DIR/${PRODUCT.executableName}.cjs" "$@"
 `,
   );
   await chmod(launcher, 0o755);
@@ -111,7 +103,7 @@ exec "$NODE_BIN" "$RESOURCE_DIR/${PRODUCT.executableName}.cjs" "$@"
 }
 await writeFile(
   join(release, 'PLATFORM-REQUIREMENTS.txt'),
-  `${PRODUCT.displayName}\n\nPlatform: ${platform}\nArchitecture: ${architecture}\n\nRequired for provider sign-in:\n- ${platform === 'darwin' ? 'Node.js must be installed and available on PATH for the macOS app wrapper.' : 'Node.js is bundled in this executable.'}\n- Azure CLI (az) must be installed and available on PATH for Microsoft sign-in.\n- GitHub CLI (gh) must be installed and available on PATH for GitHub sign-in.\n\nThe application, local report server, exports, and report data remain bundled/local.\n`,
+  `${PRODUCT.displayName}\n\nPlatform: ${platform}\nArchitecture: ${architecture}\n\nRequired for provider sign-in:\n- ${platform === 'darwin' ? 'No Node.js, Azure CLI, or GitHub CLI installation is required; macOS releases bundle all three runtime components.' : 'Node.js is bundled in this executable.'}\n- ${platform === 'darwin' ? 'Azure DevOps browser sign-in uses the bundled Microsoft identity flow.' : 'Azure CLI (az) must be installed and available on PATH for Microsoft sign-in.'}\n- ${platform === 'darwin' ? 'GitHub CLI (gh) is bundled in the app.' : 'GitHub CLI (gh) must be installed and available on PATH for GitHub sign-in.'}\n\nThe application, local report server, exports, and report data remain bundled/local.\n`,
 );
 if (platform === 'darwin') {
   // Put the complete app bundle in the disk image so Finder launches the same metadata-rich app.

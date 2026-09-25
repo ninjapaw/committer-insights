@@ -25,7 +25,7 @@ Review Azure DevOps and GitHub plans, repository activity, security settings, re
 
 ## Get Started
 
-**Requirements:** Windows x64, macOS, or Linux, a web browser, internet access, and an authorized Microsoft or GitHub account. Windows/Linux releases include Node and the application; macOS releases require Node.js on `PATH`. Install Azure CLI (`az`) and GitHub CLI (`gh`) separately on macOS/Linux and make both available on `PATH` before provider sign-in. No administrator rights are required. Organization and endpoint restrictions still apply.
+**Requirements:** Windows x64, macOS, or Linux, a web browser, internet access, and an authorized Microsoft or GitHub account. Windows and macOS releases include their required runtime components; Linux releases require Node.js, Azure CLI (`az`), and GitHub CLI (`gh`) on `PATH`. No administrator rights are required. Organization and endpoint restrictions still apply.
 
 1. Download the release for your operating system and architecture from the **same [release](https://github.com/ninjapaw/committer-insights/releases)**.
 2. Calculate the executable's SHA-256 and compare it with the downloaded checksum:
@@ -34,7 +34,7 @@ Review Azure DevOps and GitHub plans, repository activity, security settings, re
    Get-FileHash .\developer-usage-insights.exe -Algorithm SHA256
    ```
 
-3. Run the executable. It checks for updates and opens the local workspace in your browser. Windows first launch prepares the Microsoft sign-in runtime; macOS/Linux use the installed Azure CLI and GitHub CLI.
+3. Run the executable. It checks for updates and opens the local workspace in your browser. Windows first launch prepares the Microsoft sign-in runtime; macOS uses its bundled Node.js, Microsoft browser flow, and GitHub CLI.
 4. Sign in, select your sources and report options, then review access before generating a report.
 5. Export anything you need to keep before closing the application. Reports are held in memory; downloaded exports remain on disk.
 
@@ -326,7 +326,7 @@ See the [contribution guide](CONTRIBUTING.md) and [maintenance guidance](#mainte
 
 ### Development and Architecture
 
-Use Node.js **24.19.0** and npm **11.17.0**. Source runs and macOS/Linux packages need installed GitHub CLI and Azure CLI tools available on `PATH`; Windows x64 packages include verified private copies. The explicit SDK device-code option requires publisher configuration.
+Use Node.js **24.19.0** and npm **11.17.0**. Source runs and Linux packages need Node.js, GitHub CLI, and Azure CLI available on `PATH`; Windows and macOS packages include their required runtime components. The explicit SDK device-code option requires publisher configuration.
 
 ```powershell
 npm ci
