@@ -40,7 +40,7 @@ Review Azure DevOps and GitHub plans, repository activity, security settings, re
 
 Keep the application console open while using the browser. The Microsoft runtime uses approximately 106 MB of local cache space, plus temporary extraction space. Later launches verify the cache before opening the workspace, without signing you in automatically.
 
-On macOS, install Node.js, make `developer-usage-insights` runnable with `chmod +x`, and run it from Terminal. The default archive intentionally contains no unsigned `.app`, so it is not presented as a Gatekeeper-approved application. A Developer ID signed `.app` is produced only when the release build supplies `MACOS_SIGNING_IDENTITY`; Apple notarization is additionally required for Gatekeeper-approved distribution. On Linux, make `developer-usage-insights` runnable with `chmod +x` and use the included `run-developer-usage-insights.sh` launcher. The release archive includes the platform requirements. The [public demo](https://ninjapaw.github.io/committer-insights/) contains fictional complete, partial, and empty reports. It requires no sign-in and collects no customer data.
+On macOS, open the `developer-usage-insights-darwin-arm64.dmg` disk image and launch the included app. The default image is an unsigned evaluation build; a Developer ID signature and Apple notarization are required for Gatekeeper-approved distribution. On Linux, make `developer-usage-insights` runnable with `chmod +x` and use the included `run-developer-usage-insights.sh` launcher. The release archive includes the platform requirements. The [public demo](https://ninjapaw.github.io/committer-insights/) contains fictional complete, partial, and empty reports. It requires no sign-in and collects no customer data.
 
 ## Sign In
 

@@ -9,9 +9,13 @@ const release = join(root, 'release');
 const executable = join(release, PRODUCT.executableName);
 const platform = process.platform;
 const architecture = process.arch;
-const archiveName = `${PRODUCT.slug}-${platform}-${architecture}.tar.gz`;
+const archiveName =
+  platform === 'darwin'
+    ? `${PRODUCT.slug}-${platform}-${architecture}.dmg`
+    : `${PRODUCT.slug}-${platform}-${architecture}.tar.gz`;
 const archive = join(release, archiveName);
 const archiveEntries = [PRODUCT.executableName, 'PLATFORM-REQUIREMENTS.txt'];
+const appRoot = join(release, `${PRODUCT.displayName}.app`);
 
 await chmod(executable, 0o755);
 if (platform === 'linux') {
@@ -21,8 +25,7 @@ if (platform === 'linux') {
   archiveEntries.push('run-developer-usage-insights.sh');
 }
 if (platform === 'darwin') {
-  // Build the app bundle from shared metadata; unsigned bundles stay out of distributable archives.
-  const appRoot = join(release, `${PRODUCT.displayName}.app`);
+  // Build the app bundle from shared metadata; signing is applied when release credentials exist.
   await mkdir(join(appRoot, 'Contents', 'MacOS'), { recursive: true });
   await mkdir(join(appRoot, 'Contents', 'Resources', 'app'), { recursive: true });
   await cp(join(root, 'app', 'dist'), join(appRoot, 'Contents', 'Resources', 'app'), {
@@ -69,9 +72,10 @@ if (platform === 'darwin') {
     execFileSync('codesign', ['--verify', '--deep', '--strict', appRoot], {
       stdio: 'inherit',
     });
-    archiveEntries.push(`${PRODUCT.displayName}.app`);
   } else {
-    await rm(appRoot, { recursive: true, force: true });
+    process.stderr.write(
+      'No MACOS_SIGNING_IDENTITY was supplied; creating an unsigned evaluation app image.\n',
+    );
   }
   await writeFile(
     executable,
@@ -88,9 +92,33 @@ await writeFile(
   join(release, 'PLATFORM-REQUIREMENTS.txt'),
   `${PRODUCT.displayName}\n\nPlatform: ${platform}\nArchitecture: ${architecture}\n\nRequired for provider sign-in:\n- ${platform === 'darwin' ? 'Node.js must be installed and available on PATH for the macOS app wrapper.' : 'Node.js is bundled in this executable.'}\n- Azure CLI (az) must be installed and available on PATH for Microsoft sign-in.\n- GitHub CLI (gh) must be installed and available on PATH for GitHub sign-in.\n\nThe application, local report server, exports, and report data remain bundled/local.\n`,
 );
-execFileSync('tar', ['-czf', archive, '-C', release, ...archiveEntries], {
-  stdio: 'inherit',
-});
+if (platform === 'darwin') {
+  // Put the complete app bundle in the disk image so Finder launches the same metadata-rich app.
+  const imageRoot = join(root, 'build', `${PRODUCT.slug}-dmg-root`);
+  await rm(imageRoot, { recursive: true, force: true });
+  await mkdir(imageRoot, { recursive: true });
+  await cp(appRoot, join(imageRoot, `${PRODUCT.displayName}.app`), { recursive: true });
+  execFileSync(
+    'hdiutil',
+    [
+      'create',
+      '-volname',
+      PRODUCT.displayName,
+      '-srcfolder',
+      imageRoot,
+      '-ov',
+      '-format',
+      'UDZO',
+      archive,
+    ],
+    { stdio: 'inherit' },
+  );
+  await rm(imageRoot, { recursive: true, force: true });
+} else {
+  execFileSync('tar', ['-czf', archive, '-C', release, ...archiveEntries], {
+    stdio: 'inherit',
+  });
+}
 const digest = createHash('sha256')
   .update(await readFile(archive))
   .digest('hex');

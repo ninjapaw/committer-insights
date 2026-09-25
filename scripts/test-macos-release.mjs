@@ -8,8 +8,11 @@ const root = resolve('.');
 const executable = join(root, 'release', PRODUCT.executableName);
 const app = join(root, 'release', `${PRODUCT.displayName}.app`);
 const appExecutable = join(app, 'Contents', 'MacOS', PRODUCT.executableName);
+const diskImage = join(root, 'release', `${PRODUCT.slug}-darwin-${process.arch}.dmg`);
 
 await access(executable, constants.X_OK);
+await access(diskImage, constants.R_OK);
+execFileSync('hdiutil', ['imageinfo', diskImage], { stdio: 'inherit' });
 const help = execFileSync(executable, ['--help'], { encoding: 'utf8' });
 if (!help.includes('--timezone <IANA timezone>'))
   throw new Error('macOS launcher did not launch the bundled application.');
@@ -34,6 +37,10 @@ if (
       throw new Error(`macOS app metadata is missing ${value}.`);
   }
   await access(join(app, 'Contents', 'Resources', `${PRODUCT.iconName}.icns`), constants.R_OK);
-  execFileSync('codesign', ['--verify', '--deep', '--strict', app], { stdio: 'inherit' });
+  try {
+    execFileSync('codesign', ['--verify', '--deep', '--strict', app], { stdio: 'inherit' });
+  } catch {
+    process.stdout.write('macOS app is unsigned; continuing with evaluation-image checks.\n');
+  }
 }
-process.stdout.write('macOS launcher and optional signed app bundle checks passed.\n');
+process.stdout.write('macOS launcher, app bundle, and disk image checks passed.\n');
