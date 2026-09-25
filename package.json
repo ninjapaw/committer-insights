@@ -28,6 +28,7 @@
     "build": "npm run build --workspace packages/metadata && npm run build --workspace packages/contracts && npm run build --workspace app && npm run build --workspace api",
     "build:exe": "npm run build && node scripts/build-executable.mjs",
     "package:posix": "node scripts/package-posix-release.mjs",
+    "test:macos": "node scripts/test-macos-release.mjs",
     "test:exe": "node scripts/test-executable-bundle.mjs && node scripts/smoke-executable.mjs",
     "demo:generate": "npm run build --workspace packages/metadata && npm run build --workspace packages/contracts && npm run build --workspace api && node scripts/generate-demo.mjs",
     "demo:build": "npm run demo:generate && npm run build --workspace demo",
