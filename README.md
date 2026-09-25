@@ -25,7 +25,7 @@ Review Azure DevOps and GitHub plans, repository activity, security settings, re
 
 ## Get Started
 
-**Requirements:** Windows x64, macOS, or Linux, a web browser, internet access, and an authorized Microsoft or GitHub account. Windows releases include the required Azure and GitHub CLI runtimes. macOS/Linux releases include Node and the application; install Azure CLI (`az`) and GitHub CLI (`gh`) separately and make both available on `PATH` before provider sign-in. No administrator rights or global Node.js installation is required. Organization and endpoint restrictions still apply.
+**Requirements:** Windows x64, macOS, or Linux, a web browser, internet access, and an authorized Microsoft or GitHub account. Windows/Linux releases include Node and the application; macOS app releases include the application wrapper and require Node.js on `PATH`. Install Azure CLI (`az`) and GitHub CLI (`gh`) separately on macOS/Linux and make both available on `PATH` before provider sign-in. No administrator rights are required. Organization and endpoint restrictions still apply.
 
 1. Download the release for your operating system and architecture from the **same [release](https://github.com/ninjapaw/committer-insights/releases)**.
 2. Calculate the executable's SHA-256 and compare it with the downloaded checksum:
@@ -40,7 +40,7 @@ Review Azure DevOps and GitHub plans, repository activity, security settings, re
 
 Keep the application console open while using the browser. The Microsoft runtime uses approximately 106 MB of local cache space, plus temporary extraction space. Later launches verify the cache before opening the workspace, without signing you in automatically.
 
-On macOS, open `Developer Usage Insights.app` or run its bundled executable. On Linux, make `developer-usage-insights` runnable with `chmod +x` and use the included `run-developer-usage-insights.sh` launcher. The release archive includes the platform requirements. The [public demo](https://ninjapaw.github.io/committer-insights/) contains fictional complete, partial, and empty reports. It requires no sign-in and collects no customer data.
+On macOS, install Node.js, then open `Developer Usage Insights.app`. On Linux, make `developer-usage-insights` runnable with `chmod +x` and use the included `run-developer-usage-insights.sh` launcher. The release archive includes the platform requirements. The [public demo](https://ninjapaw.github.io/committer-insights/) contains fictional complete, partial, and empty reports. It requires no sign-in and collects no customer data.
 
 ## Sign In
 

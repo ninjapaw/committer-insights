@@ -23,8 +23,20 @@ if (platform === 'linux') {
 if (platform === 'darwin') {
   const appRoot = join(release, `${PRODUCT.displayName}.app`);
   await mkdir(join(appRoot, 'Contents', 'MacOS'), { recursive: true });
-  await cp(executable, join(appRoot, 'Contents', 'MacOS', PRODUCT.executableName));
-  await chmod(join(appRoot, 'Contents', 'MacOS', PRODUCT.executableName), 0o755);
+  await mkdir(join(appRoot, 'Contents', 'Resources', 'app'), { recursive: true });
+  await cp(join(root, 'app', 'dist'), join(appRoot, 'Contents', 'Resources', 'app'), {
+    recursive: true,
+  });
+  await cp(
+    join(root, 'build', `${PRODUCT.executableName}.cjs`),
+    join(appRoot, 'Contents', 'Resources', `${PRODUCT.executableName}.cjs`),
+  );
+  const launcher = join(appRoot, 'Contents', 'MacOS', PRODUCT.executableName);
+  await writeFile(
+    launcher,
+    `#!/bin/sh\nset -eu\nRESOURCE_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/../Resources" && pwd)"\ncd "$RESOURCE_DIR"\nexec /usr/bin/env node "$RESOURCE_DIR/${PRODUCT.executableName}.cjs" "$@"\n`,
+  );
+  await chmod(launcher, 0o755);
   await writeFile(
     join(appRoot, 'Contents', 'Info.plist'),
     `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict><key>CFBundleDisplayName</key><string>${PRODUCT.displayName}</string><key>CFBundleExecutable</key><string>${PRODUCT.executableName}</string><key>CFBundleIdentifier</key><string>org.ninjapaw.${PRODUCT.slug}</string><key>CFBundlePackageType</key><string>APPL</string><key>CFBundleVersion</key><string>0.1.0</string><key>CFBundleShortVersionString</key><string>0.1.0</string></dict></plist>\n`,
@@ -33,7 +45,7 @@ if (platform === 'darwin') {
 }
 await writeFile(
   join(release, 'PLATFORM-REQUIREMENTS.txt'),
-  `${PRODUCT.displayName}\n\nPlatform: ${platform}\nArchitecture: ${architecture}\n\nRequired for provider sign-in:\n- Node.js is bundled in this executable.\n- Azure CLI (az) must be installed and available on PATH for Microsoft sign-in.\n- GitHub CLI (gh) must be installed and available on PATH for GitHub sign-in.\n\nThe application, local report server, exports, and report data remain bundled/local.\n`,
+  `${PRODUCT.displayName}\n\nPlatform: ${platform}\nArchitecture: ${architecture}\n\nRequired for provider sign-in:\n- ${platform === 'darwin' ? 'Node.js must be installed and available on PATH for the macOS app wrapper.' : 'Node.js is bundled in this executable.'}\n- Azure CLI (az) must be installed and available on PATH for Microsoft sign-in.\n- GitHub CLI (gh) must be installed and available on PATH for GitHub sign-in.\n\nThe application, local report server, exports, and report data remain bundled/local.\n`,
 );
 execFileSync('tar', ['-czf', archive, '-C', release, ...archiveEntries], {
   stdio: 'inherit',

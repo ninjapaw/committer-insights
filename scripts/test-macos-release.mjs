@@ -18,4 +18,7 @@ if (!fileInfo.includes('Mach-O') || !fileInfo.includes('arm64'))
 execFileSync('codesign', ['--verify', '--verbose=4', executable], { stdio: 'inherit' });
 const plist = join(app, 'Contents', 'Info.plist');
 await access(plist, constants.R_OK);
+const help = execFileSync(appExecutable, ['--help'], { encoding: 'utf8' });
+if (!help.includes('--timezone <IANA timezone>'))
+  throw new Error('macOS app wrapper did not launch the bundled application.');
 process.stdout.write('macOS native executable and app bundle integrity checks passed.\n');
