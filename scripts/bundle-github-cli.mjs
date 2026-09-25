@@ -79,8 +79,20 @@ export async function bundleGitHubCli(root, buildDir, releaseDir) {
   );
   if (process.platform === 'darwin') {
     execFileSync('ditto', ['-x', '-k', archivePath, destination], { stdio: 'pipe' });
-    const extracted = join(destination, `gh_${pin.version}_${target}_${architecture}`, 'bin', 'gh');
+    const extracted = execFileSync(
+      'find',
+      [destination, '-type', 'f', '-name', 'gh', '-print', '-quit'],
+      { encoding: 'utf8' },
+    ).trim();
+    const extractedLicense = execFileSync(
+      'find',
+      [destination, '-type', 'f', '-name', 'LICENSE', '-print', '-quit'],
+      { encoding: 'utf8' },
+    ).trim();
+    if (!extracted || !extractedLicense)
+      throw new Error('Invalid macOS GitHub CLI archive layout.');
     await writeFile(join(destination, 'gh'), await readFile(extracted));
+    await writeFile(join(destination, 'LICENSE'), await readFile(extractedLicense));
   } else
     execFileSync(
       powershell,
