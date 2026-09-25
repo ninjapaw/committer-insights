@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { Server } from 'node:http';
+import { once } from 'node:events';
+import { createConnection } from 'node:net';
 import { startLocalServer } from '../../src/local-server.js';
 import { listGitHubAccounts, disconnectGitHubAccount } from '../../src/auth/github-cli.js';
 import { connectGitHub } from '../../src/services/github.js';
@@ -87,6 +89,44 @@ afterAll(async () => {
 });
 
 describe('device sign-in local API boundary', () => {
+  it.each(['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGBREAK'] as const)(
+    'closes stalled connections and cancels authentication on %s',
+    async (signal) => {
+      const previousListeners = process.listeners(signal);
+      const output = vi.spyOn(process.stdout, 'write').mockReturnValue(true);
+      const localServer = await startLocalServer();
+      output.mockRestore();
+      const address = localServer.address();
+      if (!address || typeof address === 'string') throw new Error('Missing test address');
+      const connected = once(localServer, 'connection');
+      const socket = createConnection({ host: '127.0.0.1', port: address.port });
+      const exit = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+      try {
+        await connected;
+        const shutdown = process
+          .listeners(signal)
+          .find((listener) => !previousListeners.includes(listener))!;
+        const closed = once(localServer, 'close');
+        const canceledGitHub = vi.mocked(cancelGitHubSignIn).mock.calls.length;
+        const canceledMicrosoft = vi.mocked(disconnectMicrosoftAccount).mock.calls.length;
+        shutdown(signal);
+        shutdown(signal);
+        await closed;
+        await vi.waitFor(() => expect(exit).toHaveBeenCalledExactlyOnceWith(0));
+        expect(vi.mocked(cancelGitHubSignIn).mock.calls.length).toBeGreaterThan(canceledGitHub);
+        expect(vi.mocked(disconnectMicrosoftAccount).mock.calls.length).toBeGreaterThan(
+          canceledMicrosoft,
+        );
+        expect(process.listeners(signal)).toEqual(previousListeners);
+      } finally {
+        exit.mockRestore();
+        socket.destroy();
+        if (localServer.listening) localServer.close();
+        localServer.closeAllConnections();
+      }
+    },
+  );
+
   it('protects GitHub account listing, selection, and sign-out behind capability and origin checks', async () => {
     for (const [path, method] of [
       ['/api/auth/github/accounts', 'GET'],

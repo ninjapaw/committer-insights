@@ -379,12 +379,21 @@ export async function startLocalServer(): Promise<Server> {
     process.stdout.write(`Committer Insights opened at http://${HOST}:${address.port}/\n`);
   }
 
-  server.once('close', () => cancelGitHubSignIn());
+  let closing = false;
+  const signals = ['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGBREAK'] as const;
   const shutdown = () => {
+    if (closing) return;
+    closing = true;
     cancelGitHubSignIn();
+    disconnectMicrosoftAccount();
     server.close(() => process.exit(0));
+    server.closeAllConnections();
   };
-  process.on('SIGINT', shutdown);
-  process.on('SIGTERM', shutdown);
+  server.once('close', () => {
+    for (const signal of signals) process.removeListener(signal, shutdown);
+    cancelGitHubSignIn();
+    disconnectMicrosoftAccount();
+  });
+  for (const signal of signals) process.on(signal, shutdown);
   return server;
 }

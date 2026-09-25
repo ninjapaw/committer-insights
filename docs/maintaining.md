@@ -79,6 +79,8 @@ Normal Windows launches check published releases, including betas, by publicatio
 
 The launcher must remain attached to the upgraded child's inherited console and wait for its exit. A successful process spawn is not successful application startup. Do not detach, hide or unref this child: doing so lets the original launcher exit before the upgraded app is usable and loses later failure reporting. The packaged bundle regression launches a relocated executable, verifies its protected local session while the handoff remains pending, and checks abnormal-exit propagation. Beta.11 includes this fix; existing older downloads still need a manual launch of the latest verified executable to bypass their old handoff.
 
+Local-server shutdown handles interrupt, termination, console-close and Windows break signals. It cancels both sign-in flows, closes active HTTP connections rather than waiting indefinitely for requests, and removes its signal listeners. Repeated signals must not initiate duplicate shutdowns. Integration tests exercise stalled connections without signing in; they do not establish native window-close behavior on an affected workstation.
+
 Use `--skip-update-check` for candidate testing, offline access, or deliberate rollback. Without it, a local candidate can hand off to the latest published version. CI smoke tests explicitly bypass updates so they test the candidate.
 
 Release procedure:
@@ -116,7 +118,7 @@ Missing quantities stay unavailable; explicit zero is valid. Basic has a separat
 
 ### Acceptance Notes (2026-09-24)
 
-- Run `npm run ci` for formatting, lint, typechecks, all 271 current automated tests, executable packaging, the Windows console-parent and upgrade-handoff regressions and isolated bundled-CLI smoke checks.
+- Run `npm run ci` for formatting, lint, typechecks, all 275 current automated tests, executable packaging, the Windows console-parent and upgrade-handoff regressions and isolated bundled-CLI smoke checks.
 - Run `npm run demo:test` for deterministic synthetic CSV/HTML/PDF generation, desktop/mobile results, downloads, partial/empty reports and network isolation. Fixture version 5 includes other-service what-if calculations.
 - Account selection is configured through the pinned CLI's WAM flow; automated tests do not approve a real account or establish customer Conditional Access compatibility. App cache cleanup does not remove Windows broker credentials.
 - Billing tests use synthetic responses. No invoice reconciliation, tenant-wide entitlement inventory or future-charge guarantee is implied. The additional service quantities are manual planning inputs, not collected usage.
