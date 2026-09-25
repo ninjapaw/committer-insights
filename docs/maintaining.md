@@ -55,7 +55,7 @@ CLI updates are a publisher responsibility: review upstream changes, verify the 
 
 ## Bundled Azure CLI
 
-The native console-parent assertion requires an interactive Windows desktop. Noninteractive service runners report it as unavailable instead of claiming account-picker validation; command visibility unit tests and packaged startup checks still run. Verify the desktop-only assertion locally before release.
+The native console-parent assertion requires an interactive Windows desktop with terminal-attached stdout. Windows runners can report `UserInteractive` even without a usable console, so that flag alone is insufficient. Headless runners report the assertion as unavailable instead of claiming account-picker validation; command visibility unit tests and packaged startup checks still run. Verify the desktop-only assertion locally before release.
 
 Interactive `login` must use `windowsHide: false`. The pinned CLI passes MSAL's `CONSOLE_WINDOW_HANDLE` as the WAM dialog parent; Node's hidden piped subprocess has no console handle on Windows. Version checks and token requests remain hidden. The Windows packaging regression checks native console-handle availability without initiating authentication, and authentication unit tests enforce command-specific visibility. Beta.12 includes this correction; a live account-picker check is still required on the affected workstation.
 

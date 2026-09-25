@@ -89,13 +89,13 @@ if (process.platform === 'win32') {
     );
     assert.equal(Number.isSafeInteger(probe.handle), true);
     assert.equal(typeof probe.interactive, 'boolean');
-    interactiveDesktop = probe.interactive;
-    if (probe.interactive) assert.equal(probe.handle !== 0, !windowsHide);
+    interactiveDesktop = probe.interactive && process.stdout.isTTY === true;
+    if (interactiveDesktop) assert.equal(probe.handle !== 0, !windowsHide);
   }
   process.stdout.write(
     interactiveDesktop
       ? 'Windows console-parent regression passed: hidden piped children lack the console handle required by CLI WAM; interactive children retain it. No login requested.\n'
-      : 'Windows console-parent UI assertion unavailable in a noninteractive service session; command visibility remains covered by unit tests. No login requested.\n',
+      : 'Windows console-parent UI assertion unavailable without an interactive terminal; command visibility remains covered by unit tests. No login requested.\n',
   );
   const sandbox = await mkdtemp(join(tmpdir(), 'committer-upgrade-handoff-'));
   let upgraded;
