@@ -1,4 +1,4 @@
-import { access, stat } from 'node:fs/promises';
+import { access, readFile, stat } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
@@ -22,6 +22,18 @@ if (
   await access(appExecutable, constants.X_OK);
   const plist = join(app, 'Contents', 'Info.plist');
   await access(plist, constants.R_OK);
+  const plistText = await readFile(plist, 'utf8');
+  for (const value of [
+    PRODUCT.displayName,
+    PRODUCT.shortName,
+    PRODUCT.version,
+    PRODUCT.bundleIdentifier,
+    `${PRODUCT.iconName}.icns`,
+  ]) {
+    if (!plistText.includes(`<string>${value}</string>`))
+      throw new Error(`macOS app metadata is missing ${value}.`);
+  }
+  await access(join(app, 'Contents', 'Resources', `${PRODUCT.iconName}.icns`), constants.R_OK);
   execFileSync('codesign', ['--verify', '--deep', '--strict', app], { stdio: 'inherit' });
 }
 process.stdout.write('macOS launcher and optional signed app bundle checks passed.\n');

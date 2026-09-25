@@ -1,7 +1,10 @@
 export const PRODUCT = {
   displayName: 'Developer Usage Insights',
   shortName: 'Developer Usage Insights',
+  version: '0.1.0',
   slug: 'developer-usage-insights',
+  bundleIdentifier: 'org.ninjapaw.developer-usage-insights',
+  iconName: 'DeveloperUsageInsights',
   description:
     'Local Azure DevOps and GitHub plan, usage, billing, and activity reporting with CSV, PDF, and HTML exports.',
   githubDescription:

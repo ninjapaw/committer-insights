@@ -31,6 +31,15 @@ if (platform === 'darwin') {
     join(root, 'build', `${PRODUCT.executableName}.cjs`),
     join(appRoot, 'Contents', 'Resources', `${PRODUCT.executableName}.cjs`),
   );
+  const iconset = join(root, 'build', `${PRODUCT.iconName}.iconset`);
+  const iconPath = join(appRoot, 'Contents', 'Resources', `${PRODUCT.iconName}.icns`);
+  execFileSync(process.execPath, [join(root, 'scripts', 'generate-macos-icon.mjs'), iconset], {
+    stdio: 'inherit',
+  });
+  execFileSync('iconutil', ['--convert', 'icns', '--output', iconPath, iconset], {
+    stdio: 'inherit',
+  });
+  await rm(iconset, { recursive: true, force: true });
   const launcher = join(appRoot, 'Contents', 'MacOS', PRODUCT.executableName);
   await writeFile(
     launcher,
@@ -39,7 +48,7 @@ if (platform === 'darwin') {
   await chmod(launcher, 0o755);
   await writeFile(
     join(appRoot, 'Contents', 'Info.plist'),
-    `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict><key>CFBundleDisplayName</key><string>${PRODUCT.displayName}</string><key>CFBundleExecutable</key><string>${PRODUCT.executableName}</string><key>CFBundleIdentifier</key><string>org.ninjapaw.${PRODUCT.slug}</string><key>CFBundlePackageType</key><string>APPL</string><key>CFBundleVersion</key><string>0.1.0</string><key>CFBundleShortVersionString</key><string>0.1.0</string></dict></plist>\n`,
+    `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict><key>CFBundleDisplayName</key><string>${PRODUCT.displayName}</string><key>CFBundleExecutable</key><string>${PRODUCT.executableName}</string><key>CFBundleIdentifier</key><string>${PRODUCT.bundleIdentifier}</string><key>CFBundleIconFile</key><string>${PRODUCT.iconName}.icns</string><key>CFBundleName</key><string>${PRODUCT.shortName}</string><key>CFBundlePackageType</key><string>APPL</string><key>CFBundleVersion</key><string>${PRODUCT.version}</string><key>CFBundleShortVersionString</key><string>${PRODUCT.version}</string></dict></plist>\n`,
   );
   if (process.env.MACOS_SIGNING_IDENTITY) {
     execFileSync(
