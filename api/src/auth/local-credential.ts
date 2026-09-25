@@ -101,15 +101,23 @@ export function startAzureCliSignIn(): DeviceSignInState {
   const { attempt, expiresOnTimestamp } = createSignInAttempt();
   let preparing = true;
   attempt.state.message = 'Preparing Microsoft sign-in runtime...';
-  const session = createAzureCliSignIn(attempt.controller.signal, () => {
-    if (deviceAttempt !== attempt || attempt.state.status !== 'pending') return;
-    preparing = false;
-    attempt.state = {
-      id: attempt.id,
-      status: 'pending',
-      message: 'Waiting for Microsoft sign-in in your browser...',
-    };
-  });
+  const session = createAzureCliSignIn(
+    attempt.controller.signal,
+    () => {
+      if (deviceAttempt !== attempt || attempt.state.status !== 'pending') return;
+      preparing = false;
+      attempt.state = {
+        id: attempt.id,
+        status: 'pending',
+        message: 'Waiting for Microsoft sign-in in your browser...',
+      };
+    },
+    (message) => {
+      // Cleanup can finish after cancellation or a newer sign-in attempt.
+      if (!preparing || deviceAttempt !== attempt || attempt.state.status !== 'pending') return;
+      attempt.state = { id: attempt.id, status: 'pending', message };
+    },
+  );
   attempt.dispose = () => session.dispose();
   void session
     .authenticate((challenge) => {

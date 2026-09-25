@@ -57,6 +57,8 @@ CLI updates are a publisher responsibility: review upstream changes, verify the 
 
 Runtime preparation must finish before reporting account selection. On Windows, newly extracted runtime files can temporarily block the directory rename. Retry publication with a bounded, cancelable delay; treat a competing install as successful only when its destination exists and passes full integrity verification. Never replace verification with an existence check. Packaged smoke tests use a disposable LocalAppData directory to exercise the normal cache filesystem.
 
+Beta.16 reports archive checking, extraction, verification counts, publication and cleanup separately. Verification reports every 128 files and at completion; the existing status poll carries these updates without paths or credentials. Cache reads honor cancellation and the sign-in deadline, and canceled or superseded attempts ignore late progress. Full file hashing remains mandatory. An intact cache and successful offline verification do not establish the cause of a live preparation stall or prove successful Microsoft sign-in.
+
 The native console-parent assertion requires an interactive Windows desktop with terminal-attached stdout. Windows runners can report `UserInteractive` even without a usable console, so that flag alone is insufficient. Headless runners report the assertion as unavailable instead of claiming account-picker validation; command visibility unit tests and packaged startup checks still run. Verify the desktop-only assertion locally before release.
 
 Interactive `login` retains `windowsHide: false`; version checks and token requests remain hidden. The Windows packaging regression checks native console-handle availability without initiating authentication, and authentication unit tests enforce command-specific visibility. Beta.12 introduced the visible console for WAM parenting; current source builds no longer use WAM. This historical console regression does not validate browser launch or successful account selection.
@@ -118,7 +120,7 @@ Missing quantities stay unavailable; explicit zero is valid. Basic has a separat
 
 ### Acceptance Notes (2026-09-24)
 
-- Run `npm run ci` for formatting, lint, typechecks, all 275 current automated tests, executable packaging, the Windows console-parent and upgrade-handoff regressions and isolated bundled-CLI smoke checks.
+- Run `npm run ci` for formatting, lint, typechecks, all 277 current automated tests, executable packaging, the Windows console-parent and upgrade-handoff regressions and isolated bundled-CLI smoke checks.
 - Run `npm run demo:test` for deterministic synthetic CSV/HTML/PDF generation, desktop/mobile results, downloads, partial/empty reports and network isolation. Fixture version 5 includes other-service what-if calculations.
 - Account selection is configured through the pinned CLI's browser flow; automated tests do not approve a real account or establish customer Conditional Access compatibility. App cache cleanup does not remove browser cookies or earlier Windows broker credentials.
 - Billing tests use synthetic responses. No invoice reconciliation, tenant-wide entitlement inventory or future-charge guarantee is implied. The additional service quantities are manual planning inputs, not collected usage.

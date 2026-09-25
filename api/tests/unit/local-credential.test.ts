@@ -52,13 +52,33 @@ describe('Explicit Azure CLI sign-in', () => {
     const state = auth.startAzureCliSignIn();
     expect(state.message).toBe('Preparing Microsoft sign-in runtime...');
     const ready = vi.mocked(createAzureCliSignIn).mock.calls[0]![1]!;
+    const progress = vi.mocked(createAzureCliSignIn).mock.calls[0]![2]!;
+    progress('Verifying Microsoft sign-in runtime: 128 of 11312 files...');
+    expect(auth.getDeviceSignIn(state.id)?.message).toBe(
+      'Verifying Microsoft sign-in runtime: 128 of 11312 files...',
+    );
     ready();
+    progress('Late verification progress');
     expect(auth.getDeviceSignIn(state.id)?.message).toBe(
       'Waiting for Microsoft sign-in in your browser...',
     );
     auth.cancelDeviceSignIn(state.id);
     ready();
+    progress('Late canceled progress');
     expect(auth.getDeviceSignIn(state.id)?.status).toBe('canceled');
+    auth.disconnectMicrosoftAccount();
+  });
+  it('ignores preparation progress after cancellation or a newer attempt', async () => {
+    bundled.authenticate.mockImplementation(() => new Promise(() => undefined));
+    const auth = await import('../../src/auth/local-credential.js');
+    const first = auth.startAzureCliSignIn();
+    const progress = vi.mocked(createAzureCliSignIn).mock.calls[0]![2]!;
+    auth.cancelDeviceSignIn(first.id);
+    progress('Canceled preparation');
+    expect(auth.getDeviceSignIn(first.id)).toEqual({ id: first.id, status: 'canceled' });
+    const second = auth.startAzureCliSignIn();
+    progress('Superseded preparation');
+    expect(auth.getDeviceSignIn(second.id)?.message).toBe('Preparing Microsoft sign-in runtime...');
     auth.disconnectMicrosoftAccount();
   });
   it('works without a publisher client ID, renews through CLI, and disposes on disconnect', async () => {

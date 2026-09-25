@@ -13,7 +13,12 @@ afterEach(() => {
   vi.resetAllMocks();
   vi.unstubAllEnvs();
 });
-function setup(outputs: Array<string | Error>, browserPrompt = false, onReady?: () => void) {
+function setup(
+  outputs: Array<string | Error>,
+  browserPrompt = false,
+  onReady?: () => void,
+  onProgress?: (message: string) => void,
+) {
   mocks.resolve.mockResolvedValue('C:/private-tools/python.exe');
   mocks.execute.mockImplementation((_path, _args, _options, callback) => {
     const child = new EventEmitter() as EventEmitter & {
@@ -36,16 +41,21 @@ function setup(outputs: Array<string | Error>, browserPrompt = false, onReady?: 
     });
     return child;
   });
-  const session = createAzureCliSignIn(new AbortController().signal, onReady);
+  const session = createAzureCliSignIn(new AbortController().signal, onReady, onProgress);
   sessions.push(session);
   return session;
 }
 describe('isolated Azure CLI authentication', () => {
   it('does not report account selection or launch login when runtime preparation fails', async () => {
     const ready = vi.fn();
-    const session = setup([], false, ready);
-    mocks.resolve.mockRejectedValue(new Error('runtime unavailable'));
+    const progress = vi.fn();
+    const session = setup([], false, ready, progress);
+    mocks.resolve.mockImplementation(async (_signal, report) => {
+      report('Verifying Microsoft sign-in runtime: 0 of 2 files...');
+      throw new Error('runtime unavailable');
+    });
     await expect(session.authenticate(vi.fn())).rejects.toThrow('runtime unavailable');
+    expect(progress).toHaveBeenCalledWith('Verifying Microsoft sign-in runtime: 0 of 2 files...');
     expect(ready).not.toHaveBeenCalled();
     expect(mocks.execute).not.toHaveBeenCalled();
   });

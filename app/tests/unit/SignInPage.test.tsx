@@ -72,6 +72,33 @@ function renderPage(initialEntry: string) {
 }
 
 describe('SignInPage', () => {
+  it('automatically polls past runtime preparation and displays a preparation failure', async () => {
+    const preparing = {
+      id: pending.id,
+      status: 'pending' as const,
+      message: 'Preparing Microsoft sign-in runtime...',
+    };
+    vi.mocked(connectAzure).mockResolvedValue(preparing);
+    vi.mocked(getDeviceSignIn).mockResolvedValue(preparing);
+    renderPage('/sign-in');
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in with Microsoft' }));
+    await screen.findByText(preparing.message);
+    await waitFor(() => expect(getDeviceSignIn).toHaveBeenCalled());
+    const verifying = 'Verifying Microsoft sign-in runtime: 128 of 11312 files...';
+    vi.mocked(getDeviceSignIn).mockResolvedValue({ ...preparing, message: verifying });
+    await screen.findByText(verifying, {}, { timeout: 3000 });
+    vi.mocked(getDeviceSignIn).mockResolvedValue({
+      id: pending.id,
+      status: 'failed',
+      message: 'Microsoft sign-in could not prepare its bundled runtime.',
+    });
+    expect(await screen.findByRole('alert', {}, { timeout: 3000 })).toHaveTextContent(
+      'Microsoft sign-in could not prepare its bundled runtime.',
+    );
+    expect(screen.queryByText(preparing.message)).not.toBeInTheDocument();
+    expect(screen.queryByText(verifying)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sign in with Microsoft' })).toBeEnabled();
+  });
   it('uses the default Microsoft action for CLI account selection and preserves cancellation', async () => {
     const preparing = {
       id: pending.id,

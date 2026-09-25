@@ -148,7 +148,26 @@ describe('bundled Azure CLI integrity', () => {
         architecture: process.arch,
         files: { 'python.exe': hash, 'bin/az.cmd': hash },
       });
-      expect(await resolveAzureCli()).toBe(join(directory, 'python.exe'));
+      const progress = vi.fn();
+      expect(await resolveAzureCli(undefined, progress)).toBe(join(directory, 'python.exe'));
+      expect(progress).toHaveBeenNthCalledWith(
+        1,
+        'Verifying Microsoft sign-in runtime: 0 of 2 files...',
+      );
+      expect(progress).toHaveBeenLastCalledWith(
+        'Verifying Microsoft sign-in runtime: 2 of 2 files...',
+      );
+      const controller = new AbortController();
+      const originalReadFile = filesystem.readFile;
+      const read = vi.spyOn(filesystem, 'readFile').mockImplementationOnce(async (...args) => {
+        const bytes = await originalReadFile(...args);
+        controller.abort();
+        return bytes;
+      });
+      await expect(resolveAzureCli(controller.signal)).rejects.toThrow('aborted');
+      expect(read).toHaveBeenCalledTimes(1);
+      expect(read.mock.calls[0]?.[1]).toEqual({ signal: controller.signal });
+      read.mockRestore();
       writeFileSync(join(directory, 'python.exe'), 'tampered');
       await expect(resolveAzureCli()).rejects.toThrow('integrity');
       writeFileSync(join(directory, 'python.exe'), 'verified');

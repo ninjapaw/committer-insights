@@ -27,31 +27,52 @@ function safePath(name: string): boolean {
   );
 }
 
-async function verify(directory: string, files: Record<string, string>): Promise<void> {
+async function verify(
+  directory: string,
+  files: Record<string, string>,
+  signal?: AbortSignal,
+  onProgress?: (message: string) => void,
+): Promise<void> {
   const seen = new Set<string>();
+  const total = Object.keys(files).length;
+  const report = () =>
+    onProgress?.(`Verifying Microsoft sign-in runtime: ${seen.size} of ${total} files...`);
+  signal?.throwIfAborted();
+  report();
   async function visit(relative: string) {
+    signal?.throwIfAborted();
     if (!(await lstat(join(directory, relative))).isDirectory())
       throw new Error('Invalid Azure CLI directory.');
     for (const entry of await readdir(join(directory, relative), { withFileTypes: true })) {
+      signal?.throwIfAborted();
       const name = relative ? `${relative}/${entry.name}` : entry.name;
       if (entry.isDirectory()) await visit(name);
       else if (
         !entry.isFile() ||
         !files[name] ||
-        digest(await readFile(join(directory, name))) !== files[name]
+        digest(await readFile(join(directory, name), { signal })) !== files[name]
       ) {
         throw new Error(
           'Azure CLI cache failed integrity verification. Remove its versioned tool cache and restart.',
         );
-      } else seen.add(name);
+      } else {
+        seen.add(name);
+        // Batch UI updates, but hash every file before allowing the CLI to run.
+        if (seen.size % 128 === 0) report();
+      }
     }
   }
   await visit('');
-  if (seen.size !== Object.keys(files).length)
-    throw new Error('Azure CLI runtime files are missing.');
+  signal?.throwIfAborted();
+  if (seen.size !== total) throw new Error('Azure CLI runtime files are missing.');
+  report();
 }
 
-export async function resolveAzureCli(signal?: AbortSignal): Promise<string> {
+export async function resolveAzureCli(
+  signal?: AbortSignal,
+  onProgress?: (message: string) => void,
+): Promise<string> {
+  signal?.throwIfAborted();
   if (process.platform !== 'win32' || !isSea()) {
     throw new Error('Bundled Azure CLI sign-in requires the Windows x64 packaged application.');
   }
@@ -91,6 +112,8 @@ export async function resolveAzureCli(signal?: AbortSignal): Promise<string> {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
   }
   if (!exists) {
+    signal?.throwIfAborted();
+    onProgress?.('Checking bundled Microsoft sign-in archive...');
     const archive = new Uint8Array(getAsset('azure-cli/runtime.zip'));
     if (digest(archive) !== manifest.sha256)
       throw new Error('Azure CLI archive failed integrity verification.');
@@ -105,6 +128,7 @@ export async function resolveAzureCli(signal?: AbortSignal): Promise<string> {
         flag: 'wx',
         mode: 0o600,
       });
+      onProgress?.('Extracting Microsoft sign-in runtime...');
       await execute(
         join(
           process.env.SystemRoot || 'C:\\Windows',
@@ -119,7 +143,8 @@ export async function resolveAzureCli(signal?: AbortSignal): Promise<string> {
           signal,
         },
       );
-      await verify(runtime, manifest.files);
+      await verify(runtime, manifest.files, signal, onProgress);
+      onProgress?.('Publishing verified Microsoft sign-in runtime...');
       for (let attempt = 0; ; attempt++) {
         signal?.throwIfAborted();
         try {
@@ -134,7 +159,7 @@ export async function resolveAzureCli(signal?: AbortSignal): Promise<string> {
             return undefined;
           });
           if (destination) {
-            await verify(directory, manifest.files);
+            await verify(directory, manifest.files, signal, onProgress);
             break;
           }
           if (attempt >= 9) throw error;
@@ -142,10 +167,12 @@ export async function resolveAzureCli(signal?: AbortSignal): Promise<string> {
         }
       }
     } finally {
+      // Cancellation must still remove app-owned extraction files.
+      onProgress?.('Cleaning up Microsoft sign-in extraction files...');
       await rm(staging, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     }
   }
   signal?.throwIfAborted();
-  await verify(directory, manifest.files);
+  await verify(directory, manifest.files, signal, onProgress);
   return join(directory, 'python.exe');
 }
