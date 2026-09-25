@@ -19,6 +19,7 @@ const initials = [...PRODUCT.shortName.replace(/[^A-Za-z]/g, '')]
   .map((character) => character.toUpperCase());
 
 function chunk(type, data) {
+  // iconutil consumes PNGs, so emit standard PNG chunks without adding an image dependency.
   const typeBytes = Buffer.from(type);
   const content = Buffer.concat([typeBytes, data]);
   let checksumValue = 0xffffffff;
@@ -35,6 +36,7 @@ function chunk(type, data) {
 }
 
 function png(size) {
+  // Generate deterministic branded artwork from shared product metadata for every icon scale.
   const pixels = Buffer.alloc(size * size * 4);
   const radius = size * 0.2;
   const center = size / 2;

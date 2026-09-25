@@ -21,6 +21,7 @@ if (platform === 'linux') {
   archiveEntries.push('run-developer-usage-insights.sh');
 }
 if (platform === 'darwin') {
+  // Build the app bundle from shared metadata; unsigned bundles stay out of distributable archives.
   const appRoot = join(release, `${PRODUCT.displayName}.app`);
   await mkdir(join(appRoot, 'Contents', 'MacOS'), { recursive: true });
   await mkdir(join(appRoot, 'Contents', 'Resources', 'app'), { recursive: true });
