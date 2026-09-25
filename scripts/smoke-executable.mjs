@@ -11,6 +11,7 @@ const executable = join(
   'release',
   process.platform === 'win32' ? `${PRODUCT.executableName}.exe` : PRODUCT.executableName,
 );
+const launchOptionTimeout = process.platform === 'darwin' ? 60_000 : 15_000;
 for (const args of [
   ['--help'],
   ['-h'],
@@ -20,7 +21,7 @@ for (const args of [
 ]) {
   const result = spawnSync(executable, args, {
     encoding: 'utf8',
-    timeout: 15_000,
+    timeout: launchOptionTimeout,
     env: { ...process.env, DEVELOPER_USAGE_INSIGHTS_NO_BROWSER: 'true' },
   });
   const help = args[0] === '--help' || args[0] === '-h';
