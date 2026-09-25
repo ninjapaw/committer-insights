@@ -71,6 +71,8 @@ References: [Windows ZIP installation](https://learn.microsoft.com/cli/azure/ins
 
 Normal Windows launches check published releases, including betas, by publication time. Downloads and cached executables are verified before launch; original arguments are preserved. A verified child consumes a hash handoff to avoid loops. The original executable is not overwritten. Source/non-Windows runs do not update automatically.
 
+The launcher must remain attached to the upgraded child's inherited console and wait for its exit. A successful process spawn is not successful application startup. Do not detach, hide or unref this child: doing so lets the original launcher exit before the upgraded app is usable and loses later failure reporting. The packaged bundle regression launches a relocated executable, verifies its protected local session while the handoff remains pending, and checks abnormal-exit propagation. Beta.11 includes this fix; existing older downloads still need a manual launch of the latest verified executable to bypass their old handoff.
+
 Use `--skip-update-check` for candidate testing, offline access, or deliberate rollback. Without it, a local candidate can hand off to the latest published version. CI smoke tests explicitly bypass updates so they test the candidate.
 
 Release procedure:
@@ -108,7 +110,7 @@ Missing quantities stay unavailable; explicit zero is valid. Basic has a separat
 
 ### Acceptance Notes (2026-09-24)
 
-- Run `npm run ci` for formatting, lint, typechecks, all 264 current automated tests, executable packaging and isolated bundled-CLI smoke checks.
+- Run `npm run ci` for formatting, lint, typechecks, all 266 current automated tests, executable packaging, the upgrade-handoff regression and isolated bundled-CLI smoke checks.
 - Run `npm run demo:test` for deterministic synthetic CSV/HTML/PDF generation, desktop/mobile results, downloads, partial/empty reports and network isolation. Fixture version 5 includes other-service what-if calculations.
 - Account selection is configured through the pinned CLI's WAM flow; automated tests do not approve a real account or establish customer Conditional Access compatibility. App cache cleanup does not remove Windows broker credentials.
 - Billing tests use synthetic responses. No invoice reconciliation, tenant-wide entitlement inventory or future-charge guarantee is implied. The additional service quantities are manual planning inputs, not collected usage.

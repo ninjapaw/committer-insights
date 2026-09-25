@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { Buffer } from 'node:buffer';
 import { createRequire } from 'node:module';
+import { createHash } from 'node:crypto';
+import { copyFile, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runInNewContext } from 'node:vm';
@@ -69,3 +72,114 @@ if (process.platform === 'win32') {
 process.stdout.write(
   'Bundled browser launch regression passed: old failure reproduced, fixed opener preserves the authorization URL.\n',
 );
+
+if (process.platform === 'win32') {
+  const sandbox = await mkdtemp(join(tmpdir(), 'committer-upgrade-handoff-'));
+  let upgraded;
+  let running;
+  try {
+    const executable = join(sandbox, 'committer-insights.exe');
+    await copyFile(join(root, 'release/committer-insights.exe'), executable);
+    const checksum = createHash('sha256')
+      .update(await readFile(executable))
+      .digest('hex');
+    const result = await build({
+      ...executableBundleOptions('synthetic-client'),
+      entryPoints: [join(root, 'api/src/release-updater.ts')],
+      write: false,
+      logLevel: 'silent',
+    });
+    const module = { exports: {} };
+    let ready;
+    let announceLaunch;
+    const launched = new Promise((resolveLaunch) => {
+      announceLaunch = resolveLaunch;
+    });
+    runInNewContext(result.outputFiles[0].text, {
+      module,
+      exports: module.exports,
+      __filename: join(root, 'build/upgrade-handoff.cjs'),
+      process,
+      Buffer,
+      require: (name) =>
+        name === 'node:child_process'
+          ? {
+              ...require(name),
+              spawn: (command, args, options) => {
+                assert.equal(options.detached, false);
+                assert.equal(options.windowsHide, false);
+                assert.equal(options.stdio, 'inherit');
+                upgraded = require(name).spawn(command, args, {
+                  ...options,
+                  stdio: ['ignore', 'pipe', 'pipe'],
+                  env: {
+                    ...options.env,
+                    LOCALAPPDATA: sandbox,
+                    COMMITTER_INSIGHTS_NO_BROWSER: 'true',
+                  },
+                });
+                ready = new Promise((resolveReady, reject) => {
+                  const timer = setTimeout(
+                    () => reject(new Error('Upgrade startup timed out.')),
+                    20000,
+                  );
+                  let output = '';
+                  upgraded.once('error', (error) => {
+                    clearTimeout(timer);
+                    reject(error);
+                  });
+                  upgraded.once('exit', () => {
+                    clearTimeout(timer);
+                    reject(new Error('Upgrade exited before serving the application.'));
+                  });
+                  upgraded.stdout.on('data', (chunk) => {
+                    output += chunk.toString();
+                    const match = output.match(
+                      /http:\/\/127\.0\.0\.1:\d+\/#session=[A-Za-z0-9_-]+/,
+                    );
+                    if (match) {
+                      clearTimeout(timer);
+                      resolveReady(new URL(match[0]));
+                    }
+                  });
+                });
+                announceLaunch();
+                return upgraded;
+              },
+            }
+          : require(name),
+    });
+    let finished = false;
+    running = module.exports
+      .startVerifiedRelease({ path: executable, checksum }, ['--timezone', 'UTC'])
+      .then(
+        () => {
+          finished = true;
+          return null;
+        },
+        (error) => {
+          finished = true;
+          return error;
+        },
+      );
+    await Promise.race([launched, running]);
+    assert.ok(ready, 'The verified upgraded process must start.');
+    const url = await ready;
+    const response = await fetch(`${url.origin}/api/session`, {
+      headers: { Authorization: `Bearer ${new URLSearchParams(url.hash.slice(1)).get('session')}` },
+      signal: globalThis.AbortSignal.timeout(5000),
+    });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).authenticated, false);
+    assert.equal(finished, false, 'Launcher must remain alive while the upgraded app is serving.');
+    upgraded.kill();
+    assert.match((await running)?.message ?? '', /Upgraded application exited with/);
+    process.stdout.write(
+      'Packaged upgrade handoff passed: relocated app served, launcher waited, abnormal exit reported; no login requested.\n',
+    );
+  } finally {
+    if (upgraded && upgraded.exitCode === null && upgraded.signalCode === null) upgraded.kill();
+    if (running) await running;
+    await rm(sandbox, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  }
+}

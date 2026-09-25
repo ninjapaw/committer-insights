@@ -236,16 +236,23 @@ export async function startVerifiedRelease(
   if ((await fileChecksum(release.path)) !== release.checksum)
     throw new Error('Release changed before launch.');
   const child = spawn(release.path, args, {
-    detached: true,
-    windowsHide: true,
+    detached: false,
+    windowsHide: false,
     stdio: 'inherit',
     env: { ...process.env, COMMITTER_INSIGHTS_UPDATE_HANDOFF: release.checksum },
   });
   await new Promise<void>((resolve, reject) => {
-    child.once('spawn', resolve);
     child.once('error', reject);
+    child.once('exit', (code, signal) => {
+      if (code === 0) resolve();
+      else
+        reject(
+          new Error(
+            `Upgraded application exited with ${signal ? `signal ${signal}` : `code ${code}`}.`,
+          ),
+        );
+    });
   });
-  child.unref();
 }
 
 export async function launchLatestRelease(args: string[]): Promise<boolean> {
@@ -268,7 +275,7 @@ export async function launchLatestRelease(args: string[]): Promise<boolean> {
     return true;
   } catch (error) {
     throw new Error(
-      `Update check failed: ${error instanceof Error ? error.message : 'Unable to verify the latest release.'} No update was launched. Retry online, or use --skip-update-check to explicitly run this installed copy.`,
+      `Update or upgraded application failed: ${error instanceof Error ? error.message : 'Unable to verify the latest release.'} Retry online, or use --skip-update-check to explicitly run this installed copy.`,
     );
   }
 }

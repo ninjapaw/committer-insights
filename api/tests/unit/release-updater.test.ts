@@ -121,12 +121,25 @@ describe('verified release cache', () => {
       return child;
     });
     const args = ['--timezone', 'America/Toronto'];
-    await startVerifiedRelease(prepared, args);
+    let finished = false;
+    const running = startVerifiedRelease(prepared, args).then(() => {
+      finished = true;
+    });
+    await vi.waitFor(() => expect(launch).toHaveBeenCalledOnce());
+    expect(finished).toBe(false);
     expect(launch.mock.calls[0]![0]).toBe(prepared.path);
     expect(launch.mock.calls[0]![1]).toEqual(args);
     expect(launch.mock.calls[0]![2].shell).toBeUndefined();
+    expect(launch.mock.calls[0]![2]).toMatchObject({
+      detached: false,
+      windowsHide: false,
+      stdio: 'inherit',
+    });
     expect(launch.mock.calls[0]![2].env.COMMITTER_INSIGHTS_UPDATE_HANDOFF).toBe(prepared.checksum);
-    expect(child.unref).toHaveBeenCalledOnce();
+    child.emit('exit', 0, null);
+    await running;
+    expect(finished).toBe(true);
+    expect(child.unref).not.toHaveBeenCalled();
     await writeFile(prepared.path, 'tampered');
     await expect(startVerifiedRelease(prepared, args)).rejects.toThrow('changed before launch');
     expect(launch).toHaveBeenCalledOnce();
@@ -154,6 +167,28 @@ describe('verified release cache', () => {
     await expect(startVerifiedRelease(prepared, [])).rejects.toThrow('Execution blocked');
     expect(child.unref).not.toHaveBeenCalled();
   });
+
+  it.each([
+    [1, null, 'code 1'],
+    [null, 'SIGTERM', 'signal SIGTERM'],
+  ])(
+    'reports child termination (%s, %s) after a successful spawn',
+    async (code, signal, detail) => {
+      const fixture = await setupDownload();
+      const prepared = await prepareLatestRelease(fixture.executable, fixture.cache);
+      const child = new EventEmitter();
+      launch.mockImplementation(() => {
+        queueMicrotask(() => {
+          child.emit('spawn');
+          child.emit('exit', code, signal);
+        });
+        return child;
+      });
+      await expect(startVerifiedRelease(prepared, [])).rejects.toThrow(
+        `Upgraded application exited with ${detail}`,
+      );
+    },
+  );
 
   it('downloads and verifies once, rechecks releases every run, and preserves the original executable', async () => {
     const fixture = await setupDownload();

@@ -84,6 +84,8 @@ Startup stops if the newest release cannot be confirmed or verified. For deliber
 
 Use `--help` to view options without contacting GitHub. Updates trust this repository's release publishers; checksums do not replace code signing. Beta.6 and earlier need a one-time manual upgrade to obtain the updater.
 
+If an older updater closes its window without opening a working app, download the newest executable and its matching checksum directly from Releases, verify it, then launch that downloaded copy from PowerShell with `--skip-update-check`. This bypasses the old updater's process handoff, not Windows security controls. Keep the app's console open while using the browser. Beta.11 keeps the launcher attached until the upgraded app exits and reports abnormal child exits; earlier downloaded launchers still use their original handoff behavior.
+
 ## Other Azure DevOps Service Estimates
 
 Report setup now includes per-organization what-if quantities for Basic, Basic + Test Plans, Pipelines, Artifacts and GitHub AI credits for Azure DevOps. The preview, results dashboard and CSV/HTML/PDF exports use the same calculations. These quantities are user-entered, not collected license or usage inventories; an empty quantity stays unavailable instead of becoming zero. Security committer estimates are never reused as user-license counts.
@@ -109,6 +111,14 @@ The default Azure CLI flow uses a fresh temporary CLI directory for each sign-in
 Reports can contain organization and repository identifiers, project metadata, contributor identities, activity, security settings, timestamps, and optional billing amounts. Source files, commit messages, patches, and GitHub author email addresses from activity collection are not retained. Opt-in GitHub security billing includes provider-reported last-push email addresses and logins. Exports may contain personal and commercially sensitive information: apply your organization's retention and sharing policies.
 
 The local server binds to loopback and requires a per-launch session credential. It is not designed to protect against a compromised computer, same-user malware, or privileged browser extensions. Do not share local session URLs or device codes. Report vulnerabilities privately through [SECURITY.md](SECURITY.md), not public issues.
+
+## What's New in Beta.11
+
+- Upgrade handoffs keep the launcher and upgraded application attached to the same console instead of detaching a hidden child and exiting immediately.
+- The launcher waits for the upgraded application to exit and reports launch errors, nonzero exit codes and termination signals.
+- A packaged regression starts a relocated Windows executable, verifies its protected local session, checks launcher lifetime and confirms abnormal-exit reporting.
+
+All 266 automated tests and the packaged smoke checks pass. Existing beta.10 or older launchers are not rewritten in place: download beta.11 directly if the old handoff closes without a working app. This remains an unsigned evaluation prerelease; see [beta.11 release notes](https://github.com/ninjapaw/committer-insights/releases/tag/v0.1.0-beta.11).
 
 ## What's New in Beta.10
 
