@@ -88,6 +88,12 @@ execFileSync(
   { stdio: 'inherit' },
 );
 
+if (process.platform === 'darwin') {
+  execFileSync('codesign', ['--force', '--sign', '-', '--timestamp=none', executablePath], {
+    stdio: 'inherit',
+  });
+}
+
 const digest = createHash('sha256')
   .update(await readFile(executablePath))
   .digest('hex');
