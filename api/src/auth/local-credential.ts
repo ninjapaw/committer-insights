@@ -99,7 +99,6 @@ export function disconnectMicrosoftAccount(): void {
 }
 
 export function startAzureCliSignIn(): DeviceSignInState {
-  if (process.platform === 'darwin') return startNativeBrowserSignIn();
   const { attempt, expiresOnTimestamp } = createSignInAttempt();
   let launching = true;
   attempt.state.message = 'Opening Microsoft sign-in...';
@@ -134,32 +133,6 @@ export function startAzureCliSignIn(): DeviceSignInState {
             ? 'Microsoft sign-in runtime is unavailable. Restart the app to prepare it; if this persists, ask your administrator to review local file access and endpoint protection. No account sign-in was started.'
             : 'Azure CLI is unavailable. Install Azure CLI, run az login, and retry. No account sign-in was started.'
           : 'Azure CLI sign-in failed. Retry or ask your administrator to review CLI access and interactive sign-in policy.',
-      };
-    })
-    .finally(() => clearTimeout(attempt.timer));
-  return attempt.state;
-}
-
-function startNativeBrowserSignIn(): DeviceSignInState {
-  const clientId = publisherClientId();
-  const { attempt } = createSignInAttempt();
-  const credential = new InteractiveBrowserCredential({
-    clientId,
-    tenantId: config.entra.tenantId(),
-    redirectUri: config.entra.redirectUri(),
-    disableAutomaticAuthentication: true,
-  });
-  void credential
-    .authenticate(`${config.azureDevOps.resourceUri}/.default`, {
-      abortSignal: attempt.controller.signal,
-    })
-    .then((record) => completeSignIn(attempt, credential, record))
-    .catch(() => {
-      if (attempt.state.status !== 'pending') return;
-      attempt.state = {
-        id: attempt.id,
-        status: 'failed',
-        message: 'Microsoft browser sign-in failed. Retry or review tenant policy.',
       };
     })
     .finally(() => clearTimeout(attempt.timer));
