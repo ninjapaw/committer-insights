@@ -28,14 +28,49 @@ let preparedExecutable: string | undefined;
 const BUNDLED_PLATFORMS = new Set(['win32', 'darwin']);
 const isBundledPlatform = () => BUNDLED_PLATFORMS.has(process.platform);
 
+// The macOS .app bundle (see scripts/package-posix-release.mjs) runs as a plain Node
+// process rather than a Node single-executable application, so 'node:sea' assets are
+// never available there. Its launcher instead extracts the reduced Azure CLI runtime
+// directly into Contents/Resources and points at it with this trusted environment
+// variable, mirroring DEVELOPER_USAGE_INSIGHTS_GH_PATH for the GitHub CLI: the app
+// bundle's code signature vouches for the contents, so no extra hash verification
+// happens here.
+const AZURE_CLI_HOME_ENV_VAR = 'DEVELOPER_USAGE_INSIGHTS_AZ_HOME';
+
+function directAzureCliHome(): string | undefined {
+  return process.platform === 'darwin' ? process.env[AZURE_CLI_HOME_ENV_VAR] : undefined;
+}
+
+function bundledPythonPath(home: string): string {
+  return join(home, process.platform === 'win32' ? 'python.exe' : 'bin/python3');
+}
+
+// Whether Azure CLI must be invoked as 'python3 -m azure.cli' instead of a bare 'az'
+// launcher. Exported so azure-cli-sign-in.ts can pick the right argument shape without
+// duplicating the SEA/env-var checks below.
+export function isBundledAzureCliRuntime(): boolean {
+  return (
+    process.platform === 'win32' ||
+    (process.platform === 'darwin' && (isSea() || Boolean(directAzureCliHome())))
+  );
+}
+
 export async function prepareAzureCli(onProgress?: (message: string) => void): Promise<void> {
-  if (!isBundledPlatform() || !isSea()) return;
+  if (!isBundledPlatform()) return;
+  const home = directAzureCliHome();
+  if (home) {
+    preparedExecutable = bundledPythonPath(home);
+    return;
+  }
+  if (!isSea()) return;
   preparation ??= resolveAzureCli(AbortSignal.timeout(600000), onProgress);
   preparedExecutable = await preparation;
 }
 
 export function getPreparedAzureCli(): string {
   if (!isBundledPlatform()) return 'az';
+  const home = directAzureCliHome();
+  if (home) return bundledPythonPath(home);
   if (!isSea())
     throw new Error('Bundled Azure CLI sign-in requires the packaged application.');
   if (!preparedExecutable)
@@ -122,6 +157,8 @@ export async function resolveAzureCli(
 ): Promise<string> {
   signal?.throwIfAborted();
   if (!isBundledPlatform()) return 'az';
+  const home = directAzureCliHome();
+  if (home) return bundledPythonPath(home);
   if (!isSea())
     throw new Error('Bundled Azure CLI sign-in requires the packaged application.');
   const windows = process.platform === 'win32';

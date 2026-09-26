@@ -3,11 +3,10 @@ import type { ChildProcess } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { isSea } from 'node:sea';
 import type { TokenCredential } from '@azure/identity';
 import type { DeviceSignInState } from '@ninjapaw/contracts';
 import { config } from '../shared/config.js';
-import { getPreparedAzureCli } from './azure-cli-binary.js';
+import { getPreparedAzureCli, isBundledAzureCliRuntime } from './azure-cli-binary.js';
 
 export function parseAzureCliChallenge(
   output: string,
@@ -93,7 +92,7 @@ export function createAzureCliSignIn(signal: AbortSignal, onReady?: () => void) 
     // wrapper script) that must be told to run the azure.cli module directly. An
     // unbundled 'az' on PATH (Linux, or macOS dev runs without the packaged app) is
     // invoked as-is.
-    const bundled = process.platform === 'win32' || (process.platform === 'darwin' && isSea());
+    const bundled = isBundledAzureCliRuntime();
     const cliArgs = bundled ? ['-I', '-B', '-m', 'azure.cli', ...args] : args;
     const timeoutMs = onOutput ? 600000 : 60000;
     const maxBuffer = 4 * 1024 * 1024;

@@ -36,6 +36,12 @@ int main(int argc, char **argv) {
         if (snprintf(gh, sizeof(gh), "%s/gh", resources) >= (int)sizeof(gh)) return 1;
         setenv("DEVELOPER_USAGE_INSIGHTS_GH_PATH", gh, 1);
     }
+    {
+        char azure_cli_home[PATH_MAX];
+        if (snprintf(azure_cli_home, sizeof(azure_cli_home), "%s/azure-cli", resources) >= (int)sizeof(azure_cli_home))
+            return 1;
+        setenv("DEVELOPER_USAGE_INSIGHTS_AZ_HOME", azure_cli_home, 1);
+    }
     setenv("DEVELOPER_USAGE_INSIGHTS_BUNDLED_NODE", "true", 1);
     child_argv = calloc((size_t)argc + 2, sizeof(char *));
     if (!child_argv) return 1;
