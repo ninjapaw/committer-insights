@@ -180,7 +180,7 @@ async function downloadExecutable(
   }
 }
 
-export async function prepareLatestRelease(executablePath: string, cacheRoot: string) {
+async function fetchPublishedReleases(): Promise<PublishedRelease[]> {
   const releases: PublishedRelease[] = [];
   for (let page = 1; page <= 20; page++) {
     const response = await request(
@@ -195,7 +195,11 @@ export async function prepareLatestRelease(executablePath: string, cacheRoot: st
     if (items.length < 100) break;
     if (page === 20) throw new Error('Release history exceeded the supported update-check limit.');
   }
-  const latest = latestRelease(releases);
+  return releases;
+}
+
+export async function prepareLatestRelease(executablePath: string, cacheRoot: string) {
+  const latest = latestRelease(await fetchPublishedReleases());
   const response = await request(latest.checksum.browser_download_url, 10_000);
   const checksum = executableChecksum((await readLimited(response, 16 * 1024)).toString('utf8'));
   if (latest.executable.digest && latest.executable.digest !== `sha256:${checksum}`) {
@@ -265,6 +269,53 @@ export async function startVerifiedRelease(
         );
     });
   });
+}
+
+/* Only the Windows single-file executable can replace itself. The macOS .app bundle and
+ * the Linux tarball are multi-file trees whose release asset is a .dmg/.tar.gz rather than
+ * a runnable file, and the .app is ad-hoc signed rather than notarized, so rewriting it in
+ * place would break its code signature and trip Gatekeeper and app translocation. Those
+ * builds report that a newer release exists instead of installing it. */
+export function pendingReleaseUpdate(
+  releases: PublishedRelease[],
+  installedTag: string,
+): { tag: string; url: string } | undefined {
+  const published = releases
+    .filter(
+      (item) =>
+        item?.draft === false &&
+        Number.isFinite(Date.parse(item.published_at)) &&
+        /^v\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/.test(item.tag_name),
+    )
+    .sort((left, right) => Date.parse(right.published_at) - Date.parse(left.published_at));
+  const newest = published[0];
+  if (!newest) throw new Error('No supported published release was found.');
+  if (newest.tag_name === installedTag) return undefined;
+  const installed = published.find((item) => item.tag_name === installedTag);
+  // A build whose tag was never published (a local or pre-release build) has nothing to
+  // compare against, so stay quiet rather than claiming it is out of date.
+  if (!installed || Date.parse(newest.published_at) <= Date.parse(installed.published_at))
+    return undefined;
+  return {
+    tag: newest.tag_name,
+    url: `https://github.com/${repository}/releases/tag/${newest.tag_name}`,
+  };
+}
+
+export async function reportAvailableUpdate(
+  write: (message: string) => void = (message) => process.stdout.write(message),
+): Promise<boolean> {
+  try {
+    const update = pendingReleaseUpdate(await fetchPublishedReleases(), PRODUCT.releaseTag);
+    if (!update) return false;
+    write(
+      `A newer ${PRODUCT.displayName} release is available: ${update.tag} (this copy is ${PRODUCT.releaseTag}).\nDownload it from ${update.url}\n`,
+    );
+    return true;
+  } catch {
+    // The update notice is advisory: never block a launch because the check failed.
+    return false;
+  }
 }
 
 export async function launchLatestRelease(args: string[]): Promise<boolean> {

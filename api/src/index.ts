@@ -1,6 +1,6 @@
 import { startLocalServer } from './local-server.js';
 import { launchHelp, parseLaunchOptions } from './cli.js';
-import { launchLatestRelease } from './release-updater.js';
+import { launchLatestRelease, reportAvailableUpdate } from './release-updater.js';
 import { isSea } from 'node:sea';
 import { prepareAzureCli } from './auth/azure-cli-binary.js';
 import { PRODUCT } from '@ninjapaw/developer-usage-insights-metadata';
@@ -13,6 +13,9 @@ async function main(): Promise<void> {
   }
   process.env.DEVELOPER_USAGE_INSIGHTS_TIMEZONE = options.timeZone;
   if (!options.skipUpdateCheck && (await launchLatestRelease(process.argv.slice(2)))) return;
+  // launchLatestRelease only self-updates single-file executables. The macOS .app and the
+  // Linux tarball fall through to an advisory notice printed in the launcher terminal.
+  if (!options.skipUpdateCheck && !isSea()) await reportAvailableUpdate();
   if (process.platform === 'win32' && isSea()) {
     try {
       await prepareAzureCli((message) => process.stdout.write(`${message}\n`));

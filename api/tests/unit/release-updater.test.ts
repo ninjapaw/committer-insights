@@ -8,7 +8,9 @@ import {
   consumeUpdateHandoff,
   executableChecksum,
   latestRelease,
+  pendingReleaseUpdate,
   prepareLatestRelease,
+  reportAvailableUpdate,
   startVerifiedRelease,
   type PublishedRelease,
 } from '../../src/release-updater.js';
@@ -282,5 +284,49 @@ describe('verified release cache', () => {
     await expect(prepareLatestRelease(fixture.executable, fixture.cache)).rejects.toThrow(
       'does not match',
     );
+  });
+});
+
+describe('bundle installs that cannot replace themselves', () => {
+  it('reports only releases published after the installed tag', () => {
+    const history = [
+      release('v0.1.0-beta.1', '2026-09-01'),
+      release(PRODUCT.releaseTag, '2026-09-10'),
+      release('v0.1.0-beta.99', '2026-09-20'),
+    ];
+    expect(pendingReleaseUpdate(history, PRODUCT.releaseTag)).toEqual({
+      tag: 'v0.1.0-beta.99',
+      url: `https://github.com/${PRODUCT.repository}/releases/tag/v0.1.0-beta.99`,
+    });
+    expect(pendingReleaseUpdate(history.slice(0, 2), PRODUCT.releaseTag)).toBeUndefined();
+    // A build whose tag was never published must not be reported as out of date.
+    expect(pendingReleaseUpdate(history, 'v9.9.9')).toBeUndefined();
+    expect(() => pendingReleaseUpdate([], PRODUCT.releaseTag)).toThrow('No supported published');
+    expect(() =>
+      pendingReleaseUpdate([{ ...release('v9.0.0', '2026-09-25'), draft: true }], 'v1.0.0'),
+    ).toThrow('No supported published');
+  });
+
+  it('prints the download location and stays silent when the check fails', async () => {
+    const write = vi.fn();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        Response.json([release(PRODUCT.releaseTag, '2026-09-10'), release('v1.2.3', '2026-09-20')]),
+      ),
+    );
+    await expect(reportAvailableUpdate(write)).resolves.toBe(true);
+    expect(write.mock.calls[0]![0]).toContain('v1.2.3');
+    expect(write.mock.calls[0]![0]).toContain(
+      `https://github.com/${PRODUCT.repository}/releases/tag/v1.2.3`,
+    );
+
+    write.mockClear();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.reject(new Error('Offline'))),
+    );
+    await expect(reportAvailableUpdate(write)).resolves.toBe(false);
+    expect(write).not.toHaveBeenCalled();
   });
 });

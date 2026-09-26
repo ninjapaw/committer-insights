@@ -2,6 +2,11 @@ export const PRODUCT = {
   displayName: 'Developer Usage Insights',
   shortName: 'Developer Usage Insights',
   version: '0.1.0',
+  // The GitHub release this build is published as. CFBundleVersion only accepts
+  // period-separated integers, so the prerelease suffix lives here rather than in
+  // version. Bump this whenever a release is tagged; the update check compares it
+  // against the newest published release.
+  releaseTag: 'v0.1.0-beta.23',
   slug: 'developer-usage-insights',
   bundleIdentifier: 'org.ninjapaw.developer-usage-insights',
   iconName: 'DeveloperUsageInsights',

@@ -4,6 +4,7 @@ const startup = vi.hoisted(() => ({
   prepare: vi.fn(),
   server: vi.fn(),
   update: vi.fn(),
+  notice: vi.fn(),
   sea: true,
   help: false,
   skipUpdateCheck: false,
@@ -11,7 +12,10 @@ const startup = vi.hoisted(() => ({
 vi.mock('node:sea', () => ({ isSea: () => startup.sea }));
 vi.mock('../../src/auth/azure-cli-binary.js', () => ({ prepareAzureCli: startup.prepare }));
 vi.mock('../../src/local-server.js', () => ({ startLocalServer: startup.server }));
-vi.mock('../../src/release-updater.js', () => ({ launchLatestRelease: startup.update }));
+vi.mock('../../src/release-updater.js', () => ({
+  launchLatestRelease: startup.update,
+  reportAvailableUpdate: startup.notice,
+}));
 vi.mock('../../src/cli.js', () => ({
   launchHelp: 'help',
   parseLaunchOptions: () => ({
@@ -37,6 +41,14 @@ describe('application startup preparation', () => {
     await import('../../src/index.js');
     await vi.waitFor(() => expect(startup.server).toHaveBeenCalledOnce());
     expect(startup.update).not.toHaveBeenCalled();
+    expect(startup.notice).not.toHaveBeenCalled();
+  });
+  it('reports available releases for bundle installs that cannot self-update', async () => {
+    startup.sea = false;
+    startup.update.mockResolvedValue(false);
+    await import('../../src/index.js');
+    await vi.waitFor(() => expect(startup.server).toHaveBeenCalledOnce());
+    expect(startup.notice).toHaveBeenCalledOnce();
   });
   it.skipIf(process.platform !== 'win32')(
     'prepares before opening the app without signing in',
