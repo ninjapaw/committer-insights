@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { Buffer } from 'node:buffer';
 import { execFileSync } from 'node:child_process';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { PRODUCT } from '../packages/metadata/dist/index.js';
 
@@ -91,7 +91,12 @@ export async function bundleGitHubCli(root, buildDir, releaseDir) {
     ).trim();
     if (!extracted || !extractedLicense)
       throw new Error('Invalid macOS GitHub CLI archive layout.');
-    await writeFile(join(destination, 'gh'), await readFile(extracted));
+    // ditto preserves the archive's executable bit, but the copy below writes to a new path
+    // at the default 0644, so the mode has to be restored explicitly. Release packaging sets
+    // its own mode when it copies into the bundle; this keeps build/github-cli/gh runnable.
+    const ghPath = join(destination, 'gh');
+    await writeFile(ghPath, await readFile(extracted));
+    await chmod(ghPath, 0o755);
     await writeFile(join(destination, 'LICENSE'), await readFile(extractedLicense));
   } else
     execFileSync(
