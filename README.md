@@ -1,5 +1,7 @@
 # Developer Usage Insights
 
+![Developer Usage Insights icon](app/public/product-icon.svg)
+
 Review Azure DevOps and GitHub plans, repository activity, security settings, reported billing, access coverage, and cost scenarios on your own computer. Explore interactive reports and export CSV, PDF, or standalone HTML without uploading report data to a hosted service.
 
 [Download releases](https://github.com/ninjapaw/committer-insights/releases) | [Try the synthetic demo](https://ninjapaw.github.io/committer-insights/) | [Release notes](https://github.com/ninjapaw/committer-insights/releases)

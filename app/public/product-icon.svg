@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">Developer Usage Insights</title>
+  <desc id="desc">Three rising bars representing developer usage insights.</desc>
+  <defs>
+    <linearGradient id="surface" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b6e99" />
+      <stop offset="1" stop-color="#20a464" />
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="26" fill="url(#surface)" />
+  <path d="M29 96h70" fill="none" stroke="#fff" stroke-linecap="round" stroke-width="8" opacity=".95" />
+  <path d="M34 88V69M57 88V53M80 88V36" fill="none" stroke="#fff" stroke-linecap="round" stroke-width="14" />
+</svg>

@@ -1,5 +1,4 @@
 import { Buffer } from 'node:buffer';
-import { createHash } from 'node:crypto';
 import { deflateSync } from 'node:zlib';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -8,10 +7,9 @@ import { PRODUCT } from '../packages/metadata/dist/index.js';
 const outputDirectory = process.argv[2];
 if (!outputDirectory) throw new Error('An iconset output directory is required.');
 
-const seed = createHash('sha256').update(`${PRODUCT.slug}:${PRODUCT.version}`).digest();
 const colors = [
-  [seed[0], seed[1], seed[2], 255],
-  [seed[3], seed[4], seed[5], 255],
+  [11, 110, 153, 255],
+  [32, 164, 100, 255],
 ];
 const iconSizes = [16, 32, 128, 256, 512];
 const initials = [...PRODUCT.shortName.replace(/[^A-Za-z]/g, '')]

@@ -11,12 +11,7 @@ export function AppLayout({ children }: PropsWithChildren): JSX.Element {
       <header className="navbar" role="banner">
         <div className="container navbar__inner">
           <Link className="navbar__brand" to="/" aria-label={`${PRODUCT.displayName} home`}>
-            <span className="navbar__logo" aria-hidden="true">
-              <span />
-              <span />
-              <span />
-              <span />
-            </span>
+            <img className="navbar__logo" src="/product-icon.svg" alt="" aria-hidden="true" />
             <span className="navbar__title">{PRODUCT.displayName}</span>
           </Link>
           <nav className="navbar__nav" aria-label="Primary navigation">

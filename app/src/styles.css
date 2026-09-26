@@ -486,24 +486,9 @@ code {
 }
 
 .navbar__logo {
-  display: grid;
-  grid-template-columns: 10px 10px;
-  grid-template-rows: 10px 10px;
-  gap: 2px;
+  width: 30px;
+  height: 30px;
   flex: 0 0 auto;
-}
-
-.navbar__logo span:nth-child(1) {
-  background: var(--ms-square-1);
-}
-.navbar__logo span:nth-child(2) {
-  background: var(--ms-square-2);
-}
-.navbar__logo span:nth-child(3) {
-  background: var(--ms-square-3);
-}
-.navbar__logo span:nth-child(4) {
-  background: var(--ms-square-4);
 }
 
 .navbar__title {
