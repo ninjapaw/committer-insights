@@ -18,6 +18,16 @@ const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
 // not exist on the user's machine. Replace those shebangs with a sh/Python
 // polyglot header that resolves the interpreter next to the script instead, so
 // the bundled entry points keep working wherever the runtime is unpacked.
+//
+// The header below is read differently by each interpreter, which is what makes
+// it work as both a shell script and a Python script:
+//   sh     - `'''exec'` is the concatenation of the empty string `''` and the
+//            quoted word `'exec'`, so line 2 runs `exec <sibling python3> "$0"
+//            "$@"` and the shell never reaches line 3.
+//   Python - line 1 is a comment, and lines 2-3 are a single triple-quoted
+//            string expression, so the whole header evaluates to a no-op.
+// `dirname -- "$0"` is used rather than realpath or `readlink -f` because macOS
+// ships neither in a form that is safe to rely on here.
 const RELOCATABLE_SHEBANG = `#!/bin/sh
 '''exec' "$(dirname -- "$0")/python3" "$0" "$@"
 ' '''`;
@@ -37,6 +47,9 @@ async function relocateConsoleScriptShebangs(binDir) {
     const newline = contents.indexOf('\n');
     if (newline === -1) continue;
     const shebang = contents.slice(0, newline);
+    // Only rewrite scripts pip pointed at this build's interpreter. That leaves any script
+    // with a deliberately different interpreter alone, and makes a second pass a no-op
+    // because the replacement header names /bin/sh rather than binDir.
     if (!shebang.startsWith('#!') || !shebang.includes(binDir)) continue;
     await writeFile(path, `${RELOCATABLE_SHEBANG}${contents.slice(newline)}`);
     relocated.push(entry.name);
@@ -333,6 +346,9 @@ async function bundleAzureCliMacOS(root, buildDir, releaseDir) {
   );
   const extractor = join(root, 'scripts/extract-azure-cli.sh');
   const relocated = await relocateConsoleScriptShebangs(join(extracted, 'bin'));
+  // 'az' is the entry point anyone invoking the bundled CLI by hand will reach for, so treat
+  // its absence as a build break rather than shipping a bundle whose shebang still names a
+  // build-machine path. A miss here means pip changed how it emits console scripts.
   if (!relocated.includes('az')) {
     throw new Error('Azure CLI console script shebang was not made relocatable.');
   }

@@ -59,6 +59,8 @@ try {
     { stdio: 'inherit' },
   );
   const shippedApp = join(mountPoint, `${PRODUCT.displayName}.app`);
+  // The ';' terminating -exec is passed as its own literal argument. execFileSync runs find
+  // directly with no shell, so it must not be escaped the way '\;' is written in a shell.
   const brokenSymlinks = execFileSync(
     'find',
     [shippedApp, '-type', 'l', '!', '-exec', 'test', '-e', '{}', ';', '-print'],
