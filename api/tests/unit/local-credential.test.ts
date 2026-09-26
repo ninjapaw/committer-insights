@@ -207,13 +207,16 @@ describe('Microsoft device sign-in', () => {
     auth.cancelDeviceSignIn(next.id);
   });
 
-  it('requires publisher configuration for device codes too', async () => {
+  it('falls back to Azure CLI device-code login without a publisher client ID', async () => {
     vi.stubEnv('DEVELOPER_USAGE_INSIGHTS_CLIENT_ID', '');
-    const { startDeviceSignIn } = await import('../../src/auth/local-credential.js');
-    expect(startDeviceSignIn).toThrow(
-      'publisher must configure DEVELOPER_USAGE_INSIGHTS_CLIENT_ID',
-    );
+    bundled.authenticate.mockImplementation(() => new Promise(() => undefined));
+    const auth = await import('../../src/auth/local-credential.js');
+    const state = auth.startDeviceSignIn();
+    expect(state.message).toBe('Requesting a Microsoft device code through Azure CLI...');
+    expect(vi.mocked(createAzureCliSignIn).mock.calls[0]![1]).toBeInstanceOf(Function);
+    expect(bundled.authenticate.mock.calls[0]![1]).toEqual({ useDeviceCode: true });
     expect(credentials.device).not.toHaveBeenCalled();
+    auth.cancelDeviceSignIn(state.id);
   });
 });
 

@@ -98,29 +98,35 @@ export function disconnectMicrosoftAccount(): void {
   deviceAttempt = undefined;
 }
 
-export function startAzureCliSignIn(): DeviceSignInState {
+function startAzureCliFlow(useDeviceCode: boolean): DeviceSignInState {
   const { attempt, expiresOnTimestamp } = createSignInAttempt();
   let launching = true;
-  attempt.state.message = 'Opening Microsoft sign-in...';
+  attempt.state.message = useDeviceCode
+    ? 'Requesting a Microsoft device code through Azure CLI...'
+    : 'Opening Microsoft sign-in...';
   const session = createAzureCliSignIn(attempt.controller.signal, () => {
     if (deviceAttempt !== attempt || attempt.state.status !== 'pending') return;
     launching = false;
-    attempt.state = {
-      id: attempt.id,
-      status: 'pending',
-      message: 'Waiting for Microsoft sign-in in your browser...',
-    };
-  });
-  attempt.dispose = () => session.dispose();
-  void session
-    .authenticate((challenge) => {
-      if (deviceAttempt !== attempt || attempt.state.status !== 'pending') return;
+    if (!useDeviceCode)
       attempt.state = {
         id: attempt.id,
         status: 'pending',
-        challenge: { ...challenge, expiresOnTimestamp },
+        message: 'Waiting for Microsoft sign-in in your browser...',
       };
-    })
+  });
+  attempt.dispose = () => session.dispose();
+  void session
+    .authenticate(
+      (challenge) => {
+        if (deviceAttempt !== attempt || attempt.state.status !== 'pending') return;
+        attempt.state = {
+          id: attempt.id,
+          status: 'pending',
+          challenge: { ...challenge, expiresOnTimestamp },
+        };
+      },
+      { useDeviceCode },
+    )
     .then((account) => completeSignIn(attempt, session.credential, account))
     .catch(() => {
       session.dispose();
@@ -139,7 +145,14 @@ export function startAzureCliSignIn(): DeviceSignInState {
   return attempt.state;
 }
 
+export function startAzureCliSignIn(): DeviceSignInState {
+  return startAzureCliFlow(false);
+}
+
 export function startDeviceSignIn(): DeviceSignInState {
+  // Without a publisher-configured app registration, fall back to Azure CLI's
+  // own device-code login instead of requiring DEVELOPER_USAGE_INSIGHTS_CLIENT_ID.
+  if (!config.entra.clientId()) return startAzureCliFlow(true);
   const clientId = publisherClientId();
   const { attempt, expiresOnTimestamp } = createSignInAttempt();
   const { id } = attempt;

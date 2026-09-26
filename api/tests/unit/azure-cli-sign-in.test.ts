@@ -147,6 +147,20 @@ describe('isolated Azure CLI authentication', () => {
     expect(existsSync(cache)).toBe(false);
     await expect(session.credential.getToken('ignored')).rejects.toThrow('Sign in');
   });
+  it('forces a device-code challenge when requested', async () => {
+    const session = setup([
+      JSON.stringify([
+        { isDefault: true, tenantId: tenant, user: { type: 'user', name: 'person@example.test' } },
+      ]),
+      JSON.stringify({
+        accessToken: 'device-token',
+        tenant,
+        expires_on: Math.floor(Date.now() / 1000) + 60,
+      }),
+    ]);
+    await session.authenticate(vi.fn(), { useDeviceCode: true });
+    expect(mocks.execute.mock.calls[0]![1]).toContain('--use-device-code');
+  });
   it('does not surface CLI stderr or raw token failures', async () => {
     const session = setup([new Error('secret stdout and stderr')]);
     await expect(session.authenticate(vi.fn())).rejects.toThrow('Azure CLI authentication failed');

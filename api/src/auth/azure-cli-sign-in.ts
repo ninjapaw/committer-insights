@@ -153,6 +153,7 @@ export function createAzureCliSignIn(signal: AbortSignal, onReady?: () => void) 
     },
     async authenticate(
       onChallenge: (challenge: NonNullable<DeviceSignInState['challenge']>) => void,
+      options?: { useDeviceCode?: boolean },
     ) {
       const tenant = config.entra.tenantId();
       if (tenant !== 'organizations' && !/^[a-f0-9-]{36}$/i.test(tenant))
@@ -164,6 +165,7 @@ export function createAzureCliSignIn(signal: AbortSignal, onReady?: () => void) 
             '--allow-no-subscriptions',
             '--output',
             'json',
+            ...(options?.useDeviceCode ? ['--use-device-code'] : []),
             ...(tenant === 'organizations' ? [] : ['--tenant', tenant]),
           ],
           (text) => {
