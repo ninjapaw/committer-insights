@@ -47,7 +47,7 @@ Review Azure DevOps and GitHub plans, repository activity, security settings, re
 
 ## Get Started
 
-**Requirements:** Windows x64, macOS, or Linux, a web browser, internet access, and an authorized Microsoft or GitHub account. Windows releases include their required runtime components; macOS releases include Node.js and GitHub CLI but require Azure CLI (`az`) on `PATH` for Microsoft sign-in; Linux releases require Node.js, Azure CLI (`az`), and GitHub CLI (`gh`) on `PATH`. No administrator rights are required. Organization and endpoint restrictions still apply.
+**Requirements:** Windows x64, macOS, or Linux, a web browser, internet access, and an authorized Microsoft or GitHub account. Windows releases include their required runtime components; macOS releases include Node.js, GitHub CLI (`gh`), and Azure CLI (`az`), so no locally installed runtime is required; Linux releases require Node.js, Azure CLI (`az`), and GitHub CLI (`gh`) on `PATH`. No administrator rights are required. Organization and endpoint restrictions still apply.
 
 1. Download the release for your operating system and architecture from the **same [release](https://github.com/ninjapaw/committer-insights/releases)**.
 2. Calculate the executable's SHA-256 and compare it with the downloaded checksum:
@@ -56,19 +56,19 @@ Review Azure DevOps and GitHub plans, repository activity, security settings, re
    Get-FileHash .\developer-usage-insights.exe -Algorithm SHA256
    ```
 
-3. Run the executable. It checks for updates and opens the local workspace in your browser. Windows first launch prepares the Microsoft sign-in runtime; macOS uses its bundled Node.js and GitHub CLI, and its installed Azure CLI (`az`) for Microsoft sign-in.
+3. Run the executable. It checks for updates and opens the local workspace in your browser. Windows first launch prepares the Microsoft sign-in runtime; macOS uses its bundled Node.js, GitHub CLI, and Azure CLI, and needs nothing installed for Microsoft sign-in.
 4. Sign in, select your sources and report options, then review access before generating a report.
 5. Export anything you need to keep before closing the application. Reports are held in memory; downloaded exports remain on disk.
 
 Keep the application console open while using the browser. The Microsoft runtime uses approximately 106 MB of local cache space, plus temporary extraction space. Later launches verify the cache before opening the workspace, without signing you in automatically.
 
-On macOS, open the `developer-usage-insights-darwin-arm64.dmg` disk image and launch the included app. The app contains a native Mach-O launcher, Node.js, and GitHub CLI; it does not depend on shell scripts or locally installed runtimes. Evaluation images use an ad-hoc signature and may still require explicit user approval; Developer ID signing and Apple notarization are required for Gatekeeper-trusted distribution. On Linux, make `developer-usage-insights` runnable with `chmod +x` and use the included `run-developer-usage-insights.sh` launcher. The release archive includes the platform requirements. The [public demo](https://ninjapaw.github.io/committer-insights/) contains fictional complete, partial, and empty reports. It requires no sign-in and collects no customer data.
+On macOS, open the `developer-usage-insights-darwin-arm64.dmg` disk image and launch the included app. The app contains a native Mach-O launcher, Node.js, GitHub CLI, and Azure CLI; it does not depend on shell scripts or locally installed runtimes. Launching it from Finder opens a Terminal window that runs the local server and shows its output; closing that window quits the application. Evaluation images use an ad-hoc signature and may still require explicit user approval; Developer ID signing and Apple notarization are required for Gatekeeper-trusted distribution. On Linux, make `developer-usage-insights` runnable with `chmod +x` and use the included `run-developer-usage-insights.sh` launcher. The release archive includes the platform requirements. The [public demo](https://ninjapaw.github.io/committer-insights/) contains fictional complete, partial, and empty reports. It requires no sign-in and collects no customer data.
 
 ## Sign In
 
 ### Microsoft
 
-Choose **Sign in with Microsoft** to select an account in your default browser. The Windows package uses an isolated bundled Azure CLI session; the application never asks for your password, a personal access token, or a client secret. Customers do not need to create an app registration.
+Choose **Sign in with Microsoft** to select an account in your default browser. The Windows and macOS packages use an isolated bundled Azure CLI session; the application never asks for your password, a personal access token, or a client secret. Customers do not need to create an app registration.
 
 **Sign in with a device code** is a separate, explicit option in publisher-configured builds, not an automatic retry after browser sign-in fails. Tenant consent, MFA, Conditional Access, and Azure DevOps permissions apply to both methods. Policies requiring Windows account-broker authentication may reject the browser flow.
 

@@ -1,3 +1,19 @@
+/* Native Mach-O launcher compiled into Developer Usage Insights.app.
+ *
+ * The bundle ships its own Node.js, GitHub CLI, and Azure CLI under
+ * Contents/Resources. This stub resolves those paths relative to its own
+ * location and starts the local report server, choosing between two modes:
+ *
+ *   - No controlling terminal (Finder double-click, `open`, Launch Services):
+ *     hand a generated shell script to Terminal.app so the server runs in a
+ *     visible window the user can read and close. See run_in_visible_terminal.
+ *   - Controlling terminal present (developer runs the binary directly):
+ *     exec Node in place so stdio and arguments behave normally.
+ *
+ * Info.plist sets LSUIElement=true because this stub never links AppKit and
+ * opens no native window; without it the Dock icon bounces indefinitely
+ * waiting for a window-server handshake that never arrives. */
+
 #include <libgen.h>
 #include <limits.h>
 #include <stdio.h>
