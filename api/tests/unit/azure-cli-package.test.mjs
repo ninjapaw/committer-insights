@@ -61,7 +61,7 @@ describe('build-time Azure CLI reduction', () => {
     await expect(reduceAzureCli(source, destination)).rejects.toThrow();
   });
 
-  it.skipIf(process.platform !== 'win32')(
+  it(
     'creates repeatable archives from the same retained files',
     async () => {
       root = await mkdtemp(join(tmpdir(), 'cli-reduction-test-'));

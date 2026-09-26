@@ -21,7 +21,7 @@ vi.mock('node:sea', () => ({
   getAsset: (name: string) =>
     name.endsWith('manifest.json')
       ? assets.manifest
-      : name.endsWith('extract.ps1')
+      : name.endsWith('extract.ps1') || name.endsWith('extract.sh')
         ? assets.extractor
         : assets.archive,
 }));
@@ -111,7 +111,7 @@ describe('bundled Azure CLI integrity', () => {
   );
   it('does not silently use a system CLI for source runs', async () => {
     assets.sea = false;
-    if (process.platform === 'win32') {
+    if (process.platform === 'win32' || process.platform === 'darwin') {
       await expect(resolveAzureCli()).rejects.toThrow('packaged application');
     } else {
       await expect(resolveAzureCli()).resolves.toBe('az');
@@ -236,6 +236,110 @@ describe('bundled Azure CLI integrity', () => {
         sha256: hash,
         architecture: process.arch,
         files: { 'python.exe': hash, 'bin/az.cmd': hash },
+      });
+      await expect(resolveAzureCli()).rejects.toThrow('archive failed integrity');
+    },
+  );
+  it.skipIf(process.platform !== 'darwin')(
+    'prepares once before sign-in and reuses the verified runtime for the app session on macOS',
+    async () => {
+      vi.resetModules();
+      const { prepareAzureCli, getPreparedAzureCli } =
+        await import('../../src/auth/azure-cli-binary.js');
+      expect(() => getPreparedAzureCli()).toThrow('Restart the app');
+      root = mkdtempSync(join(tmpdir(), 'azure-runtime-test-'));
+      vi.stubEnv('HOME', root);
+      const hash = createHash('sha256').update('verified').digest('hex');
+      const directory = join(
+        root,
+        'Library/Application Support/CommitterInsights/tools/azure-cli',
+        `2.90.0-${hash}`,
+      );
+      mkdirSync(join(directory, 'bin'), { recursive: true });
+      writeFileSync(join(directory, 'bin/python3'), 'verified');
+      writeFileSync(join(directory, 'bin/az'), 'verified');
+      assets.manifest = JSON.stringify({
+        version: '2.90.0',
+        sha256: hash,
+        architecture: process.arch,
+        files: { 'bin/python3': hash, 'bin/az': hash },
+      });
+      const progress = vi.fn();
+      await Promise.all([prepareAzureCli(progress), prepareAzureCli(progress)]);
+      expect(progress).toHaveBeenCalledTimes(2);
+      expect(getPreparedAzureCli()).toBe(join(directory, 'bin/python3'));
+      await prepareAzureCli(progress);
+      expect(progress).toHaveBeenCalledTimes(2);
+    },
+  );
+  it.skipIf(process.platform !== 'darwin')(
+    'extracts a real archive, follows the bundled symlink, and detects tampering on macOS',
+    async () => {
+      root = mkdtempSync(join(tmpdir(), 'azure-runtime-test-'));
+      vi.stubEnv('HOME', root);
+      const staging = mkdtempSync(join(tmpdir(), 'azure-runtime-src-'));
+      mkdirSync(join(staging, 'bin'), { recursive: true });
+      writeFileSync(join(staging, 'bin/python3.11'), 'verified');
+      await filesystem.symlink('python3.11', join(staging, 'bin/python3'));
+      writeFileSync(join(staging, 'bin/az'), 'verified');
+      const archive = join(root, 'runtime.zip');
+      execFileSync('zip', ['-X', '-y', '-q', archive, 'bin/python3.11', 'bin/python3', 'bin/az'], {
+        cwd: staging,
+        stdio: 'pipe',
+      });
+      assets.archive = readFileSync(archive);
+      assets.extractor = readFileSync(
+        join(import.meta.dirname, '../../../scripts/extract-azure-cli.sh'),
+        'utf8',
+      );
+      const hash = createHash('sha256').update('verified').digest('hex');
+      const archiveHash = createHash('sha256').update(assets.archive).digest('hex');
+      assets.manifest = JSON.stringify({
+        version: '2.90.0',
+        architecture: process.arch,
+        sha256: archiveHash,
+        files: { 'bin/python3.11': hash, 'bin/python3': 'symlink:python3.11', 'bin/az': hash },
+      });
+      const progress = vi.fn();
+      const directory = join(
+        root,
+        'Library/Application Support/CommitterInsights/tools/azure-cli',
+        `2.90.0-${archiveHash}`,
+      );
+      const executable = await resolveAzureCli(undefined, progress);
+      expect(executable).toBe(join(directory, 'bin/python3'));
+      expect(readFileSync(executable, 'utf8')).toBe('verified');
+      // Re-resolving hits the already-published cache and re-verifies via readlink().
+      expect(await resolveAzureCli(undefined, progress)).toBe(executable);
+      await filesystem.rm(executable, { force: true });
+      await filesystem.symlink('az', executable);
+      await expect(resolveAzureCli()).rejects.toThrow('integrity');
+    },
+  );
+  it.skipIf(process.platform !== 'darwin')(
+    'rejects unsafe manifest paths before extracting on macOS',
+    async () => {
+      const hash = 'a'.repeat(64);
+      assets.manifest = JSON.stringify({
+        version: '2.90.0',
+        sha256: hash,
+        architecture: process.arch,
+        files: { 'bin/python3': hash, 'bin/az': hash, '../outside': hash },
+      });
+      await expect(resolveAzureCli()).rejects.toThrow('metadata');
+    },
+  );
+  it.skipIf(process.platform !== 'darwin')(
+    'rejects a macOS archive whose bytes do not match the pin',
+    async () => {
+      root = mkdtempSync(join(tmpdir(), 'azure-runtime-test-'));
+      vi.stubEnv('HOME', root);
+      const hash = 'a'.repeat(64);
+      assets.manifest = JSON.stringify({
+        version: '2.90.0',
+        sha256: hash,
+        architecture: process.arch,
+        files: { 'bin/python3': hash, 'bin/az': hash },
       });
       await expect(resolveAzureCli()).rejects.toThrow('archive failed integrity');
     },
