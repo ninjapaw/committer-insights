@@ -92,7 +92,7 @@ if (platform === 'darwin') {
 }
 await writeFile(
   join(release, 'PLATFORM-REQUIREMENTS.txt'),
-  `${PRODUCT.displayName}\n\nPlatform: ${platform}\nArchitecture: ${architecture}\n\nRequired for provider sign-in:\n- ${platform === 'darwin' ? 'No Node.js, Azure CLI, or GitHub CLI installation is required; macOS releases bundle all three runtime components.' : 'Node.js is bundled in this executable.'}\n- ${platform === 'darwin' ? 'Azure DevOps browser sign-in uses the bundled Microsoft identity flow.' : 'Azure CLI (az) must be installed and available on PATH for Microsoft sign-in.'}\n- ${platform === 'darwin' ? 'GitHub CLI (gh) is bundled in the app.' : 'GitHub CLI (gh) must be installed and available on PATH for GitHub sign-in.'}\n\nThe application, local report server, exports, and report data remain bundled/local.\n`,
+  `${PRODUCT.displayName}\n\nPlatform: ${platform}\nArchitecture: ${architecture}\n\nRequired for provider sign-in:\n- ${platform === 'darwin' ? 'Node.js and GitHub CLI (gh) are bundled in this app.' : 'Node.js is bundled in this executable.'}\n- Azure CLI (az) must be installed and available on PATH for Microsoft sign-in.\n- ${platform === 'darwin' ? 'GitHub CLI (gh) is bundled in the app.' : 'GitHub CLI (gh) must be installed and available on PATH for GitHub sign-in.'}\n\nThe application, local report server, exports, and report data remain bundled/local.\n`,
 );
 if (platform === 'darwin') {
   // Put the complete app bundle in the disk image so Finder launches the same metadata-rich app.
