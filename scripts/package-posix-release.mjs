@@ -67,29 +67,18 @@ if (platform === 'darwin') {
     join(appRoot, 'Contents', 'Info.plist'),
     `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict><key>CFBundleDisplayName</key><string>${PRODUCT.displayName}</string><key>CFBundleExecutable</key><string>${PRODUCT.executableName}</string><key>CFBundleIdentifier</key><string>${PRODUCT.bundleIdentifier}</string><key>CFBundleIconFile</key><string>${PRODUCT.iconName}.icns</string><key>CFBundleName</key><string>${PRODUCT.shortName}</string><key>CFBundlePackageType</key><string>APPL</string><key>CFBundleVersion</key><string>${PRODUCT.version}</string><key>CFBundleShortVersionString</key><string>${PRODUCT.version}</string></dict></plist>\n`,
   );
-  if (process.env.MACOS_SIGNING_IDENTITY) {
-    execFileSync(
-      'codesign',
-      [
-        '--force',
-        '--deep',
-        '--options',
-        'runtime',
-        '--timestamp',
-        '--sign',
-        process.env.MACOS_SIGNING_IDENTITY,
-        appRoot,
-      ],
-      { stdio: 'inherit' },
-    );
-    execFileSync('codesign', ['--verify', '--deep', '--strict', appRoot], {
-      stdio: 'inherit',
-    });
-  } else {
+  const signingIdentity = process.env.MACOS_SIGNING_IDENTITY || '-';
+  const signingOptions = ['--force', '--deep', '--options', 'runtime', '--sign', signingIdentity];
+  if (signingIdentity === '-') signingOptions.push('--timestamp=none');
+  else signingOptions.push('--timestamp');
+  execFileSync('codesign', [...signingOptions, appRoot], { stdio: 'inherit' });
+  execFileSync('codesign', ['--verify', '--deep', '--strict', appRoot], {
+    stdio: 'inherit',
+  });
+  if (signingIdentity === '-')
     process.stderr.write(
-      'No MACOS_SIGNING_IDENTITY was supplied; creating an unsigned evaluation app image.\n',
+      'Using an ad-hoc signature; Apple notarization is required for Gatekeeper trust.\n',
     );
-  }
   await writeFile(
     executable,
     `#!/bin/sh\nset -eu\nROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"\nexec /usr/bin/env node "$ROOT_DIR/${PRODUCT.executableName}.cjs" "$@"\n`,
