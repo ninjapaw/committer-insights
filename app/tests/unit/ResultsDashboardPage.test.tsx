@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import type { Report } from '@ninjapaw/contracts';
+import type { Report, RepositoryInsight, SecurityFeature } from '@ninjapaw/contracts';
 import { ResultsDashboardPage } from '../../src/pages/ResultsDashboardPage';
 import { ReportInsightsPanel } from '../../src/components/ReportInsightsPanel';
 import { CioBriefPanel } from '../../src/components/CioBriefPanel';
@@ -476,4 +476,61 @@ describe('Results dashboard', () => {
       expect(screen.queryByRole('region', { name: 'GitHub committers' })).not.toBeInTheDocument();
     },
   );
+  it('narrows repositories by security feature independently of the feature state', () => {
+    const repository = (name: string, features: SecurityFeature[]): RepositoryInsight => ({
+      provider: 'github',
+      source: 'example',
+      id: name,
+      name,
+      visibility: 'private',
+      state: 'active',
+      observedAt: '2026-09-24T12:00:00Z',
+      features,
+      activity: {
+        status: 'complete',
+        from: '2026-01-01T00:00:00Z',
+        to: '2026-09-24T12:00:00Z',
+        daily: [{ date: '2026-09-23', commits: 1 }],
+      },
+    });
+    const report: Report = {
+      reportId: 'insights',
+      provider: 'github',
+      subject: 'example',
+      organization: 'example',
+      plans: [],
+      generatedAt: '2026-09-24T12:00:00Z',
+      sourceApiVersion: 'test',
+      warnings: [],
+      azureDevOpsCommitters: [],
+      gitHubCommitters: [],
+      insights: {
+        repositories: [
+          repository('example/enabled-repo', [{ name: 'Code Security', state: 'enabled' }]),
+          repository('example/disabled-repo', [{ name: 'Code Security', state: 'disabled' }]),
+          repository('example/other-repo', [{ name: 'Secret Protection', state: 'enabled' }]),
+        ],
+        billing: [],
+        checks: [],
+      },
+    };
+    render(<ReportInsightsPanel report={report} />);
+    const visible = () => screen.getByText('Visible repositories in selection').previousSibling;
+    expect(visible()).toHaveTextContent('3');
+    // Selecting a feature while the state stays "all" has to narrow to the repositories that
+    // report that feature; combining the two filters with || used to match everything instead.
+    fireEvent.change(screen.getByLabelText('Security feature'), {
+      target: { value: 'Code Security' },
+    });
+    expect(visible()).toHaveTextContent('2');
+    fireEvent.change(screen.getByLabelText('Feature state'), { target: { value: 'enabled' } });
+    expect(visible()).toHaveTextContent('1');
+    // A repository that never reports the feature is treated as an unknown state for it.
+    fireEvent.change(screen.getByLabelText('Feature state'), { target: { value: 'unknown' } });
+    expect(visible()).toHaveTextContent('1');
+    expect(screen.getByLabelText('Security feature')).toHaveValue('Code Security');
+    fireEvent.change(screen.getByLabelText('Security feature'), { target: { value: 'all' } });
+    expect(visible()).toHaveTextContent('3');
+    expect(screen.getByLabelText('Feature state')).toBeDisabled();
+  });
 });

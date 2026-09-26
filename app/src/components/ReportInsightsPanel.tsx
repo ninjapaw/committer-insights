@@ -137,9 +137,14 @@ export function ReportInsightsPanel({ report }: { report: Report }): JSX.Element
             `${row.source} ${row.project ?? ''} ${row.name}`
               .toLowerCase()
               .includes(search.toLowerCase().trim()) &&
+            // The state select is disabled while "all features" is selected, so the feature is
+            // the outer filter and the state narrows within it. Combining the two with || let
+            // either one being "all" match every repository and silently drop the other filter.
             (feature === 'all' ||
-              state === 'all' ||
-              (row.features.find((item) => item.name === feature)?.state ?? 'unknown') === state),
+              (state === 'all'
+                ? row.features.some((item) => item.name === feature)
+                : (row.features.find((item) => item.name === feature)?.state ?? 'unknown') ===
+                  state)),
         )
         .map((row): InventoryRow => {
           const commits = validRange ? activityInWindow(row, from, to) : undefined;
