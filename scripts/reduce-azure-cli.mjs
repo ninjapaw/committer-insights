@@ -177,7 +177,23 @@ export function packReducedAzureCli(runtime, archive) {
   rmSync(archive, { force: true });
   execFileSync(
     'find',
-    [runtime, '(', '-type', 'f', '-o', '-type', 'l', ')', '-exec', 'touch', '-h', '-t', '198001010000', '{}', '+'],
+    [
+      runtime,
+      '(',
+      '-type',
+      'f',
+      '-o',
+      '-type',
+      'l',
+      ')',
+      '-exec',
+      'touch',
+      '-h',
+      '-t',
+      '198001010000',
+      '{}',
+      '+',
+    ],
     { stdio: 'pipe', timeout: 180000 },
   );
   const listing = execFileSync('find', [runtime, '(', '-type', 'f', '-o', '-type', 'l', ')'], {

@@ -61,18 +61,15 @@ describe('build-time Azure CLI reduction', () => {
     await expect(reduceAzureCli(source, destination)).rejects.toThrow();
   });
 
-  it(
-    'creates repeatable archives from the same retained files',
-    async () => {
-      root = await mkdtemp(join(tmpdir(), 'cli-reduction-test-'));
-      const runtime = join(root, 'runtime');
-      await mkdir(runtime);
-      await writeFile(join(runtime, 'python.exe'), 'synthetic');
-      packReducedAzureCli(runtime, join(root, 'first.zip'));
-      packReducedAzureCli(runtime, join(root, 'second.zip'));
-      expect(await readFile(join(root, 'first.zip'))).toEqual(
-        await readFile(join(root, 'second.zip')),
-      );
-    },
-  );
+  it('creates repeatable archives from the same retained files', async () => {
+    root = await mkdtemp(join(tmpdir(), 'cli-reduction-test-'));
+    const runtime = join(root, 'runtime');
+    await mkdir(runtime);
+    await writeFile(join(runtime, 'python.exe'), 'synthetic');
+    packReducedAzureCli(runtime, join(root, 'first.zip'));
+    packReducedAzureCli(runtime, join(root, 'second.zip'));
+    expect(await readFile(join(root, 'first.zip'))).toEqual(
+      await readFile(join(root, 'second.zip')),
+    );
+  });
 });

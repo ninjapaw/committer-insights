@@ -37,7 +37,14 @@ export function createAzureCliSignIn(signal: AbortSignal, onReady?: () => void) 
     // The 'az' executable is resolved via PATH. GUI-launched apps (for example a macOS
     // .app bundle opened from Finder) often inherit a minimal PATH that omits Homebrew
     // and other common install locations, so append them without dropping the inherited PATH.
-    const commonPaths = ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin'];
+    const commonPaths = [
+      '/opt/homebrew/bin',
+      '/usr/local/bin',
+      '/usr/bin',
+      '/bin',
+      '/usr/sbin',
+      '/sbin',
+    ];
     const inherited = (environment.PATH ?? '').split(':').filter(Boolean);
     environment.PATH = Array.from(new Set([...inherited, ...commonPaths])).join(':');
   }

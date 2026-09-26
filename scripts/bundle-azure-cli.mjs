@@ -255,7 +255,11 @@ async function bundleAzureCliMacOS(root, buildDir, releaseDir) {
   ) {
     throw new Error('No verified Python runtime is pinned for this macOS build target.');
   }
-  const archive = await downloadPinnedArchive(platformPin.url, platformPin.sha256, 80 * 1024 * 1024);
+  const archive = await downloadPinnedArchive(
+    platformPin.url,
+    platformPin.sha256,
+    80 * 1024 * 1024,
+  );
   const directory = join(buildDir, 'azure-cli');
   const extracted = join(directory, 'runtime');
   await mkdir(directory, { recursive: true });

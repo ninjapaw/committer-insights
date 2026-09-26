@@ -125,7 +125,9 @@ if (process.platform === 'win32') {
   try {
     execFileSync('signtool', ['sign', '/fd', 'SHA256', '/a', executablePath], { stdio: 'inherit' });
   } catch {
-    process.stderr.write('signtool not available or signing failed; shipping unsigned executable.\n');
+    process.stderr.write(
+      'signtool not available or signing failed; shipping unsigned executable.\n',
+    );
   }
 }
 

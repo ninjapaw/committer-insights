@@ -71,8 +71,7 @@ export function getPreparedAzureCli(): string {
   if (!isBundledPlatform()) return 'az';
   const home = directAzureCliHome();
   if (home) return bundledPythonPath(home);
-  if (!isSea())
-    throw new Error('Bundled Azure CLI sign-in requires the packaged application.');
+  if (!isSea()) throw new Error('Bundled Azure CLI sign-in requires the packaged application.');
   if (!preparedExecutable)
     throw new Error('Microsoft sign-in runtime is unavailable. Restart the app to prepare it.');
   return preparedExecutable;
@@ -159,8 +158,7 @@ export async function resolveAzureCli(
   if (!isBundledPlatform()) return 'az';
   const home = directAzureCliHome();
   if (home) return bundledPythonPath(home);
-  if (!isSea())
-    throw new Error('Bundled Azure CLI sign-in requires the packaged application.');
+  if (!isSea()) throw new Error('Bundled Azure CLI sign-in requires the packaged application.');
   const windows = process.platform === 'win32';
   const manifest = JSON.parse(getAsset('azure-cli/manifest.json', 'utf8')) as {
     version: string;
@@ -233,7 +231,13 @@ export async function resolveAzureCli(
             'System32/WindowsPowerShell/v1.0/powershell.exe',
           ),
           ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', extractorPath],
-          { env: extractionEnv, windowsHide: true, timeout: 180000, maxBuffer: 1024 * 1024, signal },
+          {
+            env: extractionEnv,
+            windowsHide: true,
+            timeout: 180000,
+            maxBuffer: 1024 * 1024,
+            signal,
+          },
         );
       } else {
         await execute('/bin/sh', [extractorPath], {
