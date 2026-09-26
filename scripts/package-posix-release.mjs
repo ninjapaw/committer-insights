@@ -1,4 +1,5 @@
-import { chmod, cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, chmod, cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { constants } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
@@ -31,6 +32,9 @@ if (platform === 'darwin') {
   await cp(join(root, 'app', 'dist'), join(appRoot, 'Contents', 'Resources', 'app'), {
     recursive: true,
   });
+  // Fail the build rather than shipping a bundle whose web interface is missing; at runtime that
+  // only surfaces as an error page long after the artifact has been published.
+  await access(join(appRoot, 'Contents', 'Resources', 'app', 'index.html'), constants.R_OK);
   await cp(
     join(root, 'build', `${PRODUCT.executableName}.cjs`),
     join(appRoot, 'Contents', 'Resources', `${PRODUCT.executableName}.cjs`),

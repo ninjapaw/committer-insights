@@ -41,15 +41,33 @@ const HOST = '127.0.0.1';
 // Resolve the built web app relative to this module's own location rather than process.cwd(),
 // which varies by launch method (npm workspace scripts, a double-clicked macOS .app, etc.) and
 // is not a reliable base for locating bundled assets.
-function resolveAppRoot(): string {
-  const moduleDir = dirname(fileURLToPath(import.meta.url));
-  // Compiled TypeScript output: api/dist/src/local-server.js -> <repo>/app/dist
-  const devCandidate = resolve(moduleDir, '../../../app/dist');
-  // Packaged single-file bundle sits next to its app assets (e.g. macOS .app Contents/Resources).
-  const packagedCandidate = join(moduleDir, 'app');
-  return existsSync(join(devCandidate, 'index.html')) ? devCandidate : packagedCandidate;
+export function appRootCandidates(
+  moduleDir = dirname(fileURLToPath(import.meta.url)),
+  execPath = process.execPath,
+): [string, ...string[]] {
+  const candidates = [
+    // Packaged bundle sits next to its own assets (macOS .app Contents/Resources, Linux tarball).
+    // Probed first so a bundle always prefers the assets it shipped with.
+    join(moduleDir, 'app'),
+    // The bundled Node.js runtime is a sibling of those same assets, which keeps resolution
+    // working even when the entry script is invoked through a symlink or relocated path.
+    join(dirname(execPath), 'app'),
+    // Compiled TypeScript output: api/dist/src/local-server.js -> <repo>/app/dist
+    resolve(moduleDir, '../../../app/dist'),
+  ];
+  // In a packaged bundle the first two collapse to the same directory, and repeating it in the
+  // diagnostic makes the reported search look broken rather than exhaustive.
+  return [...new Set(candidates)] as [string, ...string[]];
 }
-const appRoot = resolveAppRoot();
+
+// Returns the first candidate that actually contains the built web app. When none do we still
+// return a root so requests fail with a diagnostic rather than crashing at module load.
+function resolveAppRoot(candidates: [string, ...string[]]): string {
+  return candidates.find((candidate) => existsSync(join(candidate, 'index.html'))) ?? candidates[0];
+}
+const appRootSearchPaths = appRootCandidates();
+const appRoot = resolveAppRoot(appRootSearchPaths);
+const releasesUrl = `https://github.com/${PRODUCT.repository}/releases/latest`;
 // This unguessable capability is the authorization boundary for the one local browser session.
 const capability = randomBytes(32).toString('base64url');
 let githubSignedIn = false;
@@ -143,7 +161,13 @@ function serveApp(pathname: string, response: ServerResponse): void {
       ? candidate
       : join(appRoot, 'index.html');
   if (!existsSync(selected)) {
-    sendJson(response, 503, { message: 'The local web application has not been built.' });
+    // An installation missing its own web assets is unrecoverable at runtime, so name the
+    // searched locations instead of leaving the user with an error they cannot act on. This
+    // most often means a partially extracted download or a stale bundle from an older release.
+    sendJson(response, 503, {
+      message: `The bundled web interface is missing from this installation of ${PRODUCT.displayName}. Download the latest release again from ${releasesUrl} and replace this copy.`,
+      searchedPaths: appRootSearchPaths,
+    });
     return;
   }
   response.writeHead(200, { ...securityHeaders, 'Content-Type': contentType(selected) });
@@ -353,6 +377,16 @@ async function handleApi(
 }
 
 export async function startLocalServer(): Promise<Server> {
+  // Surface a broken installation in the launcher's terminal window. Without this the only
+  // symptom is a raw JSON error in the browser, which gives no hint that the download itself
+  // is incomplete.
+  if (!isSea() && !existsSync(join(appRoot, 'index.html'))) {
+    process.stderr.write(
+      `${PRODUCT.displayName} could not find its bundled web interface. This copy is incomplete; ` +
+        `download the latest release again from ${releasesUrl} and replace it.\n` +
+        `Searched: ${appRootSearchPaths.join(', ')}\n`,
+    );
+  }
   const server = createServer(async (request, response) => {
     const address = server.address();
     const port = typeof address === 'object' && address ? address.port : 0;
