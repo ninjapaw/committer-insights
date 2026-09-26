@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
-import process from 'node:process';
 import {
   keepAzureCliFile,
   reduceAzureCli,

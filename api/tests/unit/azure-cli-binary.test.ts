@@ -5,7 +5,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'nod
 import * as filesystem from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { resolveAzureCli, isBundledAzureCliRuntime } from '../../src/auth/azure-cli-binary.js';
+import { resolveAzureCli } from '../../src/auth/azure-cli-binary.js';
 
 const assets = vi.hoisted(() => ({
   sea: true,
