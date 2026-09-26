@@ -1,6 +1,55 @@
 import { describe, expect, it } from 'vitest';
-import { appRootCandidates, providerStatusForErrorCode } from '../../src/local-server.js';
+import {
+  appRootCandidates,
+  listenForQuitKey,
+  providerStatusForErrorCode,
+} from '../../src/local-server.js';
 import { join } from 'node:path';
+import { PassThrough } from 'node:stream';
+
+function fakeTerminal(isTTY: boolean) {
+  return Object.assign(new PassThrough(), { isTTY });
+}
+
+describe('listenForQuitKey', () => {
+  it('shuts down when the user presses Enter', async () => {
+    const input = fakeTerminal(true);
+    let shutdowns = 0;
+    listenForQuitKey(() => (shutdowns += 1), input);
+    input.write('\n');
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(shutdowns).toBe(1);
+  });
+
+  it('shuts down when stdin ends, covering Ctrl+D and a closed terminal', async () => {
+    const input = fakeTerminal(true);
+    let shutdowns = 0;
+    listenForQuitKey(() => (shutdowns += 1), input);
+    input.end();
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(shutdowns).toBe(1);
+  });
+
+  it('ignores non-interactive input so piped and CI runs are unaffected', async () => {
+    const input = fakeTerminal(false);
+    let shutdowns = 0;
+    listenForQuitKey(() => (shutdowns += 1), input);
+    input.write('\n');
+    input.end();
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(shutdowns).toBe(0);
+  });
+
+  it('does not invoke shutdown when torn down by an already-running shutdown', async () => {
+    const input = fakeTerminal(true);
+    let shutdowns = 0;
+    const stop = listenForQuitKey(() => (shutdowns += 1), input);
+    stop();
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(shutdowns).toBe(0);
+    expect(input.isPaused()).toBe(true);
+  });
+});
 
 describe('appRootCandidates', () => {
   it('prefers assets shipped beside the module over a repository build', () => {

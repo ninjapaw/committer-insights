@@ -3,7 +3,9 @@ import { randomBytes } from 'node:crypto';
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { dirname, extname, join, normalize, resolve } from 'node:path';
+import { createInterface } from 'node:readline';
 import { getAsset, isSea } from 'node:sea';
+import type { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import {
   gitHubReportRequestSchema,
@@ -376,6 +378,30 @@ async function handleApi(
   return sendJson(response, 404, { message: 'Not found.' });
 }
 
+// Terminal users otherwise have no discoverable way to stop the server: the macOS launcher
+// opens a Terminal window containing nothing but the banner, and Ctrl+C is not obvious to a
+// non-developer audience. Reading a line from stdin gives Windows, Linux, and macOS the same
+// "press Enter to quit" affordance. 'close' covers Ctrl+D and a terminal that goes away
+// without sending a signal.
+export function listenForQuitKey(
+  shutdown: () => void,
+  input: Readable & { isTTY?: boolean } = process.stdin,
+): () => void {
+  // Piped and CI runs have no user to press a key, and consuming their stdin would both hide
+  // input from the rest of the process and keep the event loop alive.
+  if (!input.isTTY) return () => {};
+  const reader = createInterface({ input });
+  reader.on('line', shutdown);
+  reader.on('close', shutdown);
+  return () => {
+    // Detach first so tearing the reader down during shutdown does not re-enter it.
+    reader.removeListener('close', shutdown);
+    reader.close();
+    // createInterface resumes the stream, which would otherwise hold the process open.
+    input.pause();
+  };
+}
+
 export async function startLocalServer(): Promise<Server> {
   // Surface a broken installation in the launcher's terminal window. Without this the only
   // symptom is a raw JSON error in the browser, which gives no hint that the download itself
@@ -425,19 +451,25 @@ export async function startLocalServer(): Promise<Server> {
     openBrowser(url);
     process.stdout.write(`${PRODUCT.displayName} opened at http://${HOST}:${address.port}/\n`);
   }
+  if (process.stdin.isTTY) process.stdout.write('Press Enter to quit.\n');
 
   let closing = false;
   const signals = ['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGBREAK'] as const;
+  // Assigned below once shutdown exists; the two reference each other.
+  let stopQuitKeyListener: () => void = () => {};
   const shutdown = () => {
     if (closing) return;
     closing = true;
+    stopQuitKeyListener();
     cancelGitHubSignIn();
     disconnectMicrosoftAccount();
     server.close(() => process.exit(0));
     server.closeAllConnections();
   };
+  stopQuitKeyListener = listenForQuitKey(shutdown);
   server.once('close', () => {
     for (const signal of signals) process.removeListener(signal, shutdown);
+    stopQuitKeyListener();
     cancelGitHubSignIn();
     disconnectMicrosoftAccount();
   });
