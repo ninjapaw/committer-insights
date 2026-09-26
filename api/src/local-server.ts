@@ -2,8 +2,9 @@ import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { extname, join, normalize, resolve } from 'node:path';
+import { dirname, extname, join, normalize, resolve } from 'node:path';
 import { getAsset, isSea } from 'node:sea';
+import { fileURLToPath } from 'node:url';
 import {
   gitHubReportRequestSchema,
   gitHubSignInSchema,
@@ -37,7 +38,18 @@ import { connectGitHub, createGitHubReport, discoverGitHubSources } from './serv
 import { PRODUCT } from '@ninjapaw/developer-usage-insights-metadata';
 
 const HOST = '127.0.0.1';
-const appRoot = resolve(process.cwd(), 'app/dist');
+// Resolve the built web app relative to this module's own location rather than process.cwd(),
+// which varies by launch method (npm workspace scripts, a double-clicked macOS .app, etc.) and
+// is not a reliable base for locating bundled assets.
+function resolveAppRoot(): string {
+  const moduleDir = dirname(fileURLToPath(import.meta.url));
+  // Compiled TypeScript output: api/dist/src/local-server.js -> <repo>/app/dist
+  const devCandidate = resolve(moduleDir, '../../../app/dist');
+  // Packaged single-file bundle sits next to its app assets (e.g. macOS .app Contents/Resources).
+  const packagedCandidate = join(moduleDir, 'app');
+  return existsSync(join(devCandidate, 'index.html')) ? devCandidate : packagedCandidate;
+}
+const appRoot = resolveAppRoot();
 // This unguessable capability is the authorization boundary for the one local browser session.
 const capability = randomBytes(32).toString('base64url');
 let githubSignedIn = false;
