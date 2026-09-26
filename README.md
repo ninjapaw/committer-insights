@@ -62,7 +62,13 @@ Review Azure DevOps and GitHub plans, repository activity, security settings, re
 
 Keep the application console open while using the browser. The Microsoft runtime uses approximately 106 MB of local cache space, plus temporary extraction space. Later launches verify the cache before opening the workspace, without signing you in automatically.
 
-On macOS, open the `developer-usage-insights-darwin-arm64.dmg` disk image and launch the included app. The app contains a native Mach-O launcher, Node.js, GitHub CLI, and Azure CLI; it does not depend on shell scripts or locally installed runtimes. Launching it from Finder opens a Terminal window that runs the local server and shows its output; closing that window quits the application. Evaluation images use an ad-hoc signature and may still require explicit user approval; Developer ID signing and Apple notarization are required for Gatekeeper-trusted distribution. On Linux, make `developer-usage-insights` runnable with `chmod +x` and use the included `run-developer-usage-insights.sh` launcher. The release archive includes the platform requirements. The [public demo](https://ninjapaw.github.io/committer-insights/) contains fictional complete, partial, and empty reports. It requires no sign-in and collects no customer data.
+On macOS, open the `developer-usage-insights-darwin-arm64.dmg` disk image, copy the included app to `Applications`, and clear the download quarantine flag once before the first launch:
+
+```sh
+xattr -dr com.apple.quarantine "/Applications/Developer Usage Insights.app"
+```
+
+Evaluation images carry an ad-hoc signature and are not Apple-notarized, so macOS quarantines them after download and reports them as damaged until that flag is cleared. Developer ID signing and Apple notarization are required to remove this step for Gatekeeper-trusted distribution. The app contains a native Mach-O launcher, Node.js, GitHub CLI, and Azure CLI; it does not depend on shell scripts or locally installed runtimes. Launching it from Finder opens a Terminal window that runs the local server and shows its output; closing that window quits the application. On Linux, make `developer-usage-insights` runnable with `chmod +x` and use the included `run-developer-usage-insights.sh` launcher. The release archive includes the platform requirements. The [public demo](https://ninjapaw.github.io/committer-insights/) contains fictional complete, partial, and empty reports. It requires no sign-in and collects no customer data.
 
 ## Sign In
 
@@ -348,7 +354,7 @@ See the [contribution guide](CONTRIBUTING.md) and [maintenance guidance](#mainte
 
 ### Development and Architecture
 
-Use Node.js **24.19.0** and npm **11.17.0**. Source runs and Linux packages need Node.js, GitHub CLI, and Azure CLI available on `PATH`; Windows packages include their required runtime components; macOS packages include Node.js and GitHub CLI but need Azure CLI available on `PATH`. The explicit SDK device-code option requires publisher configuration.
+Use Node.js **24.19.0** and npm **11.17.0**. Source runs and Linux packages need Node.js, GitHub CLI, and Azure CLI available on `PATH`; Windows packages include their required runtime components; macOS packages include Node.js, GitHub CLI, and Azure CLI. The explicit SDK device-code option requires publisher configuration.
 
 ```powershell
 npm ci

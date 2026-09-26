@@ -104,14 +104,20 @@ if (platform === 'darwin') {
 }
 await writeFile(
   join(release, 'PLATFORM-REQUIREMENTS.txt'),
-  `${PRODUCT.displayName}\n\nPlatform: ${platform}\nArchitecture: ${architecture}\n\nRequired for provider sign-in:\n- ${platform === 'darwin' ? 'Node.js is bundled in this app.' : 'Node.js is bundled in this executable.'}\n- ${platform === 'darwin' ? 'GitHub CLI (gh) is bundled in the app.' : 'GitHub CLI (gh) must be installed and available on PATH for GitHub sign-in.'}\n- ${platform === 'darwin' ? 'Azure CLI (az) is bundled in the app.' : 'Azure CLI (az) must be installed and available on PATH for Microsoft sign-in.'}\n\nThe application, local report server, exports, and report data remain bundled/local.\n`,
+  `${PRODUCT.displayName}\n\nPlatform: ${platform}\nArchitecture: ${architecture}\n\nRequired for provider sign-in:\n- ${platform === 'darwin' ? 'Node.js is bundled in this app.' : 'Node.js is bundled in this executable.'}\n- ${platform === 'darwin' ? 'GitHub CLI (gh) is bundled in the app.' : 'GitHub CLI (gh) must be installed and available on PATH for GitHub sign-in.'}\n- ${platform === 'darwin' ? 'Azure CLI (az) is bundled in the app.' : 'Azure CLI (az) must be installed and available on PATH for Microsoft sign-in.'}${platform === 'darwin' ? `\n\nFirst launch:\nThis build carries an ad-hoc signature and is not Apple-notarized, so macOS quarantines it after download and reports it as damaged. Copy the app out of the disk image, then clear the quarantine flag once:\n  xattr -dr com.apple.quarantine "/Applications/${PRODUCT.displayName}.app"` : ''}\n\nThe application, local report server, exports, and report data remain bundled/local.\n`,
 );
 if (platform === 'darwin') {
   // Put the complete app bundle in the disk image so Finder launches the same metadata-rich app.
   const imageRoot = join(root, 'build', `${PRODUCT.slug}-dmg-root`);
   await rm(imageRoot, { recursive: true, force: true });
   await mkdir(imageRoot, { recursive: true });
-  await cp(appRoot, join(imageRoot, `${PRODUCT.displayName}.app`), { recursive: true });
+  // ditto copies symlinks, permissions, and extended attributes verbatim. Node's cp resolves
+  // relative symlink targets into absolute build-machine paths, which breaks both the bundled
+  // Python interpreter and the signature seal, so Gatekeeper reports the shipped app as damaged.
+  const stagedApp = join(imageRoot, `${PRODUCT.displayName}.app`);
+  execFileSync('ditto', [appRoot, stagedApp], { stdio: 'inherit' });
+  // Verify the copy that ships inside the image, not just the staging bundle signed above.
+  execFileSync('codesign', ['--verify', '--deep', '--strict', stagedApp], { stdio: 'inherit' });
   execFileSync(
     'hdiutil',
     [
@@ -145,6 +151,8 @@ if (platform === 'darwin') {
       ],
       { stdio: 'inherit' },
     );
+    // Stapling attaches the notarization ticket so Gatekeeper approves the image offline.
+    execFileSync('xcrun', ['stapler', 'staple', archive], { stdio: 'inherit' });
   } else if (process.env.MACOS_SIGNING_IDENTITY) {
     process.stderr.write(
       'Developer ID signing is enabled, but notarization credentials are missing; Gatekeeper approval is not asserted.\n',

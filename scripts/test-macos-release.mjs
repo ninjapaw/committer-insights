@@ -1,6 +1,7 @@
-import { access, readFile, stat } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { PRODUCT } from '../packages/metadata/dist/index.js';
 
@@ -44,5 +45,33 @@ if (
   if (!appHelp.includes('--timezone <IANA timezone>'))
     throw new Error('macOS app bundle launcher did not start the application.');
   execFileSync('codesign', ['--verify', '--deep', '--strict', app], { stdio: 'inherit' });
+}
+// Customers receive the copy inside the disk image, not the staging bundle above. Staging copies
+// that resolve symlinks break the signature seal, and macOS then reports the app as damaged, so
+// verify the shipped bundle directly.
+// hdiutil refuses mount points on secondary volumes, so stage the mount under the system temp
+// directory rather than inside the checkout.
+const mountPoint = await mkdtemp(join(tmpdir(), `${PRODUCT.slug}-dmg-verify-`));
+try {
+  execFileSync(
+    'hdiutil',
+    ['attach', diskImage, '-nobrowse', '-readonly', '-mountpoint', mountPoint],
+    { stdio: 'inherit' },
+  );
+  const shippedApp = join(mountPoint, `${PRODUCT.displayName}.app`);
+  const brokenSymlinks = execFileSync(
+    'find',
+    [shippedApp, '-type', 'l', '!', '-exec', 'test', '-e', '{}', ';', '-print'],
+    { encoding: 'utf8' },
+  ).trim();
+  if (brokenSymlinks) throw new Error(`Disk image contains broken symlinks:\n${brokenSymlinks}`);
+  execFileSync('codesign', ['--verify', '--deep', '--strict', shippedApp], { stdio: 'inherit' });
+} finally {
+  try {
+    execFileSync('hdiutil', ['detach', mountPoint, '-force'], { stdio: 'pipe' });
+  } catch {
+    // The image never attached, or macOS already released the mount point.
+  }
+  await rm(mountPoint, { recursive: true, force: true });
 }
 process.stdout.write('macOS launcher, app bundle, and disk image checks passed.\n');
