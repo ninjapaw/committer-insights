@@ -13,6 +13,37 @@ import {
 
 const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
 
+// pip bakes the absolute path of the building interpreter into every console
+// script's shebang, so on a CI runner `bin/az` points at a directory that does
+// not exist on the user's machine. Replace those shebangs with a sh/Python
+// polyglot header that resolves the interpreter next to the script instead, so
+// the bundled entry points keep working wherever the runtime is unpacked.
+const RELOCATABLE_SHEBANG = `#!/bin/sh
+'''exec' "$(dirname -- "$0")/python3" "$0" "$@"
+' '''`;
+
+async function relocateConsoleScriptShebangs(binDir) {
+  const entries = await readdir(binDir, { withFileTypes: true });
+  const relocated = [];
+  for (const entry of entries) {
+    if (!entry.isFile()) continue;
+    const path = join(binDir, entry.name);
+    let contents;
+    try {
+      contents = await readFile(path, 'utf8');
+    } catch {
+      continue; // Binaries are not valid UTF-8; they carry no shebang to fix.
+    }
+    const newline = contents.indexOf('\n');
+    if (newline === -1) continue;
+    const shebang = contents.slice(0, newline);
+    if (!shebang.startsWith('#!') || !shebang.includes(binDir)) continue;
+    await writeFile(path, `${RELOCATABLE_SHEBANG}${contents.slice(newline)}`);
+    relocated.push(entry.name);
+  }
+  return relocated;
+}
+
 const TRUSTED_REDIRECT_HOSTS = [
   'azcliprod.blob.core.windows.net',
   'github.com',
@@ -301,6 +332,10 @@ async function bundleAzureCliMacOS(root, buildDir, releaseDir) {
     },
   );
   const extractor = join(root, 'scripts/extract-azure-cli.sh');
+  const relocated = await relocateConsoleScriptShebangs(join(extracted, 'bin'));
+  if (!relocated.includes('az')) {
+    throw new Error('Azure CLI console script shebang was not made relocatable.');
+  }
   return finalizeReducedAzureCli({
     root,
     directory,
