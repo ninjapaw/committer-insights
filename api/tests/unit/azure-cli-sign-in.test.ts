@@ -40,6 +40,10 @@ function setup(outputs: Array<string | Error>, browserPrompt = false, onReady?: 
   mocks.execute.mockImplementation((_path, _args, _options) => {
     const child = createMockChild();
     queueMicrotask(() => {
+      // Real spawn() emits 'spawn' once the OS confirms the process started; the
+      // sign-in code keys its onReady callback off that event, so the mock has to
+      // reproduce it before any stdio activity.
+      child.emit('spawn');
       child.stderr.emit(
         'data',
         browserPrompt
