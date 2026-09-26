@@ -5,7 +5,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'nod
 import * as filesystem from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { resolveAzureCli } from '../../src/auth/azure-cli-binary.js';
+import { resolveAzureCli, isBundledAzureCliRuntime } from '../../src/auth/azure-cli-binary.js';
 
 const assets = vi.hoisted(() => ({
   sea: true,
@@ -342,6 +342,29 @@ describe('bundled Azure CLI integrity', () => {
         files: { 'bin/python3': hash, 'bin/az': hash },
       });
       await expect(resolveAzureCli()).rejects.toThrow('archive failed integrity');
+    },
+  );
+  it.skipIf(process.platform !== 'darwin')(
+    'trusts the packaged .app runtime directory via DEVELOPER_USAGE_INSIGHTS_AZ_HOME without SEA assets',
+    async () => {
+      assets.sea = false;
+      vi.resetModules();
+      const {
+        resolveAzureCli: resolve,
+        prepareAzureCli,
+        getPreparedAzureCli,
+        isBundledAzureCliRuntime: isBundled,
+      } = await import('../../src/auth/azure-cli-binary.js');
+      root = mkdtempSync(join(tmpdir(), 'azure-runtime-test-'));
+      const home = join(root, 'Contents/Resources/azure-cli');
+      mkdirSync(join(home, 'bin'), { recursive: true });
+      vi.stubEnv('DEVELOPER_USAGE_INSIGHTS_AZ_HOME', home);
+      // No SEA manifest/archive is configured at all: the .app's non-SEA runtime must
+      // never touch node:sea's getAsset() when this trusted env var is set.
+      expect(await resolve()).toBe(join(home, 'bin/python3'));
+      expect(isBundled()).toBe(true);
+      await prepareAzureCli();
+      expect(getPreparedAzureCli()).toBe(join(home, 'bin/python3'));
     },
   );
 });

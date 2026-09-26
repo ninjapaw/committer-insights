@@ -9,7 +9,12 @@ const mocks = vi.hoisted(() => ({ execute: vi.fn(), resolve: vi.fn() }));
 // silently drops 'detached', which previously left the child (and any process it
 // spawns internally, like 'az') outside the new process group killTree() expects.
 vi.mock('node:child_process', () => ({ spawn: mocks.execute }));
-vi.mock('../../src/auth/azure-cli-binary.js', () => ({ getPreparedAzureCli: mocks.resolve }));
+vi.mock('../../src/auth/azure-cli-binary.js', () => ({
+  getPreparedAzureCli: mocks.resolve,
+  // Tests never run as a SEA binary or with the macOS .app's env-var override, so this
+  // matches the previous unmocked isSea() behavior: bundled only on win32.
+  isBundledAzureCliRuntime: () => process.platform === 'win32',
+}));
 const sessions: ReturnType<typeof createAzureCliSignIn>[] = [];
 const tenant = '11111111-1111-4111-8111-111111111111';
 afterEach(() => {
