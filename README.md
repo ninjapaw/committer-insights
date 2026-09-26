@@ -190,7 +190,7 @@ $env:DEVELOPER_USAGE_INSIGHTS_AUTO_UPDATE = 'false'
 
 `DEVELOPER_USAGE_INSIGHTS_AUTO_UPDATE` defaults to `true` when unset or blank. It accepts `true` or `false` (case-insensitive, surrounding whitespace ignored); other values stop startup with an error. Set the variable back to `true` or remove it to restore checks. The PowerShell example affects this shell and its child processes only. `--skip-update-check` always disables checks for that launch, even when the variable is `true`. This controls the packaged Windows startup updater, not a background Windows service; it does not change download verification or provider collection.
 
-This does not make provider sign-in or collection available offline. Use `--help` to view options without contacting GitHub. For changes and previous versions, see [release notes](https://github.com/ninjapaw/committer-insights/releases).
+This does not make provider sign-in or collection available offline. Use `--help` to view options without contacting GitHub, and `--version` to confirm which release a copy was built from. Both answer immediately without a network call, so they work offline. For changes and previous versions, see [release notes](https://github.com/ninjapaw/committer-insights/releases).
 
 ## Troubleshooting
 
@@ -206,7 +206,7 @@ This does not make provider sign-in or collection available offline. Use `--help
 | The local session expired                                            | Close stale tabs and reopen the app using the browser window it launches.                                                                                                   |
 | Update checks fail or an old launcher closes without opening the app | Download and verify the current release directly. Launch it from PowerShell with `--skip-update-check` for deliberate recovery; keep its console open.                      |
 
-For a reproducible application issue, use [GitHub Issues](https://github.com/ninjapaw/committer-insights/issues). Include the app version, Windows version, reproduction steps, and sanitized error text. Do not attach credentials, device codes, local session URLs, or customer reports. Use the private reporting process for security issues.
+For a reproducible application issue, use [GitHub Issues](https://github.com/ninjapaw/committer-insights/issues). Include the app version, Windows version, reproduction steps, and sanitized error text. Run the app with `--version` to get the exact release, which reports the same tag on Windows, macOS, and Linux. Do not attach credentials, device codes, local session URLs, or customer reports. Use the private reporting process for security issues.
 
 ## Technical Collection Reference
 

@@ -46,6 +46,8 @@ export function parseLaunchOptions(args: string[]): {
   let timeZone = config.report.timeZone();
   const autoUpdate =
     process.env.DEVELOPER_USAGE_INSIGHTS_AUTO_UPDATE?.trim().toLowerCase() || 'true';
+  // --help and --version only describe this copy, so they must keep working when the environment
+  // is misconfigured; rejecting them here would hide the version from the person diagnosing it.
   if (!values.help && !values.version && !['true', 'false'].includes(autoUpdate)) {
     throw new Error(`Invalid ${PRODUCT.environmentPrefix}_AUTO_UPDATE. Use true or false.`);
   }

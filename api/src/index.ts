@@ -11,6 +11,8 @@ async function main(): Promise<void> {
     process.stdout.write(launchHelp);
     return;
   }
+  // Answer before the update check so a copy can still be identified while offline or when
+  // GitHub is unreachable, which is exactly when someone is trying to confirm what they have.
   if (options.version) {
     process.stdout.write(launchVersion);
     return;

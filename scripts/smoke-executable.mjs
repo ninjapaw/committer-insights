@@ -52,6 +52,8 @@ for (const args of [
       : !result.stderr.includes('--timezone');
   if (
     result.error ||
+    // Informational flags succeed; every malformed --timezone form must be rejected instead of
+    // silently falling back to a default and starting a server the caller did not ask for.
     result.status !== (help || version ? 0 : 1) ||
     reportedWrongOutput ||
     result.stdout.includes('http://127.0.0.1:')
