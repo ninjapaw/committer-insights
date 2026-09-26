@@ -4,11 +4,14 @@
  * Contents/Resources. This stub resolves those paths relative to its own
  * location and starts the local report server, choosing between two modes:
  *
- *   - No controlling terminal (Finder double-click, `open`, Launch Services):
- *     hand a generated shell script to Terminal.app so the server runs in a
- *     visible window the user can read and close. See run_in_visible_terminal.
- *   - Controlling terminal present (developer runs the binary directly):
- *     exec Node in place so stdio and arguments behave normally.
+ *   - No arguments and no controlling terminal (Finder double-click, `open`,
+ *     Launch Services): hand a generated shell script to Terminal.app so the
+ *     server runs in a visible window the user can read and close. See
+ *     run_in_visible_terminal.
+ *   - Anything else (arguments supplied, or a controlling terminal is present):
+ *     exec Node in place so stdio and arguments behave normally. Checking the
+ *     arguments matters because a CLI invocation such as `--help` is often made
+ *     with stdin redirected, which would otherwise look like a Finder launch.
  *
  * Info.plist sets LSUIElement=true because this stub never links AppKit and
  * opens no native window; without it the Dock icon bounces indefinitely
@@ -95,6 +98,18 @@ static int run_in_visible_terminal(const char *node, const char *script, const c
     return 1;
 }
 
+/* Counts the arguments that indicate deliberate command-line use. Launch
+ * Services starts bundles with no arguments; older macOS releases appended a
+ * -psn_<serial> flag, which is not a user argument and is ignored here. */
+static int cli_argument_count(int argc, char **argv) {
+    int count = 0;
+    for (int index = 1; index < argc; index++) {
+        if (strncmp(argv[index], "-psn_", 5) == 0) continue;
+        count++;
+    }
+    return count;
+}
+
 int main(int argc, char **argv) {
     char resources[PATH_MAX];
     char node[PATH_MAX];
@@ -111,12 +126,12 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    if (!isatty(STDIN_FILENO)) {
+    if (cli_argument_count(argc, argv) == 0 && !isatty(STDIN_FILENO)) {
         return run_in_visible_terminal(node, script, gh, azure_cli_home);
     }
 
-    /* Already running with a controlling terminal (e.g. invoked directly for
-     * debugging): exec Node in place in the current window, forwarding args. */
+    /* Deliberate command-line use (arguments supplied, or a controlling
+     * terminal is attached): exec Node in place, forwarding args and stdio. */
     setenv("DEVELOPER_USAGE_INSIGHTS_GH_PATH", gh, 1);
     setenv("DEVELOPER_USAGE_INSIGHTS_AZ_HOME", azure_cli_home, 1);
     setenv("DEVELOPER_USAGE_INSIGHTS_BUNDLED_NODE", "true", 1);
