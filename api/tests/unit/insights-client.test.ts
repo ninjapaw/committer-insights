@@ -22,6 +22,7 @@ describe('read-only reporting evidence', () => {
     vi.stubEnv('DEVELOPER_USAGE_INSIGHTS_TIMEZONE', undefined);
     expect(parseLaunchOptions([])).toEqual({
       help: false,
+      version: false,
       timeZone: 'UTC',
       skipUpdateCheck: false,
     });
@@ -31,6 +32,8 @@ describe('read-only reporting evidence', () => {
     expect(parseLaunchOptions(['--timezone=UTC']).timeZone).toBe('UTC');
     expect(parseLaunchOptions(['--help']).help).toBe(true);
     expect(parseLaunchOptions(['-h']).help).toBe(true);
+    expect(parseLaunchOptions(['--version']).version).toBe(true);
+    expect(parseLaunchOptions(['-v']).version).toBe(true);
     for (const args of [
       ['--timezone'],
       ['--timezone='],

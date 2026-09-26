@@ -31,6 +31,8 @@ function macOsDiagnostics() {
 for (const args of [
   ['--help'],
   ['-h'],
+  ['--version'],
+  ['-v'],
   ['--timezone', 'Invalid/Zone'],
   ['--timezone'],
   ['--timezone='],
@@ -41,12 +43,17 @@ for (const args of [
     env: { ...process.env, DEVELOPER_USAGE_INSIGHTS_NO_BROWSER: 'true' },
   });
   const help = args[0] === '--help' || args[0] === '-h';
+  // Every platform build must report the same tag so an install can be matched to a release.
+  const version = args[0] === '--version' || args[0] === '-v';
+  const reportedWrongOutput = help
+    ? !result.stdout.includes('--timezone <IANA timezone>')
+    : version
+      ? !result.stdout.includes(PRODUCT.releaseTag)
+      : !result.stderr.includes('--timezone');
   if (
     result.error ||
-    result.status !== (help ? 0 : 1) ||
-    (help
-      ? !result.stdout.includes('--timezone <IANA timezone>')
-      : !result.stderr.includes('--timezone')) ||
+    result.status !== (help || version ? 0 : 1) ||
+    reportedWrongOutput ||
     result.stdout.includes('http://127.0.0.1:')
   ) {
     throw new Error(

@@ -52,6 +52,13 @@ execFileSync('hdiutil', ['imageinfo', diskImage], { stdio: 'inherit' });
 const help = execFileSync(executable, ['--help'], { encoding: 'utf8' });
 if (!help.includes('--timezone <IANA timezone>'))
   throw new Error('macOS launcher did not launch the bundled application.');
+// Every platform build must report the same tag, so a support request can confirm a macOS copy
+// matches the Windows and Linux copies of the same release.
+const reportedVersion = execFileSync(executable, ['--version'], { encoding: 'utf8' });
+if (!reportedVersion.includes(PRODUCT.releaseTag))
+  throw new Error(
+    `macOS launcher reported "${reportedVersion.trim()}" instead of ${PRODUCT.releaseTag}.`,
+  );
 if (
   await stat(app).then(
     () => true,
@@ -69,6 +76,8 @@ if (
     PRODUCT.displayName,
     PRODUCT.shortName,
     PRODUCT.version,
+    PRODUCT.buildVersion,
+    `${PRODUCT.displayName} ${PRODUCT.releaseTag}`,
     PRODUCT.bundleIdentifier,
     `${PRODUCT.iconName}.icns`,
   ]) {
@@ -106,7 +115,13 @@ try {
   if (brokenSymlinks) throw new Error(`Disk image contains broken symlinks:\n${brokenSymlinks}`);
   await access(join(shippedApp, 'Contents', 'Resources', 'app', 'index.html'), constants.R_OK);
   execFileSync('codesign', ['--verify', '--deep', '--strict', shippedApp], { stdio: 'inherit' });
-  await assertServesWebApp(join(shippedApp, 'Contents', 'MacOS', PRODUCT.executableName));
+  const shippedExecutable = join(shippedApp, 'Contents', 'MacOS', PRODUCT.executableName);
+  const shippedVersion = execFileSync(shippedExecutable, ['--version'], { encoding: 'utf8' });
+  if (!shippedVersion.includes(PRODUCT.releaseTag))
+    throw new Error(
+      `Disk image app reported "${shippedVersion.trim()}" instead of ${PRODUCT.releaseTag}.`,
+    );
+  await assertServesWebApp(shippedExecutable);
 } finally {
   try {
     execFileSync('hdiutil', ['detach', mountPoint, '-force'], { stdio: 'pipe' });

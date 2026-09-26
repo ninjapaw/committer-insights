@@ -1,12 +1,37 @@
+// The GitHub release every platform build is published as, and the only version string that
+// is maintained by hand. Bump it whenever a release is tagged; the update check compares it
+// against the newest published release, and the numeric forms below are derived from it so
+// Windows, macOS, and Linux artifacts can never disagree about which release they are.
+const RELEASE_TAG = 'v0.1.0-beta.26';
+
+/**
+ * Splits a release tag into the numeric version strings that platform packaging requires.
+ *
+ * macOS rejects a bundle whose CFBundleVersion is not period-separated integers, so the
+ * `-beta.N` suffix cannot be used verbatim. `version` is the marketing version shared by every
+ * platform and `buildVersion` appends the prerelease number so each prerelease of the same
+ * version remains distinguishable to Finder, Gatekeeper, and installer tooling.
+ */
+export function versionsFromReleaseTag(tag: string): { version: string; buildVersion: string } {
+  const match = /^v(\d+\.\d+\.\d+)(?:-[A-Za-z][A-Za-z0-9]*\.(\d+))?$/.exec(tag);
+  const version = match?.[1];
+  if (!version)
+    throw new Error(
+      `Unsupported release tag "${tag}". Use vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-prerelease.N.`,
+    );
+  return { version, buildVersion: `${version}.${match?.[2] ?? '0'}` };
+}
+
+const { version, buildVersion } = versionsFromReleaseTag(RELEASE_TAG);
+
 export const PRODUCT = {
   displayName: 'Developer Usage Insights',
   shortName: 'Developer Usage Insights',
-  version: '0.1.0',
-  // The GitHub release this build is published as. CFBundleVersion only accepts
-  // period-separated integers, so the prerelease suffix lives here rather than in
-  // version. Bump this whenever a release is tagged; the update check compares it
-  // against the newest published release.
-  releaseTag: 'v0.1.0-beta.25',
+  // Derived from releaseTag; keep workspace package.json versions equal to this value.
+  version,
+  // Period-separated integers only, unique per prerelease. Used for macOS CFBundleVersion.
+  buildVersion,
+  releaseTag: RELEASE_TAG,
   slug: 'developer-usage-insights',
   bundleIdentifier: 'org.ninjapaw.developer-usage-insights',
   iconName: 'DeveloperUsageInsights',

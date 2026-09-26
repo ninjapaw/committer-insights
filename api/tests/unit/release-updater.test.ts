@@ -83,6 +83,9 @@ describe('release update metadata', () => {
     vi.stubEnv('DEVELOPER_USAGE_INSIGHTS_AUTO_UPDATE', 'off');
     expect(() => parseLaunchOptions([])).toThrow('Use true or false');
     expect(parseLaunchOptions(['--help']).help).toBe(true);
+    // Reporting the installed release has to work on a misconfigured machine, because that is
+    // exactly when someone needs to confirm which build they are running.
+    expect(parseLaunchOptions(['--version']).version).toBe(true);
   });
 
   it('checks releases by default and requires an explicit offline override', () => {

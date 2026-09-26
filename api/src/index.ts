@@ -1,5 +1,5 @@
 import { startLocalServer } from './local-server.js';
-import { launchHelp, parseLaunchOptions } from './cli.js';
+import { launchHelp, launchVersion, parseLaunchOptions } from './cli.js';
 import { launchLatestRelease, reportAvailableUpdate } from './release-updater.js';
 import { isSea } from 'node:sea';
 import { prepareAzureCli } from './auth/azure-cli-binary.js';
@@ -9,6 +9,10 @@ async function main(): Promise<void> {
   const options = parseLaunchOptions(process.argv.slice(2));
   if (options.help) {
     process.stdout.write(launchHelp);
+    return;
+  }
+  if (options.version) {
+    process.stdout.write(launchVersion);
     return;
   }
   process.env.DEVELOPER_USAGE_INSIGHTS_TIMEZONE = options.timeZone;

@@ -7,6 +7,7 @@ const startup = vi.hoisted(() => ({
   notice: vi.fn(),
   sea: true,
   help: false,
+  version: false,
   skipUpdateCheck: false,
 }));
 vi.mock('node:sea', () => ({ isSea: () => startup.sea }));
@@ -18,8 +19,10 @@ vi.mock('../../src/release-updater.js', () => ({
 }));
 vi.mock('../../src/cli.js', () => ({
   launchHelp: 'help',
+  launchVersion: 'version',
   parseLaunchOptions: () => ({
     help: startup.help,
+    version: startup.version,
     timeZone: 'UTC',
     skipUpdateCheck: startup.skipUpdateCheck,
   }),
@@ -31,6 +34,7 @@ afterEach(() => {
   vi.resetModules();
   startup.sea = true;
   startup.help = false;
+  startup.version = false;
   startup.skipUpdateCheck = false;
 });
 
@@ -103,6 +107,17 @@ describe('application startup preparation', () => {
     startup.help = true;
     vi.spyOn(process.stdout, 'write').mockReturnValue(true);
     await import('../../src/index.js');
+    expect(startup.prepare).not.toHaveBeenCalled();
+    expect(startup.server).not.toHaveBeenCalled();
+  });
+
+  it('reports the release without contacting GitHub or starting the app', async () => {
+    startup.version = true;
+    const output = vi.spyOn(process.stdout, 'write').mockReturnValue(true);
+    await import('../../src/index.js');
+    expect(output).toHaveBeenCalledWith('version');
+    expect(startup.update).not.toHaveBeenCalled();
+    expect(startup.notice).not.toHaveBeenCalled();
     expect(startup.prepare).not.toHaveBeenCalled();
     expect(startup.server).not.toHaveBeenCalled();
   });
