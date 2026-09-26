@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { MicrosoftSignIn } from '../components/MicrosoftSignIn';
+import { GitHubSignIn } from '../components/GitHubSignIn';
 import { PRODUCT } from '@ninjapaw/developer-usage-insights-metadata';
 
 export function SignInPage(): JSX.Element {
@@ -10,6 +11,11 @@ export function SignInPage(): JSX.Element {
   const queryClient = useQueryClient();
   const onConnected = async () => {
     queryClient.setQueryData(['provider-connection', 'Azure DevOps'], true);
+    await queryClient.invalidateQueries({ queryKey: ['local-session'] });
+    navigate('/connections');
+  };
+  const onGitHubConnected = async () => {
+    queryClient.setQueryData(['provider-connection', 'GitHub'], true);
     await queryClient.invalidateQueries({ queryKey: ['local-session'] });
     navigate('/connections');
   };
@@ -33,6 +39,8 @@ export function SignInPage(): JSX.Element {
         <>
           <h1 id="sign-in-title">Sign in</h1>
           <MicrosoftSignIn onConnected={() => void onConnected()} />
+          <h2>Or sign in with GitHub</h2>
+          <GitHubSignIn onConnected={() => void onGitHubConnected()} />
         </>
       )}
     </section>

@@ -20,6 +20,15 @@ vi.mock('../../src/providers/azure-devops', () => ({
   disconnectAzure: vi.fn(),
 }));
 
+vi.mock('../../src/providers/github', () => ({
+  startGitHubSignIn: vi.fn(),
+  getGitHubSignIn: vi.fn(),
+  cancelGitHubSignIn: vi.fn(),
+  connectGitHub: vi.fn(),
+  disconnectGitHub: vi.fn(),
+  listGitHubAccounts: vi.fn(),
+}));
+
 afterEach(() => {
   cleanup();
   vi.resetAllMocks();
@@ -144,6 +153,7 @@ describe('SignInPage', () => {
     expect(
       screen.queryByRole('button', { name: 'Sign in with a device code' }),
     ).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Sign in with GitHub' })).not.toBeInTheDocument();
   });
 
   it('shows provider sign-in when the local session is valid', () => {
@@ -151,6 +161,7 @@ describe('SignInPage', () => {
     expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sign in with Microsoft' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sign in with a device code' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Sign in with GitHub' })).toBeVisible();
     expect(screen.queryByText('Other sign-in options')).not.toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: 'Sign in with Azure CLI' }),
