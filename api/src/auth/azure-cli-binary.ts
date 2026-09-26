@@ -249,6 +249,9 @@ export async function resolveAzureCli(
       }
       await verify(runtime, manifest.files, signal, onProgress);
       onProgress?.('Publishing verified Microsoft sign-in runtime...');
+      // The cache directory is keyed by version and archive hash, so a second app instance
+      // racing to publish the same runtime is a success, not a conflict: if the rename loses,
+      // verify whatever landed there and adopt it instead of extracting again.
       for (let attempt = 0; ; attempt++) {
         signal?.throwIfAborted();
         try {
@@ -277,6 +280,9 @@ export async function resolveAzureCli(
     }
   }
   signal?.throwIfAborted();
+  // Deliberately re-verified on every resolve, including immediately after a fresh extract.
+  // The cache lives in a user-writable directory, so its contents are only trustworthy as of
+  // the moment they are hashed; nothing may execute from it without a current check.
   await verify(directory, manifest.files, signal, onProgress);
   return join(directory, windows ? 'python.exe' : 'bin/python3');
 }

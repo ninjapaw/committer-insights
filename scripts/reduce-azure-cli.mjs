@@ -7,6 +7,11 @@ import { tmpdir } from 'node:os';
 export const reducedAzureCliVersion = '2.90.0';
 
 export function keepAzureCliFile(name) {
+  // The app only ever runs 'az login', 'az account get-access-token', and 'az version',
+  // so the reduction keeps just the command modules backing those plus the SDK packages
+  // they import. Adding a new 'az' invocation elsewhere in the app means extending the
+  // allowlists below, or the bundled CLI will fail with ModuleNotFoundError at runtime;
+  // validateReducedAzureCli() exercises those commands to catch that during the build.
   // Bundled interpreters are always invoked with -B (no bytecode writing), so
   // pre-compiled caches are pure bloat regardless of platform layout.
   if (/(^|\/)__pycache__(\/|$)/.test(name)) return false;
