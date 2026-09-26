@@ -1,4 +1,5 @@
-import { execFile } from 'node:child_process';
+import { spawn } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -26,11 +27,19 @@ export function createAzureCliSignIn(signal: AbortSignal, onReady?: () => void) 
   const environment: NodeJS.ProcessEnv = {};
   for (const [name, value] of Object.entries(process.env)) {
     if (
-      /^(SystemRoot|WINDIR|TEMP|TMP|USERPROFILE|LOCALAPPDATA|APPDATA|ProgramData|ProgramFiles|ProgramFiles\(x86\)|CommonProgramFiles|COMSPEC|SYSTEMDRIVE)$/i.test(
+      /^(SystemRoot|WINDIR|TEMP|TMP|USERPROFILE|LOCALAPPDATA|APPDATA|ProgramData|ProgramFiles|ProgramFiles\(x86\)|CommonProgramFiles|COMSPEC|SYSTEMDRIVE|PATH|HOME|USER|LANG|LC_ALL|LC_CTYPE|TMPDIR)$/i.test(
         name,
       )
     )
       environment[name] = value;
+  }
+  if (process.platform !== 'win32') {
+    // The 'az' executable is resolved via PATH. GUI-launched apps (for example a macOS
+    // .app bundle opened from Finder) often inherit a minimal PATH that omits Homebrew
+    // and other common install locations, so append them without dropping the inherited PATH.
+    const commonPaths = ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin'];
+    const inherited = (environment.PATH ?? '').split(':').filter(Boolean);
+    environment.PATH = Array.from(new Set([...inherited, ...commonPaths])).join(':');
   }
   Object.assign(environment, {
     AZURE_CONFIG_DIR: directory,
@@ -45,14 +54,29 @@ export function createAzureCliSignIn(signal: AbortSignal, onReady?: () => void) 
     AZ_INSTALLER: 'ZIP',
   });
   let disposed = false;
-  const active = new Set<ReturnType<typeof execFile>>();
+  const active = new Set<ChildProcess>();
   const cleanup = () => {
     if (disposed && active.size === 0)
       rmSync(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   };
+  const killTree = (child: ChildProcess) => {
+    // On POSIX, 'az' is a shell script that spawns its own Python process rather than
+    // exec-replacing itself, so killing only the direct child leaves the actual
+    // 'az login' process orphaned and running. It is started as its own process
+    // group leader (see spawn below), so terminate the whole group instead.
+    if (process.platform !== 'win32' && typeof child.pid === 'number') {
+      try {
+        process.kill(-child.pid, 'SIGTERM');
+        return;
+      } catch {
+        // Fall through to killing just the direct child.
+      }
+    }
+    child.kill();
+  };
   const dispose = () => {
     disposed = true;
-    for (const child of active) child.kill();
+    for (const child of active) killTree(child);
     cleanup();
   };
   signal.addEventListener('abort', dispose, { once: true });
@@ -66,39 +90,66 @@ export function createAzureCliSignIn(signal: AbortSignal, onReady?: () => void) 
     if (disposed) throw new Error('Azure CLI session is closed.');
     if (args[0] === 'login') onReady?.();
     const cliArgs = process.platform === 'win32' ? ['-I', '-B', '-m', 'azure.cli', ...args] : args;
+    const timeoutMs = onOutput ? 600000 : 60000;
+    const maxBuffer = 4 * 1024 * 1024;
     return new Promise((resolve, reject) => {
-      const child = execFile(
-        executable,
-        cliArgs,
-        {
-          env: environment,
-          cwd: directory,
-          windowsHide: args[0] !== 'login',
-          timeout: onOutput ? 600000 : 60000,
-          maxBuffer: 4 * 1024 * 1024,
-          encoding: 'utf8',
-          signal,
-        },
-        (error, stdout) => {
-          active.delete(child);
-          cleanup();
-          if (error || disposed)
-            reject(
-              new Error(
-                'Azure CLI authentication failed. Retry or ask your administrator to review tenant policy.',
-              ),
-            );
-          else resolve(stdout);
-        },
-      );
+      // Note: execFile() only forwards a fixed allowlist of options to the
+      // underlying spawn() call and silently drops 'detached', so spawn() is used
+      // directly here (with manual timeout/output handling) to make the child its
+      // own process group leader on POSIX. That lets killTree() terminate the
+      // whole group, including any process 'az' spawns internally.
+      const child = spawn(executable, cliArgs, {
+        env: environment,
+        cwd: directory,
+        windowsHide: args[0] !== 'login',
+        signal,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        ...(process.platform !== 'win32' ? { detached: true } : {}),
+      });
       active.add(child);
+      let settled = false;
+      let stdout = '';
+      let bufferExceeded = false;
+      const timer = setTimeout(() => killTree(child), timeoutMs);
+      const finish = (error: Error | null, output: string) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        active.delete(child);
+        cleanup();
+        if (error) reject(error);
+        else resolve(output);
+      };
+      child.stdout?.setEncoding('utf8');
+      child.stdout?.on('data', (chunk: string) => {
+        if (bufferExceeded) return;
+        stdout += chunk;
+        if (stdout.length > maxBuffer) {
+          bufferExceeded = true;
+          killTree(child);
+        }
+      });
       if (onOutput) {
         let output = '';
-        child.stderr?.on('data', (chunk: Buffer) => {
-          output = (output + chunk.toString('utf8')).slice(-16384);
+        child.stderr?.setEncoding('utf8');
+        child.stderr?.on('data', (chunk: string) => {
+          output = (output + chunk).slice(-16384);
           onOutput(output);
         });
+      } else {
+        child.stderr?.resume();
       }
+      child.once('error', (error) => finish(error, ''));
+      child.once('close', (code) => {
+        if (disposed || bufferExceeded || code !== 0)
+          finish(
+            new Error(
+              'Azure CLI authentication failed. Retry or ask your administrator to review tenant policy.',
+            ),
+            '',
+          );
+        else finish(null, stdout);
+      });
     });
   };
   let account: DeviceSignInState['account'];

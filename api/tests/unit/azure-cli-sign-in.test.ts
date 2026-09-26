@@ -4,7 +4,11 @@ import { existsSync } from 'node:fs';
 import { createAzureCliSignIn, parseAzureCliChallenge } from '../../src/auth/azure-cli-sign-in.js';
 
 const mocks = vi.hoisted(() => ({ execute: vi.fn(), resolve: vi.fn() }));
-vi.mock('node:child_process', () => ({ execFile: mocks.execute }));
+// The Azure CLI child is created with spawn() rather than execFile(): execFile()
+// only forwards a fixed allowlist of options to the underlying spawn() call and
+// silently drops 'detached', which previously left the child (and any process it
+// spawns internally, like 'az') outside the new process group killTree() expects.
+vi.mock('node:child_process', () => ({ spawn: mocks.execute }));
 vi.mock('../../src/auth/azure-cli-binary.js', () => ({ getPreparedAzureCli: mocks.resolve }));
 const sessions: ReturnType<typeof createAzureCliSignIn>[] = [];
 const tenant = '11111111-1111-4111-8111-111111111111';
@@ -13,26 +17,37 @@ afterEach(() => {
   vi.resetAllMocks();
   vi.unstubAllEnvs();
 });
+function createMockChild(pid = 4242) {
+  const child = new EventEmitter() as EventEmitter & {
+    stdout: EventEmitter & { setEncoding: () => void };
+    stderr: EventEmitter & { setEncoding: () => void; resume: () => void };
+    kill: ReturnType<typeof vi.fn>;
+    pid: number;
+  };
+  child.stdout = Object.assign(new EventEmitter(), { setEncoding: () => {} });
+  child.stderr = Object.assign(new EventEmitter(), { setEncoding: () => {}, resume: () => {} });
+  child.kill = vi.fn();
+  child.pid = pid;
+  return child;
+}
 function setup(outputs: Array<string | Error>, browserPrompt = false, onReady?: () => void) {
   mocks.resolve.mockReturnValue('C:/private-tools/python.exe');
-  mocks.execute.mockImplementation((_path, _args, _options, callback) => {
-    const child = new EventEmitter() as EventEmitter & {
-      stderr: EventEmitter;
-      kill: ReturnType<typeof vi.fn>;
-    };
-    child.stderr = new EventEmitter();
-    child.kill = vi.fn();
+  mocks.execute.mockImplementation((_path, _args, _options) => {
+    const child = createMockChild();
     queueMicrotask(() => {
       child.stderr.emit(
         'data',
-        Buffer.from(
-          browserPrompt
-            ? 'A web browser has been opened to sign in.'
-            : 'To sign in, use a web browser to open https://microsoft.com/devicelogin and enter the code TEST12345 to authenticate.',
-        ),
+        browserPrompt
+          ? 'A web browser has been opened to sign in.'
+          : 'To sign in, use a web browser to open https://microsoft.com/devicelogin and enter the code TEST12345 to authenticate.',
       );
       const result = outputs.shift();
-      callback(result instanceof Error ? result : null, typeof result === 'string' ? result : '');
+      if (result instanceof Error) {
+        child.emit('close', 1);
+      } else {
+        if (typeof result === 'string') child.stdout.emit('data', result);
+        child.emit('close', 0);
+      }
     });
     return child;
   });
@@ -134,7 +149,9 @@ describe('isolated Azure CLI authentication', () => {
     expect(call[1]).not.toContain('--username');
     expect(call[1]).not.toContain('--password');
     expect(call[1]).not.toContain('--use-device-code');
-    expect(call[2].timeout).toBe(600000);
+    // The long-running login timeout is now enforced internally (via a setTimeout
+    // that calls killTree()) rather than passed as a spawn() option; see the
+    // dedicated process-group-kill test below for coverage of that mechanism.
     expect(call[2].env.AZURE_CLIENT_SECRET).toBeUndefined();
     expect(call[2].env.AZURE_EXTENSION_USE_DYNAMIC_INSTALL).toBe('no');
     expect(await session.credential.getToken('ignored')).toMatchObject({ token: 'renewed-token' });
@@ -175,5 +192,30 @@ describe('isolated Azure CLI authentication', () => {
       }),
     ]);
     await expect(session.authenticate(vi.fn())).rejects.toThrow('invalid Azure DevOps token');
+  });
+  it('spawns the Azure CLI as its own process group leader and kills the whole group on cancel (POSIX)', async () => {
+    if (process.platform === 'win32') return;
+    mocks.resolve.mockReturnValue('/usr/bin/az');
+    let capturedChild: ReturnType<typeof createMockChild> | undefined;
+    mocks.execute.mockImplementation((_path, _args, options) => {
+      // This is the exact regression this test guards: execFile() silently drops
+      // 'detached', so killTree()'s negative-pid group kill never actually worked.
+      expect(options.detached).toBe(true);
+      capturedChild = createMockChild(9999);
+      return capturedChild;
+    });
+    const killSpy = vi.spyOn(process, 'kill').mockImplementation((pid) => {
+      if (pid === -9999) capturedChild!.emit('close', null, 'SIGTERM');
+      return true;
+    });
+    const controller = new AbortController();
+    const session = createAzureCliSignIn(controller.signal);
+    sessions.push(session);
+    const pending = session.authenticate(vi.fn()).catch(() => undefined);
+    await Promise.resolve();
+    controller.abort();
+    await pending;
+    expect(killSpy).toHaveBeenCalledWith(-9999, 'SIGTERM');
+    killSpy.mockRestore();
   });
 });
