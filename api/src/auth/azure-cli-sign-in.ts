@@ -88,7 +88,6 @@ export function createAzureCliSignIn(signal: AbortSignal, onReady?: () => void) 
     const executable = getPreparedAzureCli();
     signal.throwIfAborted();
     if (disposed) throw new Error('Azure CLI session is closed.');
-    if (args[0] === 'login') onReady?.();
     const cliArgs = process.platform === 'win32' ? ['-I', '-B', '-m', 'azure.cli', ...args] : args;
     const timeoutMs = onOutput ? 600000 : 60000;
     const maxBuffer = 4 * 1024 * 1024;
@@ -107,6 +106,11 @@ export function createAzureCliSignIn(signal: AbortSignal, onReady?: () => void) 
         ...(process.platform !== 'win32' ? { detached: true } : {}),
       });
       active.add(child);
+      // Only notify the caller once the OS confirms the process actually started.
+      // If spawn() fails (e.g. ENOENT because Azure CLI isn't installed), 'spawn'
+      // never fires, so the caller can still tell a launch failure apart from an
+      // authentication failure that happens after the CLI is up and running.
+      if (args[0] === 'login') child.once('spawn', () => onReady?.());
       let settled = false;
       let stdout = '';
       let bufferExceeded = false;
