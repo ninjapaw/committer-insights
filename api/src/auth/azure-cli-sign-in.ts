@@ -3,6 +3,7 @@ import type { ChildProcess } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { isSea } from 'node:sea';
 import type { TokenCredential } from '@azure/identity';
 import type { DeviceSignInState } from '@ninjapaw/contracts';
 import { config } from '../shared/config.js';
@@ -88,7 +89,12 @@ export function createAzureCliSignIn(signal: AbortSignal, onReady?: () => void) 
     const executable = getPreparedAzureCli();
     signal.throwIfAborted();
     if (disposed) throw new Error('Azure CLI session is closed.');
-    const cliArgs = process.platform === 'win32' ? ['-I', '-B', '-m', 'azure.cli', ...args] : args;
+    // Both the Windows and bundled-macOS runtimes ship a bare python interpreter (no 'az'
+    // wrapper script) that must be told to run the azure.cli module directly. An
+    // unbundled 'az' on PATH (Linux, or macOS dev runs without the packaged app) is
+    // invoked as-is.
+    const bundled = process.platform === 'win32' || (process.platform === 'darwin' && isSea());
+    const cliArgs = bundled ? ['-I', '-B', '-m', 'azure.cli', ...args] : args;
     const timeoutMs = onOutput ? 600000 : 60000;
     const maxBuffer = 4 * 1024 * 1024;
     return new Promise((resolve, reject) => {

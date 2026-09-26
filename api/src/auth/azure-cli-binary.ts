@@ -1,6 +1,16 @@
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
-import { lstat, mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
+import {
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  readlink,
+  rename,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { getAsset, isSea } from 'node:sea';
@@ -12,16 +22,22 @@ const digest = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest(
 let preparation: Promise<string> | undefined;
 let preparedExecutable: string | undefined;
 
+// Both platforms ship a reduced, verified Python + Azure CLI runtime bundled into the
+// packaged app (see scripts/bundle-azure-cli.mjs); Linux has no equivalent bundle yet and
+// keeps relying on a system-installed 'az' resolved via PATH.
+const BUNDLED_PLATFORMS = new Set(['win32', 'darwin']);
+const isBundledPlatform = () => BUNDLED_PLATFORMS.has(process.platform);
+
 export async function prepareAzureCli(onProgress?: (message: string) => void): Promise<void> {
-  if (process.platform !== 'win32' || !isSea()) return;
+  if (!isBundledPlatform() || !isSea()) return;
   preparation ??= resolveAzureCli(AbortSignal.timeout(600000), onProgress);
   preparedExecutable = await preparation;
 }
 
 export function getPreparedAzureCli(): string {
-  if (process.platform !== 'win32') return 'az';
+  if (!isBundledPlatform()) return 'az';
   if (!isSea())
-    throw new Error('Bundled Azure CLI sign-in requires the Windows x64 packaged application.');
+    throw new Error('Bundled Azure CLI sign-in requires the packaged application.');
   if (!preparedExecutable)
     throw new Error('Microsoft sign-in runtime is unavailable. Restart the app to prepare it.');
   return preparedExecutable;
@@ -44,6 +60,15 @@ function safePath(name: string): boolean {
   );
 }
 
+// macOS runtimes retain a handful of symlinks (e.g. bin/python3 -> python3.11); the manifest
+// records those as "symlink:<target>" instead of a content hash. The target itself is
+// path-validated with the same rules as any other manifest entry.
+function isValidManifestValue(value: string): boolean {
+  if (/^[a-f0-9]{64}$/.test(value)) return true;
+  if (value.startsWith('symlink:')) return safePath(value.slice('symlink:'.length));
+  return false;
+}
+
 async function verify(
   directory: string,
   files: Record<string, string>,
@@ -63,12 +88,18 @@ async function verify(
     for (const entry of await readdir(join(directory, relative), { withFileTypes: true })) {
       signal?.throwIfAborted();
       const name = relative ? `${relative}/${entry.name}` : entry.name;
-      if (entry.isDirectory()) await visit(name);
-      else if (
-        !entry.isFile() ||
-        !files[name] ||
-        digest(await readFile(join(directory, name), { signal })) !== files[name]
-      ) {
+      if (entry.isDirectory()) {
+        await visit(name);
+        continue;
+      }
+      const expected = files[name];
+      const matches = expected?.startsWith('symlink:')
+        ? entry.isSymbolicLink() &&
+          (await readlink(join(directory, name))) === expected.slice('symlink:'.length)
+        : Boolean(expected) &&
+          entry.isFile() &&
+          digest(await readFile(join(directory, name), { signal })) === expected;
+      if (!matches) {
         throw new Error(
           'Azure CLI cache failed integrity verification. Remove its versioned tool cache and restart.',
         );
@@ -90,34 +121,40 @@ export async function resolveAzureCli(
   onProgress?: (message: string) => void,
 ): Promise<string> {
   signal?.throwIfAborted();
-  if (process.platform !== 'win32') return 'az';
+  if (!isBundledPlatform()) return 'az';
   if (!isSea())
-    throw new Error('Bundled Azure CLI sign-in requires the Windows x64 packaged application.');
+    throw new Error('Bundled Azure CLI sign-in requires the packaged application.');
+  const windows = process.platform === 'win32';
   const manifest = JSON.parse(getAsset('azure-cli/manifest.json', 'utf8')) as {
     version: string;
     sha256: string;
     architecture: string;
     files: Record<string, string>;
   };
+  const requiredFiles = windows ? ['python.exe', 'bin/az.cmd'] : ['bin/python3', 'bin/az'];
+  const validArch = windows
+    ? process.arch === 'x64'
+    : process.arch === 'x64' || process.arch === 'arm64';
   if (
     !/^\d+\.\d+\.\d+$/.test(manifest.version) ||
     !/^[a-f0-9]{64}$/.test(manifest.sha256) ||
     manifest.architecture !== process.arch ||
-    process.arch !== 'x64' ||
+    !validArch ||
     !manifest.files ||
     Object.keys(manifest.files).length > 25000 ||
-    !manifest.files['python.exe'] ||
-    !manifest.files['bin/az.cmd'] ||
+    requiredFiles.some((required) => !manifest.files[required]) ||
     Object.entries(manifest.files).some(
-      ([name, hash]) => !safePath(name) || !/^[a-f0-9]{64}$/.test(hash),
+      ([name, value]) => !safePath(name) || !isValidManifestValue(value),
     )
   ) {
     throw new Error('Invalid bundled Azure CLI metadata.');
   }
-  const root = join(
-    process.env.LOCALAPPDATA || join(homedir(), 'AppData/Local'),
-    'CommitterInsights/tools/azure-cli',
-  );
+  const root = windows
+    ? join(
+        process.env.LOCALAPPDATA || join(homedir(), 'AppData/Local'),
+        'CommitterInsights/tools/azure-cli',
+      )
+    : join(homedir(), 'Library/Application Support/CommitterInsights/tools/azure-cli');
   await mkdir(root, { recursive: true, mode: 0o700 });
   if (!(await lstat(root)).isDirectory()) throw new Error('Invalid Azure CLI tool cache.');
   const directory = join(root, `${manifest.version}-${manifest.sha256}`);
@@ -137,29 +174,38 @@ export async function resolveAzureCli(
     const staging = await mkdtemp(join(root, 'extract-'));
     try {
       const archivePath = join(staging, 'runtime.zip');
-      const extractorPath = join(staging, 'extract.ps1');
+      const extractorPath = join(staging, windows ? 'extract.ps1' : 'extract.sh');
       const runtime = join(staging, 'runtime');
       await mkdir(runtime, { mode: 0o700 });
       await writeFile(archivePath, archive, { flag: 'wx', mode: 0o600 });
-      await writeFile(extractorPath, getAsset('azure-cli/extract.ps1', 'utf8'), {
-        flag: 'wx',
-        mode: 0o600,
-      });
+      await writeFile(
+        extractorPath,
+        getAsset(windows ? 'azure-cli/extract.ps1' : 'azure-cli/extract.sh', 'utf8'),
+        { flag: 'wx', mode: windows ? 0o600 : 0o700 },
+      );
       onProgress?.('Extracting Microsoft sign-in runtime...');
-      await execute(
-        join(
-          process.env.SystemRoot || 'C:\\Windows',
-          'System32/WindowsPowerShell/v1.0/powershell.exe',
-        ),
-        ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', extractorPath],
-        {
-          env: { ...process.env, COMMITTER_AZ_ARCHIVE: archivePath, COMMITTER_AZ_OUTPUT: runtime },
-          windowsHide: true,
+      const extractionEnv = {
+        ...process.env,
+        COMMITTER_AZ_ARCHIVE: archivePath,
+        COMMITTER_AZ_OUTPUT: runtime,
+      };
+      if (windows) {
+        await execute(
+          join(
+            process.env.SystemRoot || 'C:\\Windows',
+            'System32/WindowsPowerShell/v1.0/powershell.exe',
+          ),
+          ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', extractorPath],
+          { env: extractionEnv, windowsHide: true, timeout: 180000, maxBuffer: 1024 * 1024, signal },
+        );
+      } else {
+        await execute('/bin/sh', [extractorPath], {
+          env: extractionEnv,
           timeout: 180000,
           maxBuffer: 1024 * 1024,
           signal,
-        },
-      );
+        });
+      }
       await verify(runtime, manifest.files, signal, onProgress);
       onProgress?.('Publishing verified Microsoft sign-in runtime...');
       for (let attempt = 0; ; attempt++) {
@@ -191,5 +237,5 @@ export async function resolveAzureCli(
   }
   signal?.throwIfAborted();
   await verify(directory, manifest.files, signal, onProgress);
-  return join(directory, 'python.exe');
+  return join(directory, windows ? 'python.exe' : 'bin/python3');
 }
